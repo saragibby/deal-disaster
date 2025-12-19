@@ -358,12 +358,31 @@ body {
   padding: 15px;
   border-radius: 8px;
   border-left: 3px solid var(--primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.lien-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateX(3px);
+}
+
+.lien-item.expanded {
+  border-left-width: 5px;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
 .lien-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
+}
+
+.expand-indicator {
+  color: var(--primary);
+  font-size: 0.9rem;
+  transition: transform 0.2s;
 }
 
 .lien-priority {
@@ -404,6 +423,54 @@ body {
   border-radius: 6px;
   font-size: 0.9rem;
   color: #92400e;
+}
+
+/* Lien Expanded Details */
+.lien-expanded-details {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 2px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.detail-row.full-width {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  color: var(--bg-dark);
+  font-weight: 500;
 }
 
 /* Red Flags Section */

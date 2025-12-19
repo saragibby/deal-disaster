@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PropertyCase, RedFlag } from '../types';
 
 interface CaseDisplayProps {
@@ -7,12 +8,24 @@ interface CaseDisplayProps {
 }
 
 export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClick }: CaseDisplayProps) {
+  const [expandedLiens, setExpandedLiens] = useState<Set<number>>(new Set());
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const toggleLien = (index: number) => {
+    const newExpanded = new Set(expandedLiens);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedLiens(newExpanded);
   };
 
   const potentialProfit = propertyCase.propertyValue - propertyCase.auctionPrice - propertyCase.repairEstimate;
@@ -72,19 +85,55 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
         <div className="detail-section lien-section">
           <h3>📄 Lien Stack (Click to review carefully)</h3>
           <div className="lien-list">
-            {propertyCase.liens.map((lien, index) => (
-              <div key={index} className="lien-item">
-                <div className="lien-header">
-                  <span className="lien-priority">Priority {lien.priority}</span>
-                  <span className="lien-type">{lien.type}</span>
+            {propertyCase.liens.map((lien, index) => {
+              const isExpanded = expandedLiens.has(index);
+              return (
+                <div 
+                  key={index} 
+                  className={`lien-item ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => toggleLien(index)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && toggleLien(index)}
+                >
+                  <div className="lien-header">
+                    <span className="lien-priority">Priority {lien.priority}</span>
+                    <span className="lien-type">{lien.type}</span>
+                    <span className="expand-indicator">{isExpanded ? '▼' : '▶'}</span>
+                  </div>
+                  <div className="lien-details">
+                    <span className="lien-holder">{lien.holder}</span>
+                    <span className="lien-amount">{formatCurrency(lien.amount)}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="lien-expanded-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Lien Type:</span>
+                        <span className="detail-value">{lien.type}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Holder:</span>
+                        <span className="detail-value">{lien.holder}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Amount:</span>
+                        <span className="detail-value">{formatCurrency(lien.amount)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Priority Position:</span>
+                        <span className="detail-value">{lien.priority}</span>
+                      </div>
+                      {lien.notes && (
+                        <div className="detail-row full-width">
+                          <span className="detail-label">⚠️ Important Notes:</span>
+                          <span className="detail-value">{lien.notes}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="lien-details">
-                  <span className="lien-holder">{lien.holder}</span>
-                  <span className="lien-amount">{formatCurrency(lien.amount)}</span>
-                </div>
-                {lien.notes && <div className="lien-notes">⚠️ {lien.notes}</div>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
