@@ -80,7 +80,7 @@ function App() {
     setResult(null);
   };
 
-  const handleAuthSuccess = (token: string, userData: any) => {
+  const handleAuthSuccess = (_token: string, userData: any) => {
     setIsAuthenticated(true);
     setUser(userData);
   };
