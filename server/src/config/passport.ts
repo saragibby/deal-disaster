@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AzureAdOAuth2Strategy } from 'passport-azure-ad-oauth2';
-import { pool } from '../db/pool';
+import { pool } from '../db/pool.js';
 import jwt from 'jsonwebtoken';
 
 // Serialize user for session

@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import passport from '../config/passport';
-import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { pool } from '../db/pool';
+import passport from '../config/passport.js';
+import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { pool } from '../db/pool.js';
 
 const router = Router();
 const SALT_ROUNDS = 10;

@@ -3,9 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import passport from './config/passport';
-import authRoutes from './routes/auth';
-import gameRoutes from './routes/game';
+import passport from './config/passport.js';
+import authRoutes from './routes/auth.js';
+import gameRoutes from './routes/game.js';
 
 dotenv.config();
 

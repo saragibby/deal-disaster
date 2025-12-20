@@ -1,4 +1,4 @@
-import { pool } from './pool';
+import { pool } from './pool.js';
 
 export async function setupDatabase() {
   try {
