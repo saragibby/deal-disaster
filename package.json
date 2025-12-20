@@ -14,7 +14,7 @@
     "server": "cd server && npm run dev",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "setup": "cd server && npm install && npm run db:setup",
-    "heroku-postbuild": "npm install && npm run build && cd server && npm install && npm run build"
+    "heroku-postbuild": "npm run build && cd server && npm install && npm run build"
   },
   "dependencies": {
     "react": "^18.3.1",
