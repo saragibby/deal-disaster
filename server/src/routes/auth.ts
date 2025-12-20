@@ -154,7 +154,7 @@ router.get('/microsoft', passport.authenticate('azure_ad_oauth2', {
 router.get(
   '/microsoft/callback',
   (req: Request, res: Response, next) => {
-    passport.authenticate('azure_ad_oauth2', { session: false }, (err, user) => {
+    passport.authenticate('azure_ad_oauth2', { session: false }, (err: any, user: any) => {
       if (err) {
         // Extract error message for user
         const errorMessage = err.message || 'Authentication failed';
