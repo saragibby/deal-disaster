@@ -6,7 +6,8 @@ interface AuthFormProps {
 }
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // In production, API is served from the same origin
+  const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
   const [errorMessage, setErrorMessage] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
