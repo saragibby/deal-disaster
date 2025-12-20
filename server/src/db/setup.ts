@@ -74,7 +74,9 @@ export async function setupDatabase() {
 }
 
 // Run setup if this file is executed directly
-if (require.main === module) {
+// Check if this is the main module using import.meta.url
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
   setupDatabase()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));
