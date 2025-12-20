@@ -1,5 +1,6 @@
-// In production, API is served from the same origin
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
+// In production (Heroku), use same origin. In dev, use localhost:3001
+const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+const API_BASE_URL = isProduction ? '' : 'http://localhost:3001';
 
 class ApiService {
   private getHeaders(includeAuth = false): HeadersInit {
