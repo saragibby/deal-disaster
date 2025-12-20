@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:setup": "tsx src/db/setup.ts"
+    "db:setup": "tsx src/db/setup.ts",
+    "db:setup:prod": "node dist/db/setup.js"
   },
   "keywords": [],
   "author": "",
