@@ -45,6 +45,20 @@ export const propertyCases: PropertyCase[] = [
         severity: 'high',
         hiddenIn: 'Title Report - Page 7',
         discovered: false
+      },
+      {
+        id: 'rf-001-2',
+        description: 'Property tax lien filed by Maricopa County - $12,500 in unpaid property taxes going back 4 years',
+        severity: 'high',
+        hiddenIn: 'County Records Search',
+        discovered: false
+      },
+      {
+        id: 'rf-001-3',
+        description: 'Judgment lien from 2019 civil lawsuit - $35,000 creditor claim still active',
+        severity: 'high',
+        hiddenIn: 'Lien Search Report - Page 3',
+        discovered: false
       }
     ]
   },
@@ -85,6 +99,27 @@ export const propertyCases: PropertyCase[] = [
         description: 'Minor HOA fees - normal and manageable. Property is actually a solid deal!',
         severity: 'low',
         hiddenIn: 'HOA Documents',
+        discovered: false
+      },
+      {
+        id: 'rf-002-2',
+        description: 'HOA reserves are only 35% funded - future special assessments likely ($2,000-3,000 per unit)',
+        severity: 'medium',
+        hiddenIn: 'HOA Financial Statements - Reserve Study',
+        discovered: false
+      },
+      {
+        id: 'rf-002-3',
+        description: 'Gated community will install new security gates next year - special assessment estimated at $1,500-2,000',
+        severity: 'low',
+        hiddenIn: 'HOA Meeting Minutes',
+        discovered: false
+      },
+      {
+        id: 'rf-002-4',
+        description: 'Homeowner association lost lawsuit with contractor - $85k judgment could be passed to residents',
+        severity: 'medium',
+        hiddenIn: 'HOA Legal Documents',
         discovered: false
       }
     ]
@@ -141,6 +176,20 @@ export const propertyCases: PropertyCase[] = [
         severity: 'medium',
         hiddenIn: 'Occupancy Status',
         discovered: false
+      },
+      {
+        id: 'rf-003-3',
+        description: 'Building envelope study reveals foundation settling issues - structural repair estimates $40k-60k',
+        severity: 'high',
+        hiddenIn: 'HOA Building Report',
+        discovered: false
+      },
+      {
+        id: 'rf-003-4',
+        description: 'Water intrusion complaints from neighbors - mold remediation may be required before occupancy',
+        severity: 'medium',
+        hiddenIn: 'HOA Complaint Records',
+        discovered: false
       }
     ]
   },
@@ -188,6 +237,27 @@ export const propertyCases: PropertyCase[] = [
         severity: 'medium',
         hiddenIn: 'Repair Estimate vs Photos',
         discovered: false
+      },
+      {
+        id: 'rf-004-3',
+        description: 'Contractor lien from 2022 - $18,500 for unpaid labor on those unpermitted additions',
+        severity: 'high',
+        hiddenIn: 'Lien Search',
+        discovered: false
+      },
+      {
+        id: 'rf-004-4',
+        description: 'Property is in utility easement corridor - City has rights to access for maintenance and repairs',
+        severity: 'medium',
+        hiddenIn: 'Title Easement Section',
+        discovered: false
+      },
+      {
+        id: 'rf-004-5',
+        description: 'Septic system failed inspection - must be replaced before occupancy ($12k-18k installation)',
+        severity: 'high',
+        hiddenIn: 'Environmental Report',
+        discovered: false
       }
     ]
   },
@@ -228,6 +298,27 @@ export const propertyCases: PropertyCase[] = [
         description: 'Mechanics lien is recent and legitimate - but small enough to not kill the deal. Factor it in.',
         severity: 'low',
         hiddenIn: 'Lien Stack - Bottom',
+        discovered: false
+      },
+      {
+        id: 'rf-005-2',
+        description: 'Property is in a 500-year flood plain - flood insurance required (cost $3,500-5,000/year)',
+        severity: 'medium',
+        hiddenIn: 'FEMA Flood Maps',
+        discovered: false
+      },
+      {
+        id: 'rf-005-3',
+        description: 'Zoning change proposed for adjacent property - will become mixed-use commercial area',
+        severity: 'medium',
+        hiddenIn: 'City Planning Documents',
+        discovered: false
+      },
+      {
+        id: 'rf-005-4',
+        description: 'Utility company easement allows future pipeline installation - minor impact but limits landscaping',
+        severity: 'low',
+        hiddenIn: 'Title Easements',
         discovered: false
       }
     ]

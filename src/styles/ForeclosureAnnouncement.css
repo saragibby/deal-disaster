@@ -1,0 +1,297 @@
+/* Foreclosure Announcement Styling */
+
+.foreclosure-announcement {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #f9f9f9;
+  font-family: 'Courier New', monospace;
+  color: #333;
+  line-height: 1.6;
+}
+
+.announcement-header {
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #000;
+  padding-bottom: 20px;
+}
+
+.header-banner {
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.notice-date {
+  font-size: 14px;
+  color: #666;
+}
+
+.announcement-content {
+  background: white;
+  padding: 25px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+section:last-child {
+  border-bottom: none;
+}
+
+section h2 {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #000;
+  border-left: 4px solid #666;
+  padding-left: 10px;
+}
+
+section h3 {
+  font-size: 14px;
+  font-weight: bold;
+  margin-top: 12px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  color: #333;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+@media (max-width: 768px) {
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  background: #f5f5f5;
+  border-left: 3px solid #999;
+}
+
+.info-item label {
+  font-weight: bold;
+  min-width: 150px;
+}
+
+.info-item span {
+  text-align: right;
+  flex-grow: 1;
+  padding-left: 10px;
+}
+
+.liens-table {
+  margin: 15px 0;
+}
+
+.lien-entry {
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  padding: 15px;
+}
+
+.lien-entry.warning {
+  background: #fffacd;
+  border: 2px solid #ff8c00;
+}
+
+.lien-entry.warning-critical {
+  background: #ffcccc;
+  border: 3px solid #cc0000;
+}
+
+.lien-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ccc;
+  font-weight: bold;
+}
+
+.lien-type {
+  flex-grow: 1;
+}
+
+.lien-amount {
+  text-align: right;
+  min-width: 100px;
+  font-weight: bold;
+}
+
+.lien-details {
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+  border-radius: 3px;
+}
+
+.lien-details p {
+  margin: 5px 0;
+  font-size: 13px;
+}
+
+.lien-details ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.lien-details li {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.analysis-box {
+  background: #f0f0f0;
+  border: 2px solid #666;
+  padding: 15px;
+  margin: 15px 0;
+  font-weight: bold;
+}
+
+.analysis-box.warning {
+  background: #ffe6e6;
+  border: 2px solid #cc0000;
+}
+
+.analysis-box.good-deal {
+  background: #e6ffe6;
+  border: 2px solid #009900;
+}
+
+.analysis-box p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.analysis-box hr {
+  margin: 10px 0;
+  border: 1px solid #999;
+}
+
+.analysis-box ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.analysis-box li {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.history-timeline,
+.violation-timeline {
+  margin: 15px 0;
+}
+
+.history-item,
+.violation-item {
+  display: flex;
+  padding: 10px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.history-date,
+.violation-date {
+  font-weight: bold;
+  min-width: 80px;
+  padding-right: 20px;
+}
+
+.history-event,
+.violation-event {
+  flex-grow: 1;
+}
+
+ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+li {
+  margin: 5px 0;
+}
+
+.compliance-box {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin: 15px 0;
+}
+
+.compliance-box h3 {
+  margin-top: 15px;
+  margin-bottom: 8px;
+}
+
+.compliance-box p {
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.warning-section {
+  background: #ffe6e6;
+  border: 3px solid #cc0000;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.warning-section h2 {
+  color: #cc0000;
+  border-left-color: #cc0000;
+}
+
+.property-condition ul,
+.property-history ul {
+  margin-left: 0;
+}
+
+.property-condition li,
+.property-history li {
+  margin-left: 0;
+  padding-left: 20px;
+}
+
+.disclaimer {
+  background: #f0f0f0;
+  padding: 15px;
+  border-left: 4px solid #000;
+  font-size: 13px;
+  font-style: italic;
+  margin-top: 20px;
+}
+
+/* Print styling */
+@media print {
+  .foreclosure-announcement {
+    padding: 0;
+  }
+
+  .announcement-content {
+    box-shadow: none;
+  }
+
+  section {
+    page-break-inside: avoid;
+  }
+}

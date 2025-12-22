@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { PropertyCase, RedFlag } from '../types';
+import { useState } from 'react';
+import ForeclosureAnnouncement from './ForeclosureAnnouncement';
 
 interface CaseDisplayProps {
   propertyCase: PropertyCase;
@@ -8,8 +10,7 @@ interface CaseDisplayProps {
 }
 
 export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClick }: CaseDisplayProps) {
-  const [expandedLiens, setExpandedLiens] = useState<Set<number>>(new Set());
-
+  const [activeTab, setActiveTab] = useState<'case' | 'announcement'>('case');
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -32,6 +33,25 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
 
   return (
     <div className="case-display">
+      <div className="case-tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'case' ? 'active' : ''}`}
+          onClick={() => setActiveTab('case')}
+        >
+          📊 Case Summary
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'announcement' ? 'active' : ''}`}
+          onClick={() => setActiveTab('announcement')}
+        >
+          📄 Foreclosure Notice
+        </button>
+      </div>
+
+      {activeTab === 'announcement' ? (
+        <ForeclosureAnnouncement caseId={propertyCase.id} />
+      ) : (
+        <>
       <div className="case-header">
         <h2>{propertyCase.address}</h2>
         <p className="location">{propertyCase.city}, {propertyCase.state} {propertyCase.zip}</p>
@@ -158,6 +178,8 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
