@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { PropertyCase, RedFlag } from '../types';
-import { useState } from 'react';
 import ForeclosureAnnouncement from './ForeclosureAnnouncement';
 
 interface CaseDisplayProps {

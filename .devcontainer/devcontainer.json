@@ -1,0 +1,40 @@
+{
+  "name": "Deal or Disaster",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+
+  "forwardPorts": [5173, 3001],
+  "portsAttributes": {
+    "5173": {
+      "label": "Frontend (Vite)",
+      "onAutoForward": "notify"
+    },
+    "3001": {
+      "label": "Backend (Express)",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "npm install && cd server && npm install && cd ..",
+  
+  "postStartCommand": "npm start",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  }
+}
