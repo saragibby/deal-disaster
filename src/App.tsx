@@ -416,7 +416,7 @@ function App() {
         </>
       )}
 
-      <ResultModal result={result} onNextCase={loadNextCase} />
+      <ResultModal result={result} caseData={currentCase} onNextCase={loadNextCase} />
     </div>
     <Footer />
     </div>
