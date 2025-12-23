@@ -93,18 +93,6 @@ class ApiService {
     return response.json();
   }
 
-  async getUserStats() {
-    const response = await fetch(`${API_BASE_URL}/api/game/stats`, {
-      headers: this.getHeaders(true),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get stats');
-    }
-
-    return response.json();
-  }
-
   async getLeaderboard() {
     const response = await fetch(`${API_BASE_URL}/api/game/leaderboard`, {
       headers: this.getHeaders(),
@@ -112,6 +100,18 @@ class ApiService {
 
     if (!response.ok) {
       throw new Error('Failed to get leaderboard');
+    }
+
+    return response.json();
+  }
+
+  async getDailyLeaderboard() {
+    const response = await fetch(`${API_BASE_URL}/api/daily-challenge/leaderboard`, {
+      headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get daily leaderboard');
     }
 
     return response.json();
@@ -157,6 +157,19 @@ class ApiService {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to get challenge history');
+    }
+
+    return response.json();
+  }
+
+  async getUserStats() {
+    const response = await fetch(`${API_BASE_URL}/api/auth/stats`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get user stats');
     }
 
     return response.json();

@@ -37,6 +37,13 @@ function App() {
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [completedCaseIds, setCompletedCaseIds] = useState<string[]>([]);
+  const [userStats, setUserStats] = useState({
+    lifetimePoints: 0,
+    currentStreak: 0,
+    dealsFound: 0,
+    disastersAvoided: 0
+  });
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   // Check for existing auth on mount
   useEffect(() => {
@@ -48,6 +55,33 @@ function App() {
       setUser(JSON.parse(savedUser));
     }
   }, []);
+
+  // Fetch user stats when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchUserStats();
+      fetchLeaderboard();
+    }
+  }, [isAuthenticated]);
+
+  const fetchUserStats = async () => {
+    try {
+      const stats = await api.getUserStats();
+      setUserStats(stats);
+    } catch (error) {
+      console.error('Failed to fetch user stats:', error);
+    }
+  };
+
+  const fetchLeaderboard = async () => {
+    try {
+      const data = await api.getDailyLeaderboard();
+      setLeaderboard(data.leaderboard || []);
+    } catch (error) {
+      console.error('Failed to fetch leaderboard:', error);
+      setLeaderboard([]);
+    }
+  };
 
   // Timer logic
   useEffect(() => {
@@ -309,6 +343,11 @@ function App() {
         // Save regular game session
         await api.saveGameSession(newScore);
       }
+      // Refresh stats and leaderboard after completing a case
+      await fetchUserStats();
+      if (isDailyChallenge) {
+        await fetchLeaderboard();
+      }
     } catch (error) {
       console.error('Failed to save score:', error);
     }
@@ -393,28 +432,28 @@ function App() {
                 <div className="badge-item">
                   <span className="badge-icon">🏆</span>
                   <div className="badge-info">
-                    <span className="badge-value">12,450</span>
+                    <span className="badge-value">{userStats.lifetimePoints.toLocaleString()}</span>
                     <span className="badge-label">Lifetime Points</span>
                   </div>
                 </div>
                 <div className="badge-item">
                   <span className="badge-icon">🔥</span>
                   <div className="badge-info">
-                    <span className="badge-value">7 Days</span>
+                    <span className="badge-value">{userStats.currentStreak} {userStats.currentStreak === 1 ? 'Day' : 'Days'}</span>
                     <span className="badge-label">Current Streak</span>
                   </div>
                 </div>
                 <div className="badge-item badge-success">
                   <span className="badge-icon">💰</span>
                   <div className="badge-info">
-                    <span className="badge-value">23</span>
+                    <span className="badge-value">{userStats.dealsFound}</span>
                     <span className="badge-label">Deals Found</span>
                   </div>
                 </div>
                 <div className="badge-item badge-danger">
                   <span className="badge-icon">⚠️</span>
                   <div className="badge-info">
-                    <span className="badge-value">18</span>
+                    <span className="badge-value">{userStats.disastersAvoided}</span>
                     <span className="badge-label">Disasters Avoided</span>
                   </div>
                 </div>
@@ -483,33 +522,32 @@ function App() {
             <div className="leaderboard-section">
               <h3>🏆 Today's Leaderboard</h3>
               <div className="leaderboard-list">
-                <div className="leaderboard-item top-rank">
-                  <span className="rank">1st</span>
-                  <span className="player-name">DealHunter99</span>
-                  <span className="player-score">1,250 pts</span>
-                </div>
-                <div className="leaderboard-item">
-                  <span className="rank">2nd</span>
-                  <span className="player-name">PropertyPro</span>
-                  <span className="player-score">980 pts</span>
-                </div>
-                <div className="leaderboard-item">
-                  <span className="rank">3rd</span>
-                  <span className="player-name">RealEstateAce</span>
-                  <span className="player-score">875 pts</span>
-                </div>
-                <div className="leaderboard-item">
-                  <span className="rank">4th</span>
-                  <span className="player-name">FlipMaster</span>
-                  <span className="player-score">720 pts</span>
-                </div>
-                <div className="leaderboard-item">
-                  <span className="rank">5th</span>
-                  <span className="player-name">InvestorKing</span>
-                  <span className="player-score">650 pts</span>
-                </div>
+                {leaderboard.length === 0 ? (
+                  <p className="leaderboard-note">No one has completed today's challenge yet. Be the first!</p>
+                ) : (
+                  <>
+                    {leaderboard.slice(0, 5).map((entry, index) => (
+                      <div 
+                        key={entry.rank} 
+                        className={`leaderboard-item ${index === 0 ? 'top-rank' : ''}`}
+                      >
+                        <span className="rank">
+                          {entry.rank === 1 ? '1st' : 
+                           entry.rank === 2 ? '2nd' : 
+                           entry.rank === 3 ? '3rd' : 
+                           `${entry.rank}th`}
+                        </span>
+                        <span className="player-name">{entry.username}</span>
+                        <span className="player-score">
+                          {entry.points} pts
+                          <span className="player-time"> ({Math.floor(entry.time / 60)}:{(entry.time % 60).toString().padStart(2, '0')})</span>
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
-              <p className="leaderboard-note">Play today to climb the ranks!</p>
+              <p className="leaderboard-note">Play today's challenge to climb the ranks!</p>
             </div>
           </div>
         </div>

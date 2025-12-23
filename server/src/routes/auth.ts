@@ -332,4 +332,103 @@ router.post('/complete-onboarding', authenticateToken, async (req: AuthRequest, 
   }
 });
 
+// Get user stats
+router.get('/stats', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    // 1. Get lifetime points (game sessions + daily challenges)
+    const pointsResult = await pool.query(
+      `SELECT 
+        COALESCE(SUM(gs.points), 0) as game_points,
+        COALESCE(SUM(udc.points_earned), 0) as daily_points
+       FROM users u
+       LEFT JOIN game_sessions gs ON u.id = gs.user_id
+       LEFT JOIN user_daily_challenges udc ON u.id = udc.user_id
+       WHERE u.id = $1`,
+      [req.userId]
+    );
+    const lifetimePoints = parseInt(pointsResult.rows[0].game_points) + parseInt(pointsResult.rows[0].daily_points);
+
+    // 2. Get all activity dates for streak calculation
+    const activitiesResult = await pool.query(
+      `SELECT DISTINCT DATE(created_at) as play_date 
+       FROM (
+         SELECT created_at FROM game_sessions WHERE user_id = $1
+         UNION
+         SELECT completed_at as created_at FROM user_daily_challenges WHERE user_id = $1
+       ) activities
+       ORDER BY play_date DESC`,
+      [req.userId]
+    );
+
+    // Calculate current streak
+    let currentStreak = 0;
+    if (activitiesResult.rows.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let checkDate = new Date(today);
+      const dates = activitiesResult.rows.map(row => new Date(row.play_date).getTime());
+      
+      // Check if played today or yesterday to start streak
+      const todayTime = today.getTime();
+      const yesterdayTime = todayTime - 86400000;
+      
+      if (dates.includes(todayTime) || dates.includes(yesterdayTime)) {
+        // Start from yesterday if they haven't played today yet
+        if (!dates.includes(todayTime)) {
+          checkDate = new Date(yesterdayTime);
+        }
+        
+        // Count consecutive days backwards
+        while (dates.includes(checkDate.getTime())) {
+          currentStreak++;
+          checkDate = new Date(checkDate.getTime() - 86400000);
+        }
+      }
+    }
+
+    // 3. Get deals found (good deals from regular games + correct BUY decisions from daily)
+    const dealsResult = await pool.query(
+      `SELECT 
+        COALESCE(SUM(gs.good_deals), 0) as game_deals,
+        COUNT(udc.id) as daily_deals
+       FROM users u
+       LEFT JOIN game_sessions gs ON u.id = gs.user_id
+       LEFT JOIN user_daily_challenges udc ON u.id = udc.user_id
+       LEFT JOIN daily_challenges dc ON udc.challenge_id = dc.id
+       WHERE u.id = $1 
+         AND (udc.id IS NULL OR (udc.decision = 'BUY' AND (dc.property_data->>'isGoodDeal')::boolean = true))
+       GROUP BY u.id`,
+      [req.userId]
+    );
+    const dealsFound = parseInt(dealsResult.rows[0]?.game_deals || 0) + parseInt(dealsResult.rows[0]?.daily_deals || 0);
+
+    // 4. Get disasters avoided (bad deals avoided from regular + correct WALK_AWAY from daily)
+    const disastersResult = await pool.query(
+      `SELECT 
+        COALESCE(SUM(gs.bad_deals_avoided), 0) as game_disasters,
+        COUNT(udc.id) as daily_disasters
+       FROM users u
+       LEFT JOIN game_sessions gs ON u.id = gs.user_id
+       LEFT JOIN user_daily_challenges udc ON u.id = udc.user_id
+       LEFT JOIN daily_challenges dc ON udc.challenge_id = dc.id
+       WHERE u.id = $1 
+         AND (udc.id IS NULL OR (udc.decision = 'WALK_AWAY' AND (dc.property_data->>'isGoodDeal')::boolean = false))
+       GROUP BY u.id`,
+      [req.userId]
+    );
+    const disastersAvoided = parseInt(disastersResult.rows[0]?.game_disasters || 0) + parseInt(disastersResult.rows[0]?.daily_disasters || 0);
+
+    res.json({
+      lifetimePoints,
+      currentStreak,
+      dealsFound,
+      disastersAvoided
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Failed to get user stats' });
+  }
+});
+
 export default router;

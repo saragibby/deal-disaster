@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { foreclosureGenerator } from '../services/foreclosureGenerator';
 import { pool } from '../db/pool';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
@@ -211,6 +211,55 @@ router.post('/generate', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error generating daily challenge:', error);
     res.status(500).json({ error: 'Failed to generate daily challenge' });
+  }
+});
+
+// Get today's daily challenge leaderboard
+router.get('/leaderboard', async (req, res: Response) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get today's challenge
+    const challengeResult = await pool.query(
+      'SELECT id FROM daily_challenges WHERE challenge_date = $1',
+      [today]
+    );
+
+    if (challengeResult.rows.length === 0) {
+      return res.json({ leaderboard: [] });
+    }
+
+    const challengeId = challengeResult.rows[0].id;
+
+    // Get all completions for today, sorted by points (desc) then time (asc)
+    const result = await pool.query(
+      `SELECT 
+        u.username,
+        u.name,
+        u.email,
+        udc.points_earned,
+        udc.time_taken,
+        udc.completed_at
+       FROM user_daily_challenges udc
+       JOIN users u ON udc.user_id = u.id
+       WHERE udc.challenge_id = $1
+       ORDER BY udc.points_earned DESC, udc.time_taken ASC
+       LIMIT 100`,
+      [challengeId]
+    );
+
+    const leaderboard = result.rows.map((row, index) => ({
+      rank: index + 1,
+      username: row.username || row.name?.split(' ')[0] || row.email.split('@')[0],
+      points: row.points_earned,
+      time: row.time_taken,
+      completedAt: row.completed_at
+    }));
+
+    res.json({ leaderboard });
+  } catch (error) {
+    console.error('Error fetching daily leaderboard:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
   }
 });
 
