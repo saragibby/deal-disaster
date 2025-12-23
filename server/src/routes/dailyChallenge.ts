@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { foreclosureGenerator } from '../services/foreclosureGenerator';
-import { pool } from '../db/pool';
-import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { foreclosureGenerator } from '../services/foreclosureGenerator.js';
+import { pool } from '../db/pool.js';
+import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 

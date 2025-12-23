@@ -1,6 +1,7 @@
 {
   "name": "deal-disaster-server",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend API for Deal or Disaster game",
   "main": "dist/index.js",
   "scripts": {
