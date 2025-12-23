@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS daily_challenges (
     id SERIAL PRIMARY KEY,
     challenge_date DATE UNIQUE NOT NULL,
+    difficulty VARCHAR(20) DEFAULT 'medium',
     property_data JSONB NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
