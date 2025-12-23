@@ -10,6 +10,8 @@ interface CaseDisplayProps {
 
 export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClick }: CaseDisplayProps) {
   const [activeTab, setActiveTab] = useState<'case' | 'announcement'>('case');
+  const [expandedLiens, setExpandedLiens] = useState<Set<number>>(new Set());
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
