@@ -192,22 +192,32 @@ router.post('/generate', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Challenge already exists for this date' });
     }
 
-    // Generate new scenario
-    const usedDifficulty = difficulty || 'medium';
-    const scenario = await foreclosureGenerator.generateScenario(usedDifficulty);
-
-    // Store in database
-    const result = await pool.query(
-      `INSERT INTO daily_challenges (challenge_date, difficulty, property_data)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
-      [targetDate, usedDifficulty, JSON.stringify(scenario)]
-    );
-
+    // Respond immediately and generate in background
     res.json({
-      challenge: result.rows[0],
-      message: 'Daily challenge generated successfully'
+      message: 'Challenge generation started',
+      date: targetDate,
+      status: 'processing'
     });
+
+    // Generate new scenario in background (don't await)
+    const usedDifficulty = difficulty || 'medium';
+    foreclosureGenerator.generateScenario(usedDifficulty)
+      .then(scenario => {
+        // Store in database
+        return pool.query(
+          `INSERT INTO daily_challenges (challenge_date, difficulty, property_data)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          [targetDate, usedDifficulty, JSON.stringify(scenario)]
+        );
+      })
+      .then(result => {
+        console.log(`✅ Successfully generated challenge for ${targetDate}`);
+      })
+      .catch(error => {
+        console.error('Error generating daily challenge:', error);
+      });
+
   } catch (error) {
     console.error('Error generating daily challenge:', error);
     res.status(500).json({ error: 'Failed to generate daily challenge' });
