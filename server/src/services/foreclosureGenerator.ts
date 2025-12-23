@@ -69,6 +69,7 @@ export class ForeclosureScenarioGenerator {
 
     try {
       const response = await this.client.chat.completions.create({
+        model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5-nano',
         messages: [
           {
             role: 'system',
