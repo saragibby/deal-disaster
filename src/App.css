@@ -223,6 +223,30 @@ body {
   font-weight: 700;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.profile-btn-inline {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.profile-btn-inline:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
+}
+
 .logout-btn-inline {
   padding: 10px 24px;
   background: linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);

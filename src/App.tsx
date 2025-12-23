@@ -5,6 +5,8 @@ import ScoreDisplay from './components/ScoreDisplay';
 import ResultModal from './components/ResultModal';
 import AuthForm from './components/AuthForm';
 import Footer from './components/Footer';
+import Profile from './components/Profile';
+import Onboarding from './components/Onboarding';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { api } from './services/api';
@@ -16,6 +18,8 @@ const CASE_TIME_LIMIT = 180; // 3 minutes in seconds
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
@@ -83,6 +87,40 @@ function App() {
   const handleAuthSuccess = (_token: string, userData: any) => {
     setIsAuthenticated(true);
     setUser(userData);
+    // Show onboarding if user hasn't completed it
+    if (!userData.onboarding_completed) {
+      setShowOnboarding(true);
+    }
+  };
+
+  const handleOnboardingComplete = async (data: any) => {
+    const isProduction = window.location.hostname !== 'localhost';
+    const API_URL = isProduction ? '' : 'http://localhost:3001';
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/api/auth/complete-onboarding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to complete onboarding');
+      }
+
+      const result = await response.json();
+      const updatedUser = { ...user, ...result.user };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Onboarding error:', error);
+      alert('Failed to save profile. Please try again.');
+    }
   };
 
   const handleLogout = async () => {
@@ -302,7 +340,10 @@ function App() {
 
             <div className="welcome-text-section">
               <h2>Welcome back, {user?.name || user?.email?.split('@')[0]}! 👋</h2>
-              <button className="logout-btn-inline" onClick={handleLogout}>Logout</button>
+              <div className="header-buttons">
+                <button className="profile-btn-inline" onClick={() => setShowProfile(true)}>⚙️ Profile</button>
+                <button className="logout-btn-inline" onClick={handleLogout}>Logout</button>
+              </div>
             </div>
 
             <div className="game-description">
@@ -387,6 +428,8 @@ function App() {
           </div>
         </div>
         <Footer />
+        {showProfile && <Profile onClose={() => setShowProfile(false)} />}
+        {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} userName={user?.name || 'there'} />}
       </div>
     );
   }
@@ -419,6 +462,7 @@ function App() {
       <ResultModal result={result} caseData={currentCase} onNextCase={loadNextCase} />
     </div>
     <Footer />
+    {showProfile && <Profile onClose={() => setShowProfile(false)} />}
     </div>
   );
 }

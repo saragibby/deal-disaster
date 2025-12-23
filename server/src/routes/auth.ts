@@ -180,7 +180,7 @@ router.get(
 router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, avatar, oauth_provider, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, avatar, oauth_provider, onboarding_completed, created_at FROM users WHERE id = $1',
       [req.userId]
     );
 
@@ -192,6 +192,143 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) =
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// Get user profile settings
+router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider FROM users WHERE id = $1',
+      [req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Failed to get profile' });
+  }
+});
+
+// Update user profile settings
+router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
+
+    // Validate username is required
+    if (!username || username.trim() === '') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Validate username format
+    if (username.length < 3 || username.length > 50) {
+      return res.status(400).json({ error: 'Username must be between 3 and 50 characters' });
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, hyphens, and underscores' });
+    }
+
+    // Check if username is already taken by another user
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE username = $1 AND id != $2',
+      [username, req.userId]
+    );
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
+    // Validate phone number format if provided
+    if (phone_number && phone_number.trim() !== '') {
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
+      if (!phoneRegex.test(phone_number.replace(/[\s\-\(\)]/g, ''))) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use format: +1234567890' });
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE users 
+       SET username = COALESCE($1, username),
+           phone_number = $2, 
+           sms_opt_in = $3, 
+           email_newsletter_opt_in = $4,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 
+       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider`,
+      [username || null, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0], message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Complete onboarding
+router.post('/complete-onboarding', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
+
+    // Validate username is required
+    if (!username || username.trim() === '') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Validate username format
+    if (username.length < 3 || username.length > 50) {
+      return res.status(400).json({ error: 'Username must be between 3 and 50 characters' });
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, hyphens, and underscores' });
+    }
+
+    // Check if username is already taken
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE username = $1 AND id != $2',
+      [username, req.userId]
+    );
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+
+    // Validate phone number format if provided
+    if (phone_number && phone_number.trim() !== '') {
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(phone_number.replace(/[\s\-\(\)]/g, ''))) {
+        return res.status(400).json({ error: 'Invalid phone number format. Use format: +1234567890' });
+      }
+    }
+
+    // Update user with onboarding data
+    const result = await pool.query(
+      `UPDATE users 
+       SET username = $1,
+           phone_number = $2,
+           sms_opt_in = $3,
+           email_newsletter_opt_in = $4,
+           onboarding_completed = TRUE,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5
+       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, onboarding_completed`,
+      [username, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0], message: 'Onboarding completed successfully' });
+  } catch (error) {
+    console.error('Complete onboarding error:', error);
+    res.status(500).json({ error: 'Failed to complete onboarding' });
   }
 });
 
