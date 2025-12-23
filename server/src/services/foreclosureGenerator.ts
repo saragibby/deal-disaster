@@ -80,7 +80,7 @@ export class ForeclosureScenarioGenerator {
             content: prompt
           }
         ],
-        max_completion_tokens: 8000
+        max_completion_tokens: 16000
       });
 
       console.log('OpenAI Response:', JSON.stringify(response, null, 2));
