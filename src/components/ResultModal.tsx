@@ -5,9 +5,10 @@ interface ResultModalProps {
   result: ScoreResult | null;
   caseData: PropertyCase | null;
   onNextCase: () => void;
+  onBackToHome?: () => void;
 }
 
-export default function ResultModal({ result, caseData, onNextCase }: ResultModalProps) {
+export default function ResultModal({ result, caseData, onNextCase, onBackToHome }: ResultModalProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
 
   if (!result || !caseData) return null;
@@ -183,9 +184,16 @@ export default function ResultModal({ result, caseData, onNextCase }: ResultModa
           </div>
         )}
 
-        <button className="next-case-btn" onClick={onNextCase}>
-          Next Case →
-        </button>
+        <div className="result-modal-actions">
+          {onBackToHome && (
+            <button className="back-home-btn" onClick={onBackToHome}>
+              ← Back to Home
+            </button>
+          )}
+          <button className="next-case-btn" onClick={onNextCase}>
+            Next Case →
+          </button>
+        </div>
       </div>
     </div>
   );

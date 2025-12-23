@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import passport from './config/passport.js';
 import authRoutes from './routes/auth.js';
 import gameRoutes from './routes/game.js';
+import dailyChallengeRoutes from './routes/dailyChallenge.js';
+import { initializeScheduledTasks } from './scheduler.js';
 
 dotenv.config();
 
@@ -26,6 +28,7 @@ app.use(passport.initialize());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
+app.use('/api/daily-challenge', dailyChallengeRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -46,4 +49,7 @@ if (process.env.NODE_ENV === 'production') {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+  
+  // Initialize scheduled tasks
+  initializeScheduledTasks();
 });

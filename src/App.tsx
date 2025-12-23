@@ -7,6 +7,7 @@ import AuthForm from './components/AuthForm';
 import Footer from './components/Footer';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
+import DailyChallenge from './components/DailyChallenge';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { api } from './services/api';
@@ -20,6 +21,9 @@ function App() {
   const [user, setUser] = useState<any>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showDailyChallenge, setShowDailyChallenge] = useState(false);
+  const [isDailyChallenge, setIsDailyChallenge] = useState(false);
+  const [dailyChallengeData, setDailyChallengeData] = useState<any>(null);
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
@@ -65,6 +69,7 @@ function App() {
 
   const startGame = () => {
     setGameStarted(true);
+    setIsDailyChallenge(false);
     setScore({
       points: 0,
       casesSolved: 0,
@@ -75,6 +80,52 @@ function App() {
     });
     setCompletedCaseIds([]);
     loadNextCase();
+  };
+
+  const startDailyChallenge = (challengeData: any) => {
+    setShowDailyChallenge(false);
+    setGameStarted(true);
+    setIsDailyChallenge(true);
+    setDailyChallengeData(challengeData);
+    setScore({
+      points: 0,
+      casesSolved: 0,
+      goodDeals: 0,
+      badDealsAvoided: 0,
+      mistakes: 0,
+      redFlagsFound: 0,
+    });
+    
+    // Convert daily challenge data to PropertyCase format
+    const property = challengeData.property_data;
+    const dailyCase: PropertyCase = {
+      id: `daily-${challengeData.id}`,
+      address: property.address,
+      city: property.city,
+      state: property.state,
+      zip: property.zipCode,
+      propertyValue: property.estimatedValue,
+      auctionPrice: property.auctionPrice,
+      repairEstimate: property.estimatedRepairs,
+      liens: property.liens || [],
+      redFlags: property.redFlags.map((flag: any, index: number) => ({
+        id: `flag-${index}`,
+        description: flag.description,
+        severity: flag.severity,
+        hiddenIn: flag.type,
+        discovered: false,
+      })),
+      photos: property.photos || [],
+      description: property.funnyStory || property.description || 'AI-generated foreclosure scenario',
+      occupancyStatus: property.occupancyStatus || ('unknown' as const),
+      hoaFees: property.hoaFees,
+      actualValue: property.actualValue || property.estimatedValue,
+      isGoodDeal: property.isGoodDeal,
+    };
+    
+    setCurrentCase(dailyCase);
+    setTimeRemaining(CASE_TIME_LIMIT);
+    setResult(null);
   };
 
   const loadNextCase = () => {
@@ -146,6 +197,28 @@ function App() {
       mistakes: 0,
       redFlagsFound: 0,
     });
+  };
+
+  const handleBackToHome = async () => {
+    // Save score before going back
+    if (gameStarted && score.casesSolved > 0) {
+      try {
+        if (isDailyChallenge && dailyChallengeData && !result) {
+          // Don't auto-save incomplete daily challenge
+        } else if (!isDailyChallenge) {
+          await api.saveGameSession(score);
+        }
+      } catch (error) {
+        console.error('Failed to save score:', error);
+      }
+    }
+
+    setGameStarted(false);
+    setIsDailyChallenge(false);
+    setDailyChallengeData(null);
+    setCurrentCase(null);
+    setResult(null);
+    setCompletedCaseIds([]);
   };
 
   const handleRedFlagClick = (flagId: string) => {
@@ -225,7 +298,17 @@ function App() {
     };
 
     try {
-      await api.saveGameSession(newScore);
+      if (isDailyChallenge && dailyChallengeData) {
+        // Save daily challenge completion
+        await api.completeDailyChallenge(dailyChallengeData.id, {
+          decision,
+          points_earned: points,
+          time_taken: CASE_TIME_LIMIT - timeRemaining,
+        });
+      } else {
+        // Save regular game session
+        await api.saveGameSession(newScore);
+      }
     } catch (error) {
       console.error('Failed to save score:', error);
     }
@@ -388,9 +471,12 @@ function App() {
           <div className="welcome-right">
             <div className="start-section">
               <h2>Ready to Play?</h2>
-              <p className="challenge-text">90% of beginners fail. Will you beat the odds?</p>
-              <button className="start-btn-large" onClick={startGame}>
-                🏠 Start New Game
+              <p className="challenge-text">Test your foreclosure analysis skills!</p>
+              <button className="start-btn-large daily-challenge-btn" onClick={() => setShowDailyChallenge(true)}>
+                🌟 Today's Daily Challenge
+              </button>
+              <button className="start-btn-secondary" onClick={startGame}>
+                🏠 Play Regular Game
               </button>
             </div>
 
@@ -430,6 +516,12 @@ function App() {
         <Footer />
         {showProfile && <Profile onClose={() => setShowProfile(false)} />}
         {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} userName={user?.name || 'there'} />}
+        {showDailyChallenge && (
+          <DailyChallenge 
+            onStartChallenge={startDailyChallenge}
+            onClose={() => setShowDailyChallenge(false)}
+          />
+        )}
       </div>
     );
   }
@@ -438,7 +530,12 @@ function App() {
     <div className="app-container">
     <div className="app">
       <header className="app-header">
-        <h1>🏠 Deal or Disaster</h1>
+        <div className="header-left">
+          <button className="back-to-home-btn" onClick={handleBackToHome} title="Back to Home">
+            ← Home
+          </button>
+          <h1>🏠 Deal or Disaster</h1>
+        </div>
         <div className="header-right">
           <ScoreDisplay score={score} />
           <button className="logout-btn-small" onClick={handleLogout}>Logout</button>
@@ -459,7 +556,12 @@ function App() {
         </>
       )}
 
-      <ResultModal result={result} caseData={currentCase} onNextCase={loadNextCase} />
+      <ResultModal 
+        result={result} 
+        caseData={currentCase} 
+        onNextCase={loadNextCase}
+        onBackToHome={handleBackToHome}
+      />
     </div>
     <Footer />
     {showProfile && <Profile onClose={() => setShowProfile(false)} />}

@@ -116,6 +116,51 @@ class ApiService {
 
     return response.json();
   }
+
+  async getDailyChallenge() {
+    const response = await fetch(`${API_BASE_URL}/api/daily-challenge/today`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get daily challenge');
+    }
+
+    return response.json();
+  }
+
+  async completeDailyChallenge(challengeId: number, data: {
+    decision: 'BUY' | 'INVESTIGATE' | 'WALK_AWAY';
+    points_earned: number;
+    time_taken: number;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/api/daily-challenge/${challengeId}/complete`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to complete daily challenge');
+    }
+
+    return response.json();
+  }
+
+  async getDailyChallengeHistory(page: number = 1) {
+    const response = await fetch(`${API_BASE_URL}/api/daily-challenge/history?page=${page}`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get challenge history');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiService();
