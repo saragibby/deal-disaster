@@ -5,10 +5,13 @@
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
+    },
+    "ghcr.io/devcontainers/features/postgres:1": {
+      "version": "latest"
     }
   },
 
-  "forwardPorts": [5173, 3001],
+  "forwardPorts": [5173, 3001, 5432],
   "portsAttributes": {
     "5173": {
       "label": "Frontend (Vite)",
@@ -17,10 +20,14 @@
     "3001": {
       "label": "Backend (Express)",
       "onAutoForward": "silent"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
     }
   },
 
-  "postCreateCommand": "npm install && cd server && npm install && cd ..",
+  "postCreateCommand": "npm install && cd server && npm install && npm run db:setup && cd ..",
   
   "postStartCommand": "npm start",
 
