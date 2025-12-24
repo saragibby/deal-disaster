@@ -162,6 +162,19 @@ class ApiService {
     return response.json();
   }
 
+  async getDailyChallengeByDate(date: string) {
+    const response = await fetch(`${API_BASE_URL}/api/daily-challenge/date/${date}`, {
+      headers: this.getHeaders(true),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get challenge for date');
+    }
+
+    return response.json();
+  }
+
   async getUserStats() {
     const response = await fetch(`${API_BASE_URL}/api/auth/stats`, {
       headers: this.getHeaders(true),

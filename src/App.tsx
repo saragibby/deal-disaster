@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
 import DailyChallenge from './components/DailyChallenge';
+import ChallengeCalendar from './components/ChallengeCalendar';
 import AskWill from './components/AskWill';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
@@ -25,6 +26,7 @@ function App() {
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
   const [isDailyChallenge, setIsDailyChallenge] = useState(false);
   const [dailyChallengeData, setDailyChallengeData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'calendar'>('leaderboard');
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
@@ -249,11 +251,32 @@ function App() {
     }
 
     setGameStarted(false);
-    setIsDailyChallenge(false);
-    setDailyChallengeData(null);
     setCurrentCase(null);
     setResult(null);
+    setIsDailyChallenge(false);
+    setDailyChallengeData(null);
+    setScore({
+      points: 0,
+      casesSolved: 0,
+      goodDeals: 0,
+      badDealsAvoided: 0,
+      mistakes: 0,
+      redFlagsFound: 0,
+    });
     setCompletedCaseIds([]);
+    fetchUserStats();
+    fetchLeaderboard();
+  };
+
+  const handleCalendarDateSelect = async (date: string) => {
+    try {
+      const response = await api.getDailyChallengeByDate(date);
+      setDailyChallengeData(response);
+      setShowDailyChallenge(true);
+    } catch (error) {
+      console.error('Error loading challenge for date:', error);
+      alert('Failed to load challenge for this date. Please try again.');
+    }
   };
 
   const handleRedFlagClick = (flagId: string) => {
@@ -520,35 +543,59 @@ function App() {
               </button>
             </div>
 
-            <div className="leaderboard-section">
-              <h3>🏆 Today's Leaderboard</h3>
-              <div className="leaderboard-list">
-                {leaderboard.length === 0 ? (
-                  <p className="leaderboard-note">No one has completed today's challenge yet. Be the first!</p>
+            <div className="tabbed-section">
+              <div className="tab-buttons">
+                <button 
+                  className={`tab-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('leaderboard')}
+                >
+                  🏆 Today's Leaderboard
+                </button>
+                <button 
+                  className={`tab-button ${activeTab === 'calendar' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('calendar')}
+                >
+                  📅 Challenge Calendar
+                </button>
+              </div>
+
+              <div className="tab-content">
+                {activeTab === 'leaderboard' ? (
+                  <div className="leaderboard-tab">
+                    <div className="leaderboard-list">
+                      {leaderboard.length === 0 ? (
+                        <p className="leaderboard-note">No one has completed today's challenge yet. Be the first!</p>
+                      ) : (
+                        <>
+                          {leaderboard.slice(0, 5).map((entry, index) => (
+                            <div 
+                              key={entry.rank} 
+                              className={`leaderboard-item ${index === 0 ? 'top-rank' : ''}`}
+                            >
+                              <span className="rank">
+                                {entry.rank === 1 ? '1st' : 
+                                 entry.rank === 2 ? '2nd' : 
+                                 entry.rank === 3 ? '3rd' : 
+                                 `${entry.rank}th`}
+                              </span>
+                              <span className="player-name">{entry.username}</span>
+                              <span className="player-score">
+                                {entry.points} pts
+                                <span className="player-time"> ({Math.floor(entry.time / 60)}:{(entry.time % 60).toString().padStart(2, '0')})</span>
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                    <p className="leaderboard-note">Play today's challenge to climb the ranks!</p>
+                  </div>
                 ) : (
-                  <>
-                    {leaderboard.slice(0, 5).map((entry, index) => (
-                      <div 
-                        key={entry.rank} 
-                        className={`leaderboard-item ${index === 0 ? 'top-rank' : ''}`}
-                      >
-                        <span className="rank">
-                          {entry.rank === 1 ? '1st' : 
-                           entry.rank === 2 ? '2nd' : 
-                           entry.rank === 3 ? '3rd' : 
-                           `${entry.rank}th`}
-                        </span>
-                        <span className="player-name">{entry.username}</span>
-                        <span className="player-score">
-                          {entry.points} pts
-                          <span className="player-time"> ({Math.floor(entry.time / 60)}:{(entry.time % 60).toString().padStart(2, '0')})</span>
-                        </span>
-                      </div>
-                    ))}
-                  </>
+                  <div className="calendar-tab">
+                    <ChallengeCalendar onSelectDate={handleCalendarDateSelect} />
+                  </div>
                 )}
               </div>
-              <p className="leaderboard-note">Play today's challenge to climb the ranks!</p>
             </div>
           </div>
         </div>
@@ -559,6 +606,7 @@ function App() {
           <DailyChallenge 
             onStartChallenge={startDailyChallenge}
             onClose={() => setShowDailyChallenge(false)}
+            challengeData={dailyChallengeData}
           />
         )}
         {isAuthenticated && <AskWill />}

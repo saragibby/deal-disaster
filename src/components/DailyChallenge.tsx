@@ -5,17 +5,53 @@ import './DailyChallenge.css';
 interface DailyChallengeProps {
   onStartChallenge: (challengeData: any) => void;
   onClose: () => void;
+  challengeData?: any;
 }
 
-export default function DailyChallenge({ onStartChallenge, onClose }: DailyChallengeProps) {
+export default function DailyChallenge({ onStartChallenge, onClose, challengeData }: DailyChallengeProps) {
   const [challenge, setChallenge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userCompletion, setUserCompletion] = useState<any>(null);
 
   useEffect(() => {
-    fetchTodaysChallenge();
-  }, []);
+    if (challengeData) {
+      // Handle different data structures
+      let challengeObj = challengeData.challenge;
+      
+      // Normalize the challenge data structure
+      if (challengeObj && !challengeObj.property_data) {
+        // Data from getDailyChallengeByDate - properties are at root level
+        challengeObj = {
+          ...challengeObj,
+          property_data: {
+            city: challengeObj.city,
+            state: challengeObj.state,
+            propertyType: challengeObj.propertyType || 'Single Family',
+            auctionPrice: challengeObj.auctionPrice,
+            estimatedRepairs: challengeObj.estimatedRepairs,
+            estimatedValue: challengeObj.estimatedValue,
+            address: challengeObj.address,
+            zipCode: challengeObj.zipCode,
+            liens: challengeObj.liens || [],
+            redFlags: challengeObj.redFlags || [],
+            photos: challengeObj.photos || [],
+            funnyStory: challengeObj.funnyStory || challengeObj.description,
+            occupancyStatus: challengeObj.occupancyStatus || 'unknown',
+            hoaFees: challengeObj.hoaFees,
+            actualValue: challengeObj.actualValue || challengeObj.estimatedValue,
+            isGoodDeal: challengeObj.isGoodDeal
+          }
+        };
+      }
+      
+      setChallenge(challengeObj);
+      setUserCompletion(challengeData.user_completion || challengeData.completion);
+      setLoading(false);
+    } else {
+      fetchTodaysChallenge();
+    }
+  }, [challengeData]);
 
   const fetchTodaysChallenge = async () => {
     try {
@@ -74,6 +110,23 @@ export default function DailyChallenge({ onStartChallenge, onClose }: DailyChall
             </button>
             <button className="secondary-btn" onClick={onClose}>
               Play Regular Game
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!challenge || !challenge.property_data) {
+    return (
+      <div className="daily-challenge-overlay">
+        <div className="daily-challenge-modal">
+          <button className="close-btn" onClick={onClose}>×</button>
+          <div className="error-state">
+            <h2>😕 Challenge Not Available</h2>
+            <p>This challenge could not be loaded.</p>
+            <button className="secondary-btn" onClick={onClose}>
+              Close
             </button>
           </div>
         </div>
