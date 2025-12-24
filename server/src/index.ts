@@ -7,6 +7,7 @@ import passport from './config/passport.js';
 import authRoutes from './routes/auth.js';
 import gameRoutes from './routes/game.js';
 import dailyChallengeRoutes from './routes/dailyChallenge.js';
+import chatRoutes from './routes/chat.js';
 import { initializeScheduledTasks } from './scheduler.js';
 
 dotenv.config();
@@ -29,6 +30,7 @@ app.use(passport.initialize());
 app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/daily-challenge', dailyChallengeRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

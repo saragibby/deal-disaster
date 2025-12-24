@@ -174,6 +174,21 @@ class ApiService {
 
     return response.json();
   }
+
+  async chat(message: string, conversationHistory: Array<{ role: string; content: string }> = []) {
+    const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify({ message, conversationHistory }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Chat request failed');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiService();

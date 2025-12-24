@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
 import DailyChallenge from './components/DailyChallenge';
+import AskWill from './components/AskWill';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { api } from './services/api';
@@ -560,6 +561,7 @@ function App() {
             onClose={() => setShowDailyChallenge(false)}
           />
         )}
+        {isAuthenticated && <AskWill />}
       </div>
     );
   }
@@ -603,6 +605,7 @@ function App() {
     </div>
     <Footer />
     {showProfile && <Profile onClose={() => setShowProfile(false)} />}
+    {isAuthenticated && <AskWill />}
     </div>
   );
 }
