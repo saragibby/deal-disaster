@@ -24,6 +24,7 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
         // Data from getDailyChallengeByDate - properties are at root level
         challengeObj = {
           ...challengeObj,
+          challenge_date: challengeObj.challenge_date || challengeObj.date,
           property_data: {
             city: challengeObj.city,
             state: challengeObj.state,
@@ -75,7 +76,9 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'Invalid date';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 

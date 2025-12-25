@@ -27,6 +27,13 @@ router.get('/today', authenticateToken, async (req: AuthRequest, res: Response) 
       [req.userId, challenge.id]
     );
 
+    // Set cache headers to prevent stale data
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({
       challenge: {
         id: challenge.id,
