@@ -11,6 +11,7 @@ interface Message {
 
 export default function AskWill() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -98,6 +99,34 @@ export default function AskWill() {
     }
   };
 
+  const formatMessage = (text: string) => {
+    // Split by double line breaks for paragraphs
+    const paragraphs = text.split('\n\n');
+    
+    return paragraphs.map((para, pIndex) => {
+      // Check if this paragraph is a list (starts with - or contains multiple -)
+      const lines = para.split('\n');
+      const isList = lines.filter(line => line.trim().startsWith('-')).length > 0;
+      
+      if (isList) {
+        return (
+          <ul key={pIndex} style={{ margin: '8px 0', paddingLeft: '20px' }}>
+            {lines.map((line, lIndex) => {
+              if (line.trim().startsWith('-')) {
+                const content = line.trim().substring(1).trim();
+                return <li key={lIndex} style={{ marginBottom: '4px' }}>{content}</li>;
+              }
+              return line.trim() ? <div key={lIndex}>{line}</div> : null;
+            })}
+          </ul>
+        );
+      }
+      
+      // Regular paragraph
+      return para.trim() ? <p key={pIndex} style={{ margin: '8px 0' }}>{para}</p> : null;
+    });
+  };
+
   return (
     <>
       {/* Floating Chat Button */}
@@ -116,7 +145,7 @@ export default function AskWill() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className={`chat-window ${isNearFooter ? 'near-footer' : ''}`}>
+        <div className={`chat-window ${isNearFooter ? 'near-footer' : ''} ${isExpanded ? 'expanded' : ''}`}>
           <div className="chat-header">
             <div className="chat-header-info">
               <img src={santaWillImage} alt="Will" className="chat-avatar" />
@@ -125,13 +154,23 @@ export default function AskWill() {
                 <span className="chat-status">Your Mom's Favorite Money Man</span>
               </div>
             </div>
-            <button 
-              className="chat-close"
-              onClick={() => setIsOpen(false)}
-              aria-label="Close chat"
-            >
-              ✕
-            </button>
+            <div className="chat-header-actions">
+              <button 
+                className="chat-expand"
+                onClick={() => setIsExpanded(!isExpanded)}
+                aria-label={isExpanded ? 'Minimize chat' : 'Expand chat'}
+                title={isExpanded ? 'Minimize' : 'Expand'}
+              >
+                {isExpanded ? '▼' : '▲'}
+              </button>
+              <button 
+                className="chat-close"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close chat"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <div className="chat-messages">
@@ -141,7 +180,7 @@ export default function AskWill() {
                 className={`chat-message ${message.role}`}
               >
                 <div className="message-content">
-                  {message.content}
+                  {message.role === 'assistant' ? formatMessage(message.content) : message.content}
                 </div>
                 <div className="message-timestamp">
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
