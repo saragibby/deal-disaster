@@ -3,6 +3,23 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname !
 const API_BASE_URL = isProduction ? '' : 'http://localhost:3001';
 
 class ApiService {
+  private onUnauthorized?: () => void;
+
+  setUnauthorizedHandler(handler: () => void) {
+    this.onUnauthorized = handler;
+  }
+
+  private async handleResponse(response: Response) {
+    if (response.status === 401) {
+      // Token expired or invalid - trigger logout
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      }
+      throw new Error('Session expired. Please login again.');
+    }
+    return response;
+  }
+
   private getHeaders(includeAuth = false): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -53,6 +70,8 @@ class ApiService {
       headers: this.getHeaders(true),
     });
 
+    await this.handleResponse(response);
+
     if (!response.ok) {
       throw new Error('Failed to get user');
     }
@@ -74,6 +93,8 @@ class ApiService {
       body: JSON.stringify(score),
     });
 
+    await this.handleResponse(response);
+
     if (!response.ok) {
       throw new Error('Failed to save game session');
     }
@@ -85,6 +106,8 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/api/game/sessions`, {
       headers: this.getHeaders(true),
     });
+
+    await this.handleResponse(response);
 
     if (!response.ok) {
       throw new Error('Failed to get game history');
@@ -122,6 +145,8 @@ class ApiService {
       headers: this.getHeaders(true),
     });
 
+    await this.handleResponse(response);
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to get daily challenge');
@@ -141,6 +166,8 @@ class ApiService {
       body: JSON.stringify(data),
     });
 
+    await this.handleResponse(response);
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to complete daily challenge');
@@ -153,6 +180,8 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/api/daily-challenge/history?page=${page}`, {
       headers: this.getHeaders(true),
     });
+
+    await this.handleResponse(response);
 
     if (!response.ok) {
       const error = await response.json();
@@ -167,6 +196,8 @@ class ApiService {
       headers: this.getHeaders(true),
     });
 
+    await this.handleResponse(response);
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Failed to get challenge for date');
@@ -179,6 +210,8 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/api/auth/stats`, {
       headers: this.getHeaders(true),
     });
+
+    await this.handleResponse(response);
 
     if (!response.ok) {
       const error = await response.json();
@@ -194,6 +227,8 @@ class ApiService {
       headers: this.getHeaders(true),
       body: JSON.stringify({ message, conversationHistory }),
     });
+
+    await this.handleResponse(response);
 
     if (!response.ok) {
       const error = await response.json();

@@ -48,6 +48,21 @@ function App() {
   });
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
+  // Set up unauthorized handler to auto-logout on token expiration
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => {
+      // Clear auth state when token expires
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setIsAuthenticated(false);
+      setUser(null);
+      setGameStarted(false);
+      setShowProfile(false);
+      setShowOnboarding(false);
+      setShowDailyChallenge(false);
+    });
+  }, []);
+
   // Check for existing auth on mount
   useEffect(() => {
     const token = localStorage.getItem('token');

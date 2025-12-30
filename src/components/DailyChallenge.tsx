@@ -77,7 +77,10 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Invalid date';
-    const date = new Date(dateString);
+    // Parse as local date to avoid timezone issues
+    // dateString format is YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     if (isNaN(date.getTime())) return 'Invalid date';
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
