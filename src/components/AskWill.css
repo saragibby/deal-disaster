@@ -31,7 +31,7 @@
 }
 
 .chat-bubble-image {
-  width: 70px;
+  width: 90px;
   height: auto;
   display: block;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
@@ -125,7 +125,7 @@
 }
 
 .chat-avatar {
-  width: 48px;
+  width: 70px;
   height: auto;
   object-fit: contain;
 }
