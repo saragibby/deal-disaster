@@ -37,7 +37,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Create user
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, created_at',
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, onboarding_completed',
       [email.toLowerCase(), passwordHash, name]
     );
 
@@ -56,6 +56,12 @@ router.post('/register', async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        username: user.username,
+        avatar: user.avatar,
+        phone_number: user.phone_number,
+        sms_opt_in: user.sms_opt_in,
+        email_newsletter_opt_in: user.email_newsletter_opt_in,
+        onboarding_completed: user.onboarding_completed,
       },
     });
   } catch (error) {
@@ -75,7 +81,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Find user
     const result = await pool.query(
-      'SELECT id, email, password_hash, name FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, onboarding_completed FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -110,6 +116,12 @@ router.post('/login', async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        username: user.username,
+        avatar: user.avatar,
+        phone_number: user.phone_number,
+        sms_opt_in: user.sms_opt_in,
+        email_newsletter_opt_in: user.email_newsletter_opt_in,
+        onboarding_completed: user.onboarding_completed,
       },
     });
   } catch (error) {
@@ -141,7 +153,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
     })(req, res, next);
   }
 );
@@ -171,7 +183,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
     })(req, res, next);
   }
 );
@@ -180,7 +192,7 @@ router.get(
 router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, avatar, oauth_provider, onboarding_completed, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, onboarding_completed, created_at FROM users WHERE id = $1',
       [req.userId]
     );
 
