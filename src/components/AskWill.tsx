@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import './AskWill.css';
-import santaWillImage from '../assets/santa_will.png';
+import willImage from '../assets/will.png';
 import { api } from '../services/api';
 
 interface Message {
@@ -136,7 +136,7 @@ export default function AskWill() {
           onClick={() => setIsOpen(true)}
           aria-label="Chat with Will"
         >
-          <img src={santaWillImage} alt="Ask Will" className="chat-bubble-image" />
+          <img src={willImage} alt="Ask Will" className="chat-bubble-image" />
           <div className="chat-bubble-tooltip">
             How can I help?
           </div>
@@ -148,7 +148,7 @@ export default function AskWill() {
         <div className={`chat-window ${isNearFooter ? 'near-footer' : ''} ${isExpanded ? 'expanded' : ''}`}>
           <div className="chat-header">
             <div className="chat-header-info">
-              <img src={santaWillImage} alt="Will" className="chat-avatar" />
+              <img src={willImage} alt="Will" className="chat-avatar" />
               <div>
                 <h3>Chat with Will</h3>
                 <span className="chat-status">Your Mom's Favorite Money Man</span>
