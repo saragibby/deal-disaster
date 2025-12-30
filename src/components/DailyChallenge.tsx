@@ -17,7 +17,12 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
   useEffect(() => {
     if (challengeData) {
       // Handle different data structures
-      let challengeObj = challengeData.challenge;
+      let challengeObj = challengeData.challenge || challengeData;
+      
+      // Ensure challenge_date is set
+      if (!challengeObj.challenge_date && challengeObj.date) {
+        challengeObj.challenge_date = challengeObj.date;
+      }
       
       // Normalize the challenge data structure
       if (challengeObj && !challengeObj.property_data) {
@@ -45,6 +50,9 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
           }
         };
       }
+      
+      console.log('Challenge object:', challengeObj);
+      console.log('Challenge date:', challengeObj.challenge_date);
       
       setChallenge(challengeObj);
       setUserCompletion(challengeData.user_completion || challengeData.completion);
@@ -77,17 +85,35 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Invalid date';
-    // Parse as local date to avoid timezone issues
-    // dateString format is YYYY-MM-DD
-    const [year, month, day] = dateString.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    if (isNaN(date.getTime())) return 'Invalid date';
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
+    
+    try {
+      // Handle different date formats
+      // Extract just the date part if it includes timestamp (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss)
+      const datePart = dateString.split('T')[0];
+      const parts = datePart.split('-');
+      
+      if (parts.length !== 3) return 'Invalid date';
+      
+      const [year, month, day] = parts.map(Number);
+      
+      // Validate the parsed values
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return 'Invalid date';
+      if (month < 1 || month > 12) return 'Invalid date';
+      if (day < 1 || day > 31) return 'Invalid date';
+      
+      const date = new Date(year, month - 1, day);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'Invalid date';
+    }
   };
 
   if (loading) {
@@ -151,7 +177,7 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
             <span className="badge-text">Daily Challenge</span>
           </div>
           <h2 className="challenge-title">Today's Foreclosure Scenario</h2>
-          <p className="challenge-date">{formatDate(challenge.challenge_date)}</p>
+          <p className="challenge-date">{formatDate(challenge.challenge_date || challenge.date)}</p>
         </div>
 
         {userCompletion ? (

@@ -32,13 +32,10 @@
 
 .chat-bubble-image {
   width: 70px;
-  height: 70px;
+  height: auto;
   display: block;
-  border-radius: 50%;
-  object-fit: cover;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
   transition: all 0.3s ease;
-  border: 3px solid white;
 }
 
 .chat-bubble-tooltip {
@@ -129,10 +126,8 @@
 
 .chat-avatar {
   width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  height: auto;
+  object-fit: contain;
 }
 
 .chat-header h3 {
