@@ -237,6 +237,21 @@ class ApiService {
 
     return response.json();
   }
+
+  async getChatAnalytics() {
+    const response = await fetch(`${API_BASE_URL}/api/chat/analytics`, {
+      headers: this.getHeaders(true),
+    });
+
+    await this.handleResponse(response);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get chat analytics');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiService();

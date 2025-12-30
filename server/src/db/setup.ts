@@ -51,6 +51,30 @@ export async function setupDatabase() {
     `);
     console.log('✅ Indexes created');
 
+    // Create chat_questions table for analytics
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_questions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        question TEXT NOT NULL,
+        response_preview TEXT,
+        asked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        session_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Chat questions table created');
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_questions_asked_at 
+      ON chat_questions(asked_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_questions_user_id 
+      ON chat_questions(user_id)
+    `);
+    console.log('✅ Chat questions indexes created');
+
     // Create leaderboard view
     await pool.query(`
       CREATE OR REPLACE VIEW leaderboard AS
