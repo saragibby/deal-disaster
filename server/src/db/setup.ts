@@ -75,6 +75,23 @@ export async function setupDatabase() {
     `);
     console.log('✅ Chat questions indexes created');
 
+    // Create feedback table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS feedback (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Feedback table created');
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_feedback_created_at 
+      ON feedback(created_at DESC)
+    `);
+    console.log('✅ Feedback indexes created');
+
     // Create leaderboard view
     await pool.query(`
       CREATE OR REPLACE VIEW leaderboard AS

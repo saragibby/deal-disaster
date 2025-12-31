@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js';
 import gameRoutes from './routes/game.js';
 import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
+import feedbackRoutes from './routes/feedback.js';
 import { initializeScheduledTasks } from './scheduler.js';
 
 dotenv.config();
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/daily-challenge', dailyChallengeRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

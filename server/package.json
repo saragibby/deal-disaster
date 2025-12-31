@@ -9,7 +9,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "db:setup": "tsx src/db/setup.ts",
-    "db:setup:prod": "node dist/db/setup.js"
+    "db:setup:prod": "node dist/db/setup.js",
+    "regenerate-images": "tsx src/scripts/regenerateImages.ts",
+    "regenerate-images-date": "tsx src/scripts/regenerateImagesForDate.ts"
   },
   "keywords": [],
   "author": "",

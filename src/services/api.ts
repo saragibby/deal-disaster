@@ -252,6 +252,21 @@ class ApiService {
 
     return response.json();
   }
+
+  async submitFeedback(message: string) {
+    const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify({ message }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to submit feedback');
+    }
+
+    return response.json();
+  }
 }
 
 export const api = new ApiService();

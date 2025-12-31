@@ -1,24 +1,65 @@
+import { useState } from 'react';
 import moneyManLogo from '../assets/money_man_white.png';
 import './Footer.css';
+import { api } from '../services/api';
 
 export default function Footer() {
-  return (
-    <footer className="site-footer">
-      <div className="footer-content">
-        <div className="footer-logo">
-          <img src={moneyManLogo} alt="Money Man Will Myers" />
-        </div>
-        
-        <div className="footer-info">
-          <p className="footer-copyright">
-            © {new Date().getFullYear()} Deal or Disaster. All rights reserved.
-          </p>
-          <p className="footer-tagline">
-            Learn from <a href="https://moneymanmyers.com/" target="_blank" rel="noopener noreferrer">Money Man Will Myers</a>
-          </p>
-        </div>
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
 
-        <div className="footer-social">
+  const handleSubmitFeedback = async () => {
+    if (!feedback.trim()) return;
+
+    setIsSubmitting(true);
+    setSubmitStatus(null);
+
+    try {
+      await api.submitFeedback(feedback);
+
+      setSubmitStatus('success');
+      setFeedback('');
+      
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setShowFeedbackModal(false);
+        setSubmitStatus(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <footer className="site-footer">
+        <div className="footer-content">
+          <div className="footer-logo">
+            <img src={moneyManLogo} alt="Money Man Will Myers" />
+          </div>
+          
+          <div className="footer-info">
+            <p className="footer-copyright">
+              © {new Date().getFullYear()} Deal or Disaster. All rights reserved.
+            </p>
+            <p className="footer-tagline">
+              Learn from <a href="https://moneymanmyers.com/" target="_blank" rel="noopener noreferrer">Money Man Will Myers</a>
+            </p>
+          </div>
+
+          <div className="footer-social">
+          <button 
+            className="feedback-button"
+            onClick={() => setShowFeedbackModal(true)}
+            aria-label="Share Feedback"
+            title="Share Feedback"
+          >
+            💬
+          </button>
           <a 
             href="https://www.instagram.com/Moneymanmyers/" 
             target="_blank" 
@@ -57,5 +98,52 @@ export default function Footer() {
         </div>
       </div>
     </footer>
+
+    {/* Feedback Modal */}
+    {showFeedbackModal && (
+      <div className="feedback-modal-overlay" onClick={() => setShowFeedbackModal(false)}>
+        <div className="feedback-modal" onClick={(e) => e.stopPropagation()}>
+          <h3>Share Your Feedback</h3>
+          <p className="feedback-subtitle">
+            Got ideas, suggestions, or issues? We'd love to hear from you!
+          </p>
+          
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Share your thoughts, ideas, or report any issues..."
+            maxLength={5000}
+            rows={6}
+            disabled={isSubmitting}
+            autoFocus
+          />
+          
+          <div className="feedback-actions">
+            <button 
+              className="feedback-cancel"
+              onClick={() => setShowFeedbackModal(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button 
+              className="feedback-submit"
+              onClick={handleSubmitFeedback}
+              disabled={isSubmitting || !feedback.trim()}
+            >
+              {isSubmitting ? 'Sending...' : 'Send Feedback'}
+            </button>
+          </div>
+
+          {submitStatus === 'success' && (
+            <div className="feedback-success">✓ Thank you for your feedback!</div>
+          )}
+          {submitStatus === 'error' && (
+            <div className="feedback-error">Failed to send. Please try again.</div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

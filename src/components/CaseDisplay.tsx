@@ -97,7 +97,11 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
           <div className="photo-grid">
             {propertyCase.photos.map((photo, index) => (
               <div key={index} className="photo-placeholder">
-                {photo}
+                {photo.startsWith('http') ? (
+                  <img src={photo} alt={`Property photo ${index + 1}`} loading="lazy" />
+                ) : (
+                  photo
+                )}
               </div>
             ))}
           </div>

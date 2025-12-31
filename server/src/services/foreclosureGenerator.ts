@@ -41,9 +41,10 @@ interface ForeclosureScenario {
 
 export class ForeclosureScenarioGenerator {
   private client: OpenAI;
+  private dalleClient: OpenAI | null = null;
 
   constructor() {
-    // Initialize Azure OpenAI client
+    // Initialize Azure OpenAI client for text generation
     const apiKey = process.env.AZURE_OPENAI_API_KEY;
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4';
@@ -62,6 +63,16 @@ export class ForeclosureScenarioGenerator {
       defaultQuery: { 'api-version': apiVersion },
       defaultHeaders: { 'api-key': apiKey },
     });
+
+    // Initialize standard OpenAI client for DALL-E image generation
+    if (process.env.OPENAI_API_KEY) {
+      this.dalleClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      console.log('✅ DALL-E image generation enabled');
+    } else {
+      console.log('ℹ️  DALL-E image generation disabled (set OPENAI_API_KEY to enable)');
+    }
   }
 
   async generateScenario(difficulty: 'easy' | 'medium' | 'hard' = 'medium'): Promise<ForeclosureScenario> {
@@ -92,11 +103,100 @@ export class ForeclosureScenarioGenerator {
       }
 
       const scenario = JSON.parse(content) as ForeclosureScenario;
-      return this.validateAndNormalizeScenario(scenario);
+      const validatedScenario = this.validateAndNormalizeScenario(scenario);
+      
+      // Generate AI images for the property
+      try {
+        const imageUrls = await this.generatePropertyImages(validatedScenario);
+        validatedScenario.photos = imageUrls;
+      } catch (imageError) {
+        console.error('Failed to generate images, using emoji placeholders:', imageError);
+        // Keep the emoji placeholders if image generation fails
+      }
+      
+      return validatedScenario;
     } catch (error) {
       console.error('Error generating foreclosure scenario:', error);
       throw new Error('Failed to generate foreclosure scenario');
     }
+  }
+
+  private async generatePropertyImages(scenario: ForeclosureScenario): Promise<string[]> {
+    // If no DALL-E client configured, return emoji placeholders
+    if (!this.dalleClient) {
+      console.log('Skipping image generation - no OpenAI API key configured');
+      return scenario.photos;
+    }
+
+    // Extract key details for more realistic images
+    const location = `${scenario.city}, ${scenario.state}`;
+    const propertyDesc = scenario.description || '';
+    const funnyStory = scenario.funnyStory || '';
+    const condition = scenario.estimatedRepairs > 50000 ? 'showing significant wear, dated features, and deferred maintenance' : 
+                      scenario.estimatedRepairs > 30000 ? 'showing moderate wear and some dated features' : 
+                      'in functional condition with minor cosmetic updates needed';
+    
+    // Occupancy-specific details for more realistic images
+    const occupancyDetails = scenario.occupancyStatus === 'vacant' 
+      ? 'Empty and unfurnished, showing clear signs of vacancy - no furniture, no personal items, no occupants. Windows may appear dark or have blinds closed.' 
+      : scenario.occupancyStatus === 'occupied'
+      ? 'Currently occupied with furniture and personal belongings visible'
+      : 'Property condition unclear';
+
+    const interiorOccupancy = scenario.occupancyStatus === 'vacant'
+      ? 'Completely empty room with no furniture or belongings, bare walls, unfurnished'
+      : 'Furnished room with typical residential furniture and decor';
+
+    const imagePrompts = [
+      `Realistic real estate photograph of the exterior of a ${scenario.propertyType.toLowerCase()} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails}. ${propertyDesc}. Natural daylight, street view perspective, professional real estate photography.`,
+      
+      `Interior photograph of the living room in a ${scenario.beds} bedroom, ${scenario.baths} bathroom ${scenario.propertyType.toLowerCase()}. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('carpet') || funnyStory.includes('floor') ? 'Focus on flooring and overall room condition' : ''}. Realistic residential interior, real estate listing quality photo.`,
+      
+      `Interior photograph of the kitchen in a residential ${scenario.propertyType.toLowerCase()}. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('kitchen') || funnyStory.includes('appliance') ? 'Show appliances and cabinetry condition clearly' : 'Standard kitchen layout with appliances visible'}. Natural lighting, real estate photography style.`,
+      
+      `Interior photograph of a bathroom in a ${scenario.yearBuilt} built home. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('bathroom') || funnyStory.includes('plumb') || funnyStory.includes('fixture') ? 'Show fixtures and overall bathroom condition' : 'Standard bathroom fixtures'}. Real estate listing photograph.`
+    ];
+
+    const imageUrls: string[] = [];
+
+    console.log(`Generating ${imagePrompts.length} property images for ${location}...`);
+
+    try {
+      for (let i = 0; i < imagePrompts.length; i++) {
+        try {
+          console.log(`Generating image ${i + 1}/${imagePrompts.length}...`);
+          
+          const imageResponse = await this.dalleClient.images.generate({
+            model: 'dall-e-3',
+            prompt: imagePrompts[i],
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+          });
+
+          if (imageResponse.data && imageResponse.data[0]?.url) {
+            imageUrls.push(imageResponse.data[0].url);
+            console.log(`✅ Generated image ${i + 1}`);
+          }
+        } catch (error) {
+          console.error(`Failed to generate image ${i + 1}:`, error);
+          // Continue to next image
+        }
+      }
+
+      // If we got at least 2 images, return them (otherwise fall back to emojis)
+      if (imageUrls.length >= 2) {
+        console.log(`✅ Successfully generated ${imageUrls.length} images`);
+        return imageUrls;
+      } else {
+        console.log('Not enough images generated, using emoji placeholders');
+      }
+    } catch (error) {
+      console.error('Image generation failed:', error);
+    }
+
+    // Fallback to emoji placeholders
+    return scenario.photos;
   }
 
   private buildPrompt(difficulty: string): string {
