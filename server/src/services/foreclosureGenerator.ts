@@ -130,32 +130,24 @@ export class ForeclosureScenarioGenerator {
 
     // Extract key details for more realistic images
     const location = `${scenario.city}, ${scenario.state}`;
+    const propertyType = scenario.propertyType.toLowerCase();
     const propertyDesc = scenario.description || '';
-    const funnyStory = scenario.funnyStory || '';
-    const condition = scenario.estimatedRepairs > 50000 ? 'showing significant wear, dated features, and deferred maintenance' : 
-                      scenario.estimatedRepairs > 30000 ? 'showing moderate wear and some dated features' : 
-                      'in functional condition with minor cosmetic updates needed';
+    const occupancyStatus = scenario.occupancyStatus;
     
     // Occupancy-specific details for more realistic images
-    const occupancyDetails = scenario.occupancyStatus === 'vacant' 
-      ? 'Empty and unfurnished, showing clear signs of vacancy - no furniture, no personal items, no occupants. Windows may appear dark or have blinds closed.' 
-      : scenario.occupancyStatus === 'occupied'
-      ? 'Currently occupied with furniture and personal belongings visible'
-      : 'Property condition unclear';
+    const occupancyDetails = occupancyStatus === 'vacant' 
+      ? 'Property is vacant and unfurnished.' 
+      : occupancyStatus === 'occupied'
+      ? 'Property is currently occupied with furniture.'
+      : '';
 
-    const interiorOccupancy = scenario.occupancyStatus === 'vacant'
-      ? 'Completely empty room with no furniture or belongings, bare walls, unfurnished'
-      : 'Furnished room with typical residential furniture and decor';
-
-    const imagePrompts = [
-      `Realistic real estate photograph of the exterior of a ${scenario.propertyType.toLowerCase()} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails}. ${propertyDesc}. Natural daylight, street view perspective, professional real estate photography.`,
+    // Use the photo descriptions from the scenario and enhance them with property context
+    const imagePrompts = scenario.photos.map((photoDesc, index) => {
+      // Remove any emoji from the description if present
+      const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
       
-      `Interior photograph of the living room in a ${scenario.beds} bedroom, ${scenario.baths} bathroom ${scenario.propertyType.toLowerCase()}. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('carpet') || funnyStory.includes('floor') ? 'Focus on flooring and overall room condition' : ''}. Realistic residential interior, real estate listing quality photo.`,
-      
-      `Interior photograph of the kitchen in a residential ${scenario.propertyType.toLowerCase()}. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('kitchen') || funnyStory.includes('appliance') ? 'Show appliances and cabinetry condition clearly' : 'Standard kitchen layout with appliances visible'}. Natural lighting, real estate photography style.`,
-      
-      `Interior photograph of a bathroom in a ${scenario.yearBuilt} built home. ${interiorOccupancy}. ${condition}. ${funnyStory.includes('bathroom') || funnyStory.includes('plumb') || funnyStory.includes('fixture') ? 'Show fixtures and overall bathroom condition' : 'Standard bathroom fixtures'}. Real estate listing photograph.`
-    ];
+      return `Realistic real estate photograph: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${propertyDesc}. Professional real estate photography style, natural lighting, high quality.`;
+    });
 
     const imageUrls: string[] = [];
 
@@ -175,8 +167,19 @@ export class ForeclosureScenarioGenerator {
           });
 
           if (imageResponse.data && imageResponse.data[0]?.url) {
-            imageUrls.push(imageResponse.data[0].url);
-            console.log(`✅ Generated image ${i + 1}`);
+            const tempUrl = imageResponse.data[0].url;
+            console.log(`Generated temporary URL for image ${i + 1}`);
+            
+            // Download the image and convert to base64 for permanent storage
+            try {
+              const imageBuffer = await this.downloadImage(tempUrl);
+              const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+              imageUrls.push(base64Image);
+              console.log(`✅ Downloaded and converted image ${i + 1} to base64`);
+            } catch (downloadError) {
+              console.error(`Failed to download image ${i + 1}, using temporary URL:`, downloadError);
+              imageUrls.push(tempUrl);
+            }
           }
         } catch (error) {
           console.error(`Failed to generate image ${i + 1}:`, error);
@@ -197,6 +200,15 @@ export class ForeclosureScenarioGenerator {
 
     // Fallback to emoji placeholders
     return scenario.photos;
+  }
+
+  private async downloadImage(url: string): Promise<Buffer> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download image: ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   private buildPrompt(difficulty: string): string {
@@ -223,7 +235,7 @@ Required JSON structure:
   "hoaFees": optional monthly HOA fees (omit if not applicable),
   "description": "brief 1-2 sentence property description",
   "funnyStory": "3-5 sentences about the property itself. Be funny and humorous! Describe quirky features, strange design choices, unusual conditions, or odd characteristics of the house. Drop subtle clues about problems without mentioning the foreclosure or auction. Focus on what makes THIS property unique or problematic in an entertaining way.",
-  "photos": array of 4-6 emoji-based photo descriptions like "🏠 Front view", "🛁 Bathroom", "🍳 Kitchen",
+  "photos": array of 4 photo descriptions (NOT emojis). Each should be a detailed description for AI image generation like "Front exterior showing the colonial-style home with overgrown landscaping", "Living room with worn carpet and dated wallpaper", "Kitchen showing original 1970s appliances", "Bathroom with cracked tile and outdated fixtures",
   "liens": array of 2-4 liens with structure:
     {
       "type": "First Mortgage, Second Mortgage, Tax Lien, HOA Lien, Judgment Lien, etc.",
@@ -253,7 +265,7 @@ IMPORTANT:
 1. Make the funnyStory genuinely entertaining with personality
 2. Include realistic liens (tax liens survive foreclosure!)
 3. Ensure math adds up: auctionPrice + estimatedRepairs + liens you inherit = total cost vs actualValue
-4. Photos should be creative emoji descriptions
+4. Photo descriptions should be detailed and realistic for AI image generation, matching the property type, condition, and story
 5. Drop clues in the story without giving away the answer
 6. Use realistic numbers for 2025 market conditions`;
   }
