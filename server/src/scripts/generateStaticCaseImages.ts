@@ -180,7 +180,7 @@ async function generateImagesForCase(caseData: CaseImageData, dalleClient: OpenA
         size: '512x512',
       });
 
-      const imageUrl = response.data[0]?.url;
+      const imageUrl = response.data?.[0]?.url;
       if (!imageUrl) {
         throw new Error('No image URL in response');
       }
