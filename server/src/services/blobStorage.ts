@@ -6,10 +6,15 @@ export class BlobStorageService {
   private containerName: string;
   private accountName: string = '';
   private accountKey: string = '';
+  private folderPrefix: string;
 
   constructor() {
     const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
     this.containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'property-images';
+    
+    // Use environment-based folder prefix (dev/prod)
+    const environment = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
+    this.folderPrefix = environment;
 
     if (!connectionString) {
       console.warn('Azure Storage not configured - images will use base64 fallback');
@@ -40,8 +45,8 @@ export class BlobStorageService {
     }
 
     try {
-      // Generate unique filename
-      const filename = `${crypto.randomUUID()}.png`;
+      // Generate unique filename with folder prefix
+      const filename = `${this.folderPrefix}/${crypto.randomUUID()}.png`;
       
       // Get container client
       const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
