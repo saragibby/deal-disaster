@@ -216,7 +216,9 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
               </div>
               <div className="stat-item">
                 <span className="stat-label">Points Earned</span>
-                <span className="stat-value points-earned">+{userCompletion.points_earned}</span>
+                <span className="stat-value points-earned">
+                  {userCompletion.points_earned >= 0 ? '+' : ''}{userCompletion.points_earned}
+                </span>
               </div>
               <div className="stat-item">
                 <span className="stat-label">Time Taken</span>

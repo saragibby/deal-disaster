@@ -303,11 +303,15 @@
 }
 
 .points-earned {
-  color: #ffffff;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
 }
 
 .time-taken {
-  color: #ffffff;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
 }
 
 /* Actions */
