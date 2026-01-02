@@ -15,7 +15,8 @@
     "regenerate-images": "tsx src/scripts/regenerateImages.ts",
     "regenerate-images:prod": "node dist/scripts/regenerateImages.js",
     "regenerate-images-date": "tsx src/scripts/regenerateImagesForDate.ts",
-    "regenerate-images-date:prod": "node dist/scripts/regenerateImagesForDate.js"
+    "regenerate-images-date:prod": "node dist/scripts/regenerateImagesForDate.js",
+    "generate-static-images": "tsx src/scripts/generateStaticCaseImages.ts"
   },
   "keywords": [],
   "author": "",
