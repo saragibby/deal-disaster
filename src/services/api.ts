@@ -32,6 +32,15 @@ class ApiService {
       }
     }
 
+    // Add user's timezone to all requests
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      headers['X-User-Timezone'] = timezone;
+    } catch (e) {
+      // Fallback to UTC if timezone detection fails
+      headers['X-User-Timezone'] = 'UTC';
+    }
+
     return headers;
   }
 

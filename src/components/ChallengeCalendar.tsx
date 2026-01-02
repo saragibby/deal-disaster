@@ -22,6 +22,15 @@ export default function ChallengeCalendar({ onSelectDate }: ChallengeCalendarPro
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
+  // Get today's date string in user's local timezone (YYYY-MM-DD)
+  const getTodayLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   useEffect(() => {
     fetchChallenges();
   }, [currentMonth]);
@@ -58,10 +67,9 @@ export default function ChallengeCalendar({ onSelectDate }: ChallengeCalendarPro
   };
 
   const isDateInFuture = (year: number, month: number, day: number) => {
-    const date = new Date(year, month, day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date > today;
+    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const todayString = getTodayLocalDateString();
+    return dateString > todayString;
   };
 
   const handleDateClick = (year: number, month: number, day: number) => {
@@ -78,7 +86,9 @@ export default function ChallengeCalendar({ onSelectDate }: ChallengeCalendarPro
   const goToNextMonth = () => {
     const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
     const today = new Date();
-    if (nextMonth <= today) {
+    // Allow navigation to next month if it's not in the future
+    if (nextMonth.getFullYear() < today.getFullYear() || 
+        (nextMonth.getFullYear() === today.getFullYear() && nextMonth.getMonth() <= today.getMonth())) {
       setCurrentMonth(nextMonth);
     }
   };
@@ -103,7 +113,8 @@ export default function ChallengeCalendar({ onSelectDate }: ChallengeCalendarPro
     for (let day = 1; day <= daysInMonth; day++) {
       const challenge = getChallengeForDate(year, month, day);
       const isFuture = isDateInFuture(year, month, day);
-      const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+      const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isToday = dateString === getTodayLocalDateString();
       const hasNoChallenge = !challenge && !isFuture;
 
       days.push(
@@ -138,7 +149,9 @@ export default function ChallengeCalendar({ onSelectDate }: ChallengeCalendarPro
   const canGoNext = () => {
     const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
     const today = new Date();
-    return nextMonth <= today;
+    // Allow navigation to next month if it's not in the future
+    return nextMonth.getFullYear() < today.getFullYear() || 
+           (nextMonth.getFullYear() === today.getFullYear() && nextMonth.getMonth() <= today.getMonth());
   };
 
   return (

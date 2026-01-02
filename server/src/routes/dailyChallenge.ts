@@ -2,13 +2,16 @@ import { Router, Request, Response } from 'express';
 import { foreclosureGenerator } from '../services/foreclosureGenerator.js';
 import { pool } from '../db/pool.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { getTodayInTimezone } from '../utils/dateUtils.js';
 
 const router = Router();
 
 // Get today's daily challenge
 router.get('/today', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Get user's timezone from request header or default to UTC
+    const userTimezone = (req.headers['x-user-timezone'] as string) || 'UTC';
+    const today = getTodayInTimezone(userTimezone);
     
     const result = await pool.query(
       'SELECT * FROM daily_challenges WHERE challenge_date = $1',
@@ -187,7 +190,9 @@ router.post('/generate', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    // Use server timezone for scheduled generation
+    const serverTimezone = process.env.TIMEZONE || 'America/New_York';
+    const targetDate = date || getTodayInTimezone(serverTimezone);
 
     // Check if challenge already exists for this date
     const existingResult = await pool.query(
@@ -234,7 +239,9 @@ router.post('/generate', async (req: Request, res: Response) => {
 // Get today's daily challenge leaderboard
 router.get('/leaderboard', async (req, res: Response) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Get user's timezone from request header or default to UTC
+    const userTimezone = (req.headers['x-user-timezone'] as string) || 'UTC';
+    const today = getTodayInTimezone(userTimezone);
     
     // Get today's challenge
     const challengeResult = await pool.query(

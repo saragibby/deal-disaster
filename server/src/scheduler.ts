@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { foreclosureGenerator } from './services/foreclosureGenerator.js';
 import { pool } from './db/pool.js';
+import { getTodayInTimezone, getServerTimezone } from './utils/dateUtils.js';
 
 /**
  * Scheduled task to generate daily foreclosure challenges
@@ -26,7 +27,7 @@ export function initializeScheduledTasks() {
 
 async function generateDailyChallenge(date?: string): Promise<void> {
   try {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date || getTodayInTimezone(getServerTimezone());
     
     // Check if challenge already exists
     const existingResult = await pool.query(
@@ -63,7 +64,7 @@ async function generateDailyChallenge(date?: string): Promise<void> {
 }
 
 async function checkAndGenerateTodaysChallenge(): Promise<void> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayInTimezone(getServerTimezone());
   
   try {
     const result = await pool.query(
