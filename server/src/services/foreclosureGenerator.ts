@@ -237,40 +237,56 @@ Required JSON structure:
   "occupancyStatus": "vacant", "occupied", or "unknown",
   "hoaFees": optional monthly HOA fees (omit if not applicable),
   "description": "brief 1-2 sentence property description",
-  "funnyStory": "3-5 sentences about the property itself. Be funny and humorous! Describe quirky features, strange design choices, unusual conditions, or odd characteristics of the house. Drop subtle clues about problems without mentioning the foreclosure or auction. Focus on what makes THIS property unique or problematic in an entertaining way.",
+  "funnyStory": "3-5 sentences about the property itself. Be funny and humorous! Describe quirky features, strange design choices, unusual conditions, or odd characteristics of the house. Drop subtle clues about problems without mentioning the foreclosure or auction. Focus on what makes THIS property unique or problematic in an entertaining way. Weave in hints about the specific issues this property has.",
   "photos": array of 4 photo descriptions (NOT emojis). Each should be a detailed description for AI image generation like "Front exterior showing the colonial-style home with overgrown landscaping", "Living room with worn carpet and dated wallpaper", "Kitchen showing original 1970s appliances", "Bathroom with cracked tile and outdated fixtures",
   "liens": array of 2-4 liens with structure:
     {
-      "type": "First Mortgage, Second Mortgage, Tax Lien, HOA Lien, Judgment Lien, etc.",
-      "holder": "name of institution or entity",
+      "type": "VARY THESE! Examples: First Mortgage, Second Mortgage, Tax Lien (federal/state/local), HOA Lien, Mechanics Lien (unpaid contractors), IRS Tax Lien, Child Support Lien, Judgment Lien (lawsuit), Code Enforcement Lien, Water/Sewer Lien, Special Assessment Lien, etc. Note: If using Child Support Liens, feel free to include multiple from different baby mamas for comedic effect!",
+      "holder": "name of institution or entity (make it specific and story-relevant). For Child Support Liens, use humorous references like 'Baby Mama #1', 'Baby Mama #2', 'Baby Mama from Vegas', etc.",
       "amount": dollar amount,
       "priority": 1, 2, 3, etc.,
-      "notes": "optional notes about the lien (e.g., 'Will be wiped at foreclosure', 'Survives foreclosure!')"
+      "notes": "Add story details! e.g., 'From contractor who walked off job after dispute with owner', 'Unpaid since previous owner's divorce', 'Baby Mama #3 - the one with twins', 'Will be wiped at foreclosure', 'Survives foreclosure - you inherit this!'"
     },
-  "redFlags": array of 2-4 red flags with structure:
+  "redFlags": array of 2-4 red flags with structure - DIVERSIFY THESE SIGNIFICANTLY!
     {
-      "type": "Title Issues, Foundation Problems, Environmental, Tax Liens, etc.",
-      "description": "what the red flag reveals and its impact",
+      "type": "CHOOSE FROM DIVERSE OPTIONS: 
+        - Structural: Foundation cracks, settling, structural damage, roof collapse, basement flooding, retaining wall failure
+        - Environmental: Asbestos, lead paint, mold infestation, radon, buried oil tank, contaminated soil, former meth lab
+        - Title: Clouds on title, easement disputes, boundary conflicts, heir claims, forged deeds, undisclosed co-owners
+        - Legal: Zoning violations, unpaid permits, code violations, illegal additions, occupancy restrictions, deed restrictions
+        - Occupancy: Squatters, hostile tenants, hoarder damage, unauthorized occupants, lease disputes
+        - Mechanical: HVAC failure, plumbing disasters, electrical hazards, septic system failure, well contamination
+        - External: Flood zone issues, sinkhole risk, landslide area, airport noise easement, cell tower lease complications
+        - Financial: Survivable liens, special assessments, upcoming major repairs (roof/HVAC), condemned status
+        - Miscellaneous: Fire damage, water damage, pest infestation (termites, bedbugs), vandalism, stripped property
+        
+        For ${difficulty} difficulty: Use ${difficulty === 'hard' ? '3-4 diverse, interconnected' : difficulty === 'medium' ? '2-3 varied' : '2 straightforward'} issues",
+      "description": "Tell a mini-story about this issue! Not just 'foundation problems' but 'Previous owner's DIY basement expansion undermined the foundation, causing a 3-inch crack from floor to ceiling that neighbors say has been growing for two years'",
       "severity": "low", "medium", or "high",
-      "impact": "financial impact explanation with dollar amounts"
+      "impact": "Be specific with dollar amounts AND story consequences: 'Estimated $45,000 to remediate asbestos in walls and attic, plus 6-month delay for certified removal and EPA clearance'"
     },
-  "hiddenIssues": array of 1-3 strings describing non-obvious issues,
+  "hiddenIssues": array of 1-3 strings describing non-obvious issues with story details. Examples: "Neighbors report constant sewage backup - septic system likely failing", "City records show demolition order filed last year for unpermitted garage conversion", "Former owner was running an unlicensed daycare - potential liability issues",
   "correctDecision": "BUY", "INVESTIGATE", or "WALK_AWAY",
   "explanation": "detailed explanation of why this is the correct decision with calculations"
 }
 
 Difficulty level: ${difficulty}
-- Easy: Obvious good or bad deal with clear warning signs in the story
-- Medium: Mixed signals, requires careful analysis
-- Hard: Subtle issues hidden in seemingly good deals or hidden gems in rough situations
+- Easy: 1-2 obvious issues with clear warning signs in the story
+- Medium: 2-3 varied issues requiring careful analysis, mix of obvious and subtle clues
+- Hard: 3-4 diverse, interconnected issues that are subtly hinted at or create complex cascading problems
 
-IMPORTANT:
-1. Make the funnyStory genuinely entertaining with personality
-2. Include realistic liens (tax liens survive foreclosure!)
-3. Ensure math adds up: auctionPrice + estimatedRepairs + liens you inherit = total cost vs actualValue
-4. Photo descriptions should be detailed and realistic for AI image generation, matching the property type, condition, and story
-5. Drop clues in the story without giving away the answer
-6. Use realistic numbers for 2025 market conditions`;
+CRITICAL REQUIREMENTS:
+1. DIVERSIFY ISSUES! Don't repeat the same red flags (foundation, tax liens) every time
+2. Make issues STORY-DRIVEN - each problem should have character and detail
+3. Connect issues to the funnyStory - property history should hint at the problems
+4. Vary lien types dramatically - not just "First Mortgage + Tax Lien" every time
+5. For harder difficulties, make issues interact (e.g., water damage + mold + code violations)
+6. Include realistic liens (tax liens, IRS liens, mechanics liens survive foreclosure!)
+7. Ensure math adds up: auctionPrice + estimatedRepairs + surviving liens + red flag costs = total cost vs actualValue
+8. Photo descriptions should reflect the specific issues and story elements
+9. Drop clues in the story without giving away the answer
+10. Use realistic numbers for 2025 market conditions
+11. Make each property feel unique with its own character and problems`;
   }
 
   private validateAndNormalizeScenario(scenario: ForeclosureScenario): ForeclosureScenario {
