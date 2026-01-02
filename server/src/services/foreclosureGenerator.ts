@@ -172,32 +172,17 @@ export class ForeclosureScenarioGenerator {
             console.log(`Generated temporary URL for image ${i + 1}`);
             
             // Download the image
-            try {
-              const imageBuffer = await this.downloadImage(tempUrl);
-              
-              // Try to upload to Azure Blob Storage
-              if (blobStorage.isConfigured()) {
-                try {
-                  const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
-                  const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
-                  imageUrls.push(blobUrl);
-                  console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
-                } catch (uploadError) {
-                  console.error(`Failed to upload to blob storage, falling back to base64:`, uploadError);
-                  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-                  imageUrls.push(base64Image);
-                  console.log(`✅ Converted image ${i + 1} to base64 (fallback)`);
-                }
-              } else {
-                // No blob storage configured, use base64
-                const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-                imageUrls.push(base64Image);
-                console.log(`✅ Converted image ${i + 1} to base64 (no blob storage)`);
-              }
-            } catch (downloadError) {
-              console.error(`Failed to download image ${i + 1}:`, downloadError);
-              imageUrls.push(tempUrl);
+            const imageBuffer = await this.downloadImage(tempUrl);
+            
+            // Azure Blob Storage is required - no fallback to base64
+            if (!blobStorage.isConfigured()) {
+              throw new Error('Azure Blob Storage not configured. Cannot save images.');
             }
+            
+            const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
+            const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
+            imageUrls.push(blobUrl);
+            console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
           }
         } catch (error) {
           console.error(`Failed to generate image ${i + 1}:`, error);

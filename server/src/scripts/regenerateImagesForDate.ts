@@ -112,30 +112,16 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, ch
         const tempUrl = imageResponse.data[0].url;
         
         // Download the image
-        try {
-          const imageBuffer = await downloadImage(tempUrl);
-          
-          // Try to upload to Azure Blob Storage
-          if (blobStorage.isConfigured()) {
-            try {
-              const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
-              imageUrls.push(blobUrl);
-              console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage`);
-            } catch (uploadError) {
-              console.error(`Failed to upload to blob storage, using base64:`, uploadError);
-              const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-              imageUrls.push(base64Image);
-              console.log(`✓ Image ${i + 1} converted to base64 (fallback)`);
-            }
-          } else {
-            // No blob storage configured, use base64
-            const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-            imageUrls.push(base64Image);
-            console.log(`✓ Image ${i + 1} converted to base64`);
-          }
-        } catch (downloadError) {
-          console.error(`Failed to download image ${i + 1}:`, downloadError);
+        const imageBuffer = await downloadImage(tempUrl);
+        
+        // Azure Blob Storage is required - no fallback to base64
+        if (!blobStorage.isConfigured()) {
+          throw new Error('Azure Blob Storage not configured. Cannot save images.');
         }
+        
+        const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
+        imageUrls.push(blobUrl);
+        console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage`);
       }
 
       // Add delay to avoid rate limiting
