@@ -133,21 +133,60 @@ export class ForeclosureScenarioGenerator {
     const location = `${scenario.city}, ${scenario.state}`;
     const propertyType = scenario.propertyType.toLowerCase();
     const propertyDesc = scenario.description || '';
+    const funnyStory = scenario.funnyStory || '';
     const occupancyStatus = scenario.occupancyStatus;
+    
+    // Extract key visual issues from red flags and hidden issues to make photos more accurate
+    const visualIssues: string[] = [];
+    scenario.redFlags?.forEach(flag => {
+      const desc = flag.description.toLowerCase();
+      if (desc.includes('crack') || desc.includes('foundation') || desc.includes('settling')) {
+        visualIssues.push('visible cracks in walls or foundation');
+      }
+      if (desc.includes('water') || desc.includes('stain') || desc.includes('leak') || desc.includes('mold')) {
+        visualIssues.push('water damage or staining visible');
+      }
+      if (desc.includes('roof')) {
+        visualIssues.push('roof showing wear or damage');
+      }
+      if (desc.includes('electrical') || desc.includes('wiring')) {
+        visualIssues.push('dated or problematic electrical');
+      }
+      if (desc.includes('overgrown') || desc.includes('landscaping') || desc.includes('neglect')) {
+        visualIssues.push('overgrown or neglected landscaping');
+      }
+      if (desc.includes('paint') || desc.includes('cosmetic') || desc.includes('dated')) {
+        visualIssues.push('dated finishes or peeling paint');
+      }
+    });
+
+    scenario.hiddenIssues?.forEach(issue => {
+      const desc = issue.toLowerCase();
+      if (desc.includes('hoard') || desc.includes('clutter')) {
+        visualIssues.push('cluttered or hoarding conditions');
+      }
+      if (desc.includes('damage') || desc.includes('vandal')) {
+        visualIssues.push('visible property damage');
+      }
+    });
+
+    const visualContext = visualIssues.length > 0 
+      ? `Property shows signs of: ${visualIssues.slice(0, 3).join(', ')}. ` 
+      : '';
     
     // Occupancy-specific details for more realistic images
     const occupancyDetails = occupancyStatus === 'vacant' 
-      ? 'Property is vacant and unfurnished.' 
+      ? 'Property is vacant and unfurnished, showing signs of being unoccupied. ' 
       : occupancyStatus === 'occupied'
-      ? 'Property is currently occupied with furniture.'
-      : '';
+      ? 'Property is currently occupied with furniture and lived-in appearance. '
+      : 'Property appearance uncertain. ';
 
     // Use the photo descriptions from the scenario and enhance them with property context
     const imagePrompts = scenario.photos.map((photoDesc, index) => {
       // Remove any emoji from the description if present
       const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
       
-      return `Ultra-realistic real estate photography: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${propertyDesc}. Professional MLS listing photo, natural daylight, high resolution DSLR camera, sharp focus, realistic textures and materials, photorealistic architectural photography, true-to-life colors and lighting. No text, no watermarks, no illustrations - photorealistic only.`;
+      return `Ultra-realistic real estate photography: ${cleanDesc}. ${propertyType} in ${location}, built in ${scenario.yearBuilt}. ${occupancyDetails}${visualContext}${propertyDesc} ${funnyStory} Professional MLS listing photo showing actual property condition, natural daylight, high resolution DSLR camera, sharp focus, realistic textures and materials, photorealistic architectural photography, true-to-life colors and lighting, authentic property flaws visible. No text, no watermarks, no illustrations - photorealistic only.`;
     });
 
     const imageUrls: string[] = [];
