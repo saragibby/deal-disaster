@@ -147,7 +147,7 @@ export class ForeclosureScenarioGenerator {
       // Remove any emoji from the description if present
       const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
       
-      return `Realistic real estate photograph: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${propertyDesc}. Professional real estate photography style, natural lighting, high quality.`;
+      return `Ultra-realistic real estate photography: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${propertyDesc}. Professional MLS listing photo, natural daylight, high resolution DSLR camera, sharp focus, realistic textures and materials, photorealistic architectural photography, true-to-life colors and lighting. No text, no watermarks, no illustrations - photorealistic only.`;
     });
 
     const imageUrls: string[] = [];
