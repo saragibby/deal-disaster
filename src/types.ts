@@ -31,6 +31,12 @@ export interface PropertyCase {
   hoaFees?: number;
   actualValue: number; // true value after all issues considered
   isGoodDeal: boolean;
+  // Additional property details
+  propertyType?: string;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  yearBuilt?: number;
 }
 
 export type Decision = 'BUY' | 'INVESTIGATE' | 'WALK_AWAY' | null;

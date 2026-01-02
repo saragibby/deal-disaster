@@ -50,7 +50,7 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
       </div>
 
       {activeTab === 'announcement' ? (
-        <ForeclosureAnnouncement caseId={propertyCase.id} />
+        <ForeclosureAnnouncement caseId={propertyCase.id} propertyData={propertyCase} />
       ) : (
         <>
       <div className="case-header">

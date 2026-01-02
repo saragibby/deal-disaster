@@ -3,6 +3,7 @@ import '../styles/ForeclosureAnnouncement.css';
 
 interface AnnouncementProps {
   caseId: string;
+  propertyData?: any; // For daily challenges
 }
 
 // Case 1: IRS Lien Scenario
@@ -996,8 +997,123 @@ const Case005Announcement = () => (
   </div>
 );
 
-export const ForeclosureAnnouncement: React.FC<AnnouncementProps> = ({ caseId }) => {
+export const ForeclosureAnnouncement: React.FC<AnnouncementProps> = ({ caseId, propertyData }) => {
   const getAnnouncement = () => {
+    // If we have propertyData (daily challenge), generate a generic notice
+    if (propertyData) {
+      // Handle both regular cases and daily challenges with property_data nested structure
+      const data = propertyData.property_data || propertyData;
+      
+      return (
+        <div className="foreclosure-announcement">
+          <div className="announcement-header">
+            <div className="header-banner">NOTICE OF FORECLOSURE SALE</div>
+            <div className="notice-date">Published: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          </div>
+
+          <div className="announcement-content">
+            <section className="property-info">
+              <h2>PROPERTY DETAILS</h2>
+              <div className="info-grid">
+                <div className="info-item">
+                  <label>Address:</label>
+                  <span>{data.address || propertyData.address}, {data.city || propertyData.city}, {data.state || propertyData.state} {data.zipCode || propertyData.zip}</span>
+                </div>
+                <div className="info-item">
+                  <label>Property Type:</label>
+                  <span>{data.propertyType || 'Single Family Home'}</span>
+                </div>
+                <div className="info-item">
+                  <label>Year Built:</label>
+                  <span>{data.yearBuilt || 'N/A'}</span>
+                </div>
+                <div className="info-item">
+                  <label>Square Footage:</label>
+                  <span>{data.sqft ? data.sqft.toLocaleString() : 'N/A'} sq ft</span>
+                </div>
+                <div className="info-item">
+                  <label>Bedrooms/Bathrooms:</label>
+                  <span>{data.beds || 'N/A'} bed / {data.baths || 'N/A'} bath</span>
+                </div>
+                <div className="info-item">
+                  <label>Occupancy Status:</label>
+                  <span style={{ textTransform: 'capitalize' }}>{data.occupancyStatus || propertyData.occupancyStatus || 'Unknown'}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="auction-details">
+              <h2>AUCTION INFORMATION</h2>
+              <div className="info-grid">
+                <div className="info-item highlight">
+                  <label>Opening Bid:</label>
+                  <span className="amount">${(data.auctionPrice || propertyData.auctionPrice || 0).toLocaleString()}</span>
+                </div>
+                <div className="info-item">
+                  <label>Estimated Market Value:</label>
+                  <span>${(data.estimatedValue || propertyData.propertyValue || 0).toLocaleString()}</span>
+                </div>
+                <div className="info-item">
+                  <label>Estimated Repairs:</label>
+                  <span>${(data.estimatedRepairs || propertyData.repairEstimate || 0).toLocaleString()}</span>
+                </div>
+                {data.monthlyRent && (
+                  <div className="info-item">
+                    <label>Potential Monthly Rent:</label>
+                    <span>${data.monthlyRent.toLocaleString()}/mo</span>
+                  </div>
+                )}
+                {(data.hoaFees || propertyData.hoaFees) && (
+                  <div className="info-item">
+                    <label>HOA Fees:</label>
+                    <span>${(data.hoaFees || propertyData.hoaFees).toLocaleString()}/mo</span>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {(data.liens || propertyData.liens) && (data.liens || propertyData.liens).length > 0 && (
+              <section className="liens-section">
+                <h2>LIENS & ENCUMBRANCES</h2>
+                <div className="warning-box">
+                  ⚠️ This property may be subject to the following liens and encumbrances. Buyer responsible for due diligence.
+                </div>
+                {(data.liens || propertyData.liens).map((lien: any, index: number) => (
+                  <div key={index} className="lien-item">
+                    <div className="lien-header">
+                      <span className="lien-type">{lien.type}</span>
+                      <span className="lien-amount">${lien.amount?.toLocaleString()}</span>
+                    </div>
+                    <div className="lien-details">
+                      <div><strong>Holder:</strong> {lien.holder}</div>
+                      <div><strong>Priority:</strong> {lien.priority === 1 ? '1st' : lien.priority === 2 ? '2nd' : lien.priority === 3 ? '3rd' : `${lien.priority}th`} Position</div>
+                      {lien.notes && <div className="lien-notes">{lien.notes}</div>}
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            <section className="legal-section">
+              <h2>LEGAL NOTICE</h2>
+              <p className="legal-text">
+                This property is being sold at public auction "AS IS, WHERE IS" with no warranties or representations, 
+                express or implied. All information provided is believed to be accurate but is not guaranteed. 
+                Buyer is responsible for conducting their own due diligence including, but not limited to, 
+                title searches, property inspections, and verification of all encumbrances.
+              </p>
+              <p className="legal-text">
+                <strong>Important:</strong> Tax liens, IRS liens, and certain other governmental liens may survive 
+                the foreclosure sale and become the responsibility of the purchaser. Consult with legal counsel 
+                before bidding.
+              </p>
+            </section>
+          </div>
+        </div>
+      );
+    }
+
+    // Otherwise use predefined case announcements
     switch (caseId) {
       case 'case-001':
         return <Case001Announcement />;
