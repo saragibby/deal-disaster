@@ -10,7 +10,7 @@ class ApiService {
   }
 
   private async handleResponse(response: Response) {
-    if (response.status === 401) {
+    if (response.status === 401 || response.status === 403) {
       // Token expired or invalid - trigger logout
       if (this.onUnauthorized) {
         this.onUnauthorized();

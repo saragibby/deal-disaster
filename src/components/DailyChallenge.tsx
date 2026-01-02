@@ -71,6 +71,14 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
       setError(null);
     } catch (err: any) {
       console.error('Error fetching daily challenge:', err);
+      
+      // If it's a session expiration error, just close the modal
+      // The unauthorized handler will clear auth state and show login
+      if (err.message && err.message.includes('Session expired')) {
+        onClose();
+        return;
+      }
+      
       setError(err.message || 'Failed to load daily challenge');
     } finally {
       setLoading(false);
