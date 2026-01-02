@@ -26,6 +26,7 @@ export interface PropertyCase {
   liens: Lien[];
   redFlags: RedFlag[];
   photos: string[];
+  photoUrls?: string[]; // URLs to the generated images (for static cases)
   description: string;
   occupancyStatus: 'vacant' | 'occupied' | 'unknown';
   hoaFees?: number;

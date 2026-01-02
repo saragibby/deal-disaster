@@ -95,7 +95,7 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
         <div className="detail-section">
           <h3>📸 Photos</h3>
           <div className="photo-grid">
-            {propertyCase.photos.map((photo, index) => (
+            {(propertyCase.photoUrls && propertyCase.photoUrls.length > 0 ? propertyCase.photoUrls : propertyCase.photos).map((photo, index) => (
               <div key={index} className="photo-placeholder">
                 {photo.startsWith('http') ? (
                   <img src={photo} alt={`Property photo ${index + 1}`} loading="lazy" />
