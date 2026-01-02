@@ -292,7 +292,7 @@
 .stat-value {
   font-size: 20px;
   font-weight: bold;
-  color: white;
+  color: #ffffff;
 }
 
 .decision-badge {
@@ -303,7 +303,11 @@
 }
 
 .points-earned {
-  color: #4caf50;
+  color: #ffffff;
+}
+
+.time-taken {
+  color: #ffffff;
 }
 
 /* Actions */

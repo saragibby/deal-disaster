@@ -108,8 +108,8 @@ function App() {
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          // Time's up - force a decision
-          handleDecision('WALK_AWAY');
+          // Time's up - force a decision with full time limit
+          handleDecision('WALK_AWAY', CASE_TIME_LIMIT);
           return 0;
         }
         return prev - 1;
@@ -311,7 +311,7 @@ function App() {
     }
   };
 
-  const handleDecision = async (decision: Decision) => {
+  const handleDecision = async (decision: Decision, forcedTimeTaken?: number) => {
     if (!currentCase || !decision) return;
 
     let points = 0;
@@ -376,7 +376,7 @@ function App() {
         await api.completeDailyChallenge(dailyChallengeData.id, {
           decision,
           points_earned: points,
-          time_taken: CASE_TIME_LIMIT - timeRemaining,
+          time_taken: forcedTimeTaken !== undefined ? forcedTimeTaken : CASE_TIME_LIMIT - timeRemaining,
         });
       } else {
         // Save regular game session

@@ -8,6 +8,20 @@ interface DailyChallengeProps {
   challengeData?: any;
 }
 
+// Helper function to format decision text for display
+function formatDecision(decision: string): string {
+  switch (decision) {
+    case 'WALK_AWAY':
+      return 'Walk Away';
+    case 'BUY':
+      return 'Buy';
+    case 'INVESTIGATE':
+      return 'Investigate';
+    default:
+      return decision;
+  }
+}
+
 export default function DailyChallenge({ onStartChallenge, onClose, challengeData }: DailyChallengeProps) {
   const [challenge, setChallenge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -198,7 +212,7 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
             <div className="completion-stats">
               <div className="stat-item">
                 <span className="stat-label">Your Decision</span>
-                <span className="stat-value decision-badge">{userCompletion.decision}</span>
+                <span className="stat-value decision-badge">{formatDecision(userCompletion.decision)}</span>
               </div>
               <div className="stat-item">
                 <span className="stat-label">Points Earned</span>
@@ -206,7 +220,13 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
               </div>
               <div className="stat-item">
                 <span className="stat-label">Time Taken</span>
-                <span className="stat-value">{Math.floor(userCompletion.time_taken / 60)}m {userCompletion.time_taken % 60}s</span>
+                <span className="stat-value time-taken">
+                  {userCompletion.time_taken === 0 
+                    ? 'Timed Out'
+                    : userCompletion.time_taken >= 180
+                    ? '3m 0s (Timed Out)'
+                    : `${Math.floor(userCompletion.time_taken / 60)}m ${userCompletion.time_taken % 60}s`}
+                </span>
               </div>
             </div>
 
