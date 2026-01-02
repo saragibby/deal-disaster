@@ -16,6 +16,8 @@
     "regenerate-images:prod": "node dist/scripts/regenerateImages.js",
     "regenerate-images-date": "tsx src/scripts/regenerateImagesForDate.ts",
     "regenerate-images-date:prod": "node dist/scripts/regenerateImagesForDate.js",
+    "regenerate-challenge": "tsx src/scripts/regenerateChallenge.ts",
+    "regenerate-challenge:prod": "node dist/scripts/regenerateChallenge.js",
     "generate-static-images": "tsx src/scripts/generateStaticCaseImages.ts"
   },
   "keywords": [],
