@@ -1,6 +1,7 @@
 import { pool } from '../db/pool.js';
 import { foreclosureGenerator } from '../services/foreclosureGenerator.js';
 import OpenAI from 'openai';
+import { blobStorage } from '../services/blobStorage.js';
 
 /**
  * Script to regenerate images for past daily challenges
@@ -124,8 +125,33 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any): P
       });
 
       if (imageResponse.data && imageResponse.data[0]?.url) {
-        imageUrls.push(imageResponse.data[0].url);
-        console.log(`  ✓ Image ${i + 1} generated`);
+        const tempUrl = imageResponse.data[0].url;
+        
+        // Download the image
+        try {
+          const imageBuffer = await downloadImage(tempUrl);
+          
+          // Try to upload to Azure Blob Storage
+          if (blobStorage.isConfigured()) {
+            try {
+              const blobUrl = await blobStorage.uploadImage(imageBuffer, 'image/png');
+              imageUrls.push(blobUrl);
+              console.log(`  ✓ Image ${i + 1} uploaded to blob storage`);
+            } catch (uploadError) {
+              console.error(`  Failed to upload to blob storage, using base64:`, uploadError);
+              const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+              imageUrls.push(base64Image);
+              console.log(`  ✓ Image ${i + 1} converted to base64 (fallback)`);
+            }
+          } else {
+            // No blob storage configured, use base64
+            const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+            imageUrls.push(base64Image);
+            console.log(`  ✓ Image ${i + 1} converted to base64`);
+          }
+        } catch (downloadError) {
+          console.error(`  Failed to download image ${i + 1}:`, downloadError);
+        }
       }
     } catch (error) {
       console.error(`  ✗ Failed to generate image ${i + 1}:`, error);
@@ -133,6 +159,15 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any): P
   }
 
   return imageUrls;
+}
+
+async function downloadImage(url: string): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download image: ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 // Run the script

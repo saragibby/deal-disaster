@@ -197,6 +197,13 @@
   align-items: center;
 }
 
+.footer-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 0 4px;
+}
+
 .social-link {
   width: 36px;
   height: 36px;

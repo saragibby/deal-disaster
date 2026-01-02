@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { blobStorage } from './blobStorage.js';
 
 interface ForeclosureScenario {
   address: string;
@@ -170,14 +171,30 @@ export class ForeclosureScenarioGenerator {
             const tempUrl = imageResponse.data[0].url;
             console.log(`Generated temporary URL for image ${i + 1}`);
             
-            // Download the image and convert to base64 for permanent storage
+            // Download the image
             try {
               const imageBuffer = await this.downloadImage(tempUrl);
-              const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-              imageUrls.push(base64Image);
-              console.log(`✅ Downloaded and converted image ${i + 1} to base64`);
+              
+              // Try to upload to Azure Blob Storage
+              if (blobStorage.isConfigured()) {
+                try {
+                  const blobUrl = await blobStorage.uploadImage(imageBuffer, 'image/png');
+                  imageUrls.push(blobUrl);
+                  console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
+                } catch (uploadError) {
+                  console.error(`Failed to upload to blob storage, falling back to base64:`, uploadError);
+                  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+                  imageUrls.push(base64Image);
+                  console.log(`✅ Converted image ${i + 1} to base64 (fallback)`);
+                }
+              } else {
+                // No blob storage configured, use base64
+                const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+                imageUrls.push(base64Image);
+                console.log(`✅ Converted image ${i + 1} to base64 (no blob storage)`);
+              }
             } catch (downloadError) {
-              console.error(`Failed to download image ${i + 1}, using temporary URL:`, downloadError);
+              console.error(`Failed to download image ${i + 1}:`, downloadError);
               imageUrls.push(tempUrl);
             }
           }

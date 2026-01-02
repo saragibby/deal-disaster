@@ -60,6 +60,7 @@ export default function Footer() {
           >
             💬
           </button>
+          <div className="footer-divider"></div>
           <a 
             href="https://www.instagram.com/Moneymanmyers/" 
             target="_blank" 

@@ -14,7 +14,6 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Check for OAuth callback with token in URL
@@ -60,9 +59,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
 
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const body = isLogin 
-        ? { email, password }
-        : { email, password, name };
+      const body = { email, password };
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -150,25 +147,12 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 setErrorMessage('');
               }}
             >
-              ← Back to OAuth
+              ← Back to sign in options
             </button>
 
             <h3>{isLogin ? 'Sign In with Email' : 'Create Account'}</h3>
 
             <form onSubmit={handleEmailSubmit} className="email-form">
-              {!isLogin && (
-                <div className="form-group">
-                  <label>Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
-                    required={!isLogin}
-                  />
-                </div>
-              )}
-
               <div className="form-group">
                 <label>Email</label>
                 <input
