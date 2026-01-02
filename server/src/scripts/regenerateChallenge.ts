@@ -47,19 +47,11 @@ async function regenerateChallenge(dateString: string) {
       console.log('✅ Existing challenge deleted\n');
     }
 
-    // Determine difficulty based on day of month
-    const dayOfMonth = new Date(dateString).getDate();
-    let difficulty: 'easy' | 'medium' | 'hard';
-    
-    if (dayOfMonth <= 10) {
-      difficulty = 'easy';
-    } else if (dayOfMonth <= 20) {
-      difficulty = 'medium';
-    } else {
-      difficulty = 'hard';
-    }
+    // Random difficulty selection
+    const difficulties: ('easy' | 'medium' | 'hard')[] = ['easy', 'medium', 'hard'];
+    const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
 
-    console.log(`📊 Difficulty level: ${difficulty}`);
+    console.log(`📊 Difficulty level: ${difficulty} (randomly selected)`);
     console.log('🏗️  Generating new challenge...\n');
 
     // Generate new challenge

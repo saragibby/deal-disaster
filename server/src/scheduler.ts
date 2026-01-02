@@ -42,10 +42,10 @@ async function generateDailyChallenge(date?: string): Promise<void> {
 
     console.log(`Generating new daily challenge for ${targetDate}...`);
     
-    // Vary difficulty based on day of week
-    const dayOfWeek = new Date(targetDate).getDay();
-    const difficulty = dayOfWeek === 0 || dayOfWeek === 6 ? 'hard' : 
-                      dayOfWeek === 1 || dayOfWeek === 5 ? 'easy' : 'medium';
+    // Random difficulty selection
+    const difficulties: ('easy' | 'medium' | 'hard')[] = ['easy', 'medium', 'hard'];
+    const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
+    console.log(`Selected difficulty: ${difficulty}`);
 
     // Generate scenario using OpenAI
     const scenario = await foreclosureGenerator.generateScenario(difficulty, targetDate);
