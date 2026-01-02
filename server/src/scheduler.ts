@@ -47,7 +47,7 @@ async function generateDailyChallenge(date?: string): Promise<void> {
                       dayOfWeek === 1 || dayOfWeek === 5 ? 'easy' : 'medium';
 
     // Generate scenario using OpenAI
-    const scenario = await foreclosureGenerator.generateScenario(difficulty);
+    const scenario = await foreclosureGenerator.generateScenario(difficulty, targetDate);
 
     // Store in database
     await pool.query(

@@ -39,14 +39,14 @@ export class BlobStorageService {
     }
   }
 
-  async uploadImage(imageBuffer: Buffer, contentType: string = 'image/png'): Promise<string> {
+  async uploadImage(imageBuffer: Buffer, challengeDate: string, contentType: string = 'image/png'): Promise<string> {
     if (!this.blobServiceClient) {
       throw new Error('Azure Blob Storage not configured');
     }
 
     try {
-      // Generate unique filename with folder prefix
-      const filename = `${this.folderPrefix}/${crypto.randomUUID()}.png`;
+      // Generate unique filename with folder prefix and date folder
+      const filename = `${this.folderPrefix}/${challengeDate}/${crypto.randomUUID()}.png`;
       
       // Get container client
       const containerClient = this.blobServiceClient.getContainerClient(this.containerName);

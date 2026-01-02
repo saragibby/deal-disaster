@@ -47,7 +47,7 @@ async function regenerateImagesForDate(dateString: string) {
 
     console.log('🖼️  Generating new images...\n');
 
-    const imageUrls = await generatePropertyImages(dalleClient, propertyData);
+    const imageUrls = await generatePropertyImages(dalleClient, propertyData, dateString);
 
     if (imageUrls.length >= 2) {
       // Update the property_data with new photos
@@ -76,7 +76,7 @@ async function regenerateImagesForDate(dateString: string) {
   }
 }
 
-async function generatePropertyImages(dalleClient: OpenAI, propertyData: any): Promise<string[]> {
+async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, challengeDate: string): Promise<string[]> {
   const location = `${propertyData.city || 'suburban area'}, ${propertyData.state || 'USA'}`;
   const propertyDesc = propertyData.description || '';
   const funnyStory = propertyData.funnyStory || '';
@@ -118,7 +118,7 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any): P
           // Try to upload to Azure Blob Storage
           if (blobStorage.isConfigured()) {
             try {
-              const blobUrl = await blobStorage.uploadImage(imageBuffer, 'image/png');
+              const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
               imageUrls.push(blobUrl);
               console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage`);
             } catch (uploadError) {

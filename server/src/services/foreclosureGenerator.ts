@@ -76,7 +76,7 @@ export class ForeclosureScenarioGenerator {
     }
   }
 
-  async generateScenario(difficulty: 'easy' | 'medium' | 'hard' = 'medium'): Promise<ForeclosureScenario> {
+  async generateScenario(difficulty: 'easy' | 'medium' | 'hard' = 'medium', challengeDate?: string): Promise<ForeclosureScenario> {
     const prompt = this.buildPrompt(difficulty);
 
     try {
@@ -108,7 +108,7 @@ export class ForeclosureScenarioGenerator {
       
       // Generate AI images for the property
       try {
-        const imageUrls = await this.generatePropertyImages(validatedScenario);
+        const imageUrls = await this.generatePropertyImages(validatedScenario, challengeDate);
         validatedScenario.photos = imageUrls;
       } catch (imageError) {
         console.error('Failed to generate images, using emoji placeholders:', imageError);
@@ -122,7 +122,7 @@ export class ForeclosureScenarioGenerator {
     }
   }
 
-  private async generatePropertyImages(scenario: ForeclosureScenario): Promise<string[]> {
+  private async generatePropertyImages(scenario: ForeclosureScenario, challengeDate?: string): Promise<string[]> {
     // If no DALL-E client configured, return emoji placeholders
     if (!this.dalleClient) {
       console.log('Skipping image generation - no OpenAI API key configured');
@@ -178,7 +178,8 @@ export class ForeclosureScenarioGenerator {
               // Try to upload to Azure Blob Storage
               if (blobStorage.isConfigured()) {
                 try {
-                  const blobUrl = await blobStorage.uploadImage(imageBuffer, 'image/png');
+                  const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
+                  const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
                   imageUrls.push(blobUrl);
                   console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
                 } catch (uploadError) {
