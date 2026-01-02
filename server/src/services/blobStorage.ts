@@ -12,8 +12,8 @@ export class BlobStorageService {
     const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
     this.containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'property-images';
     
-    // Use environment-based folder prefix (dev/prod)
-    const environment = process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
+    // Use AZURE_ENV for folder prefix (dev/prod), defaults to dev
+    const environment = process.env.AZURE_ENV === 'production' ? 'prod' : 'dev';
     this.folderPrefix = environment;
 
     if (!connectionString) {
