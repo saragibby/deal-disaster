@@ -17,6 +17,11 @@ export async function setupDatabase() {
         phone_number VARCHAR(20),
         sms_opt_in BOOLEAN DEFAULT FALSE,
         email_newsletter_opt_in BOOLEAN DEFAULT FALSE,
+        email_verified BOOLEAN DEFAULT FALSE,
+        verification_token VARCHAR(255),
+        verification_token_expires TIMESTAMP,
+        reset_token VARCHAR(255),
+        reset_token_expires TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(oauth_provider, oauth_id),
@@ -48,6 +53,16 @@ export async function setupDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_game_sessions_user_id 
       ON game_sessions(user_id)
+    `);
+    
+    // Create indexes for token lookups
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_verification_token 
+      ON users(verification_token)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_reset_token 
+      ON users(reset_token)
     `);
     console.log('✅ Indexes created');
 

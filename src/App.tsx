@@ -211,18 +211,20 @@ function App() {
         body: JSON.stringify(data),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to complete onboarding');
+        throw new Error(result.error || 'Failed to complete onboarding');
       }
 
-      const result = await response.json();
       const updatedUser = { ...user, ...result.user };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setShowOnboarding(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Onboarding error:', error);
-      alert('Failed to save profile. Please try again.');
+      // Re-throw the error so Onboarding component can display it
+      throw error;
     }
   };
 

@@ -63,8 +63,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             const avatar = profile.photos?.[0]?.value;
 
             result = await pool.query(
-              `INSERT INTO users (email, name, avatar, oauth_provider, oauth_id) 
-               VALUES ($1, $2, $3, $4, $5) 
+              `INSERT INTO users (email, name, avatar, oauth_provider, oauth_id, email_verified) 
+               VALUES ($1, $2, $3, $4, $5, true) 
                RETURNING *`,
               [email, name, avatar, 'google', profile.id]
             );
@@ -131,8 +131,8 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
             }
 
             result = await pool.query(
-              `INSERT INTO users (email, name, oauth_provider, oauth_id) 
-               VALUES ($1, $2, $3, $4) 
+              `INSERT INTO users (email, name, oauth_provider, oauth_id, email_verified) 
+               VALUES ($1, $2, $3, $4, true) 
                RETURNING *`,
               [email, name, 'microsoft', microsoftId]
             );

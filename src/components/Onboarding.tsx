@@ -3,7 +3,7 @@ import logo from '../assets/logo.png';
 import './Onboarding.css';
 
 interface OnboardingProps {
-  onComplete: (data: OnboardingData) => void;
+  onComplete: (data: OnboardingData) => Promise<void>;
   userName: string;
 }
 
@@ -44,12 +44,17 @@ export default function Onboarding({ onComplete, userName }: OnboardingProps) {
 
     setSaving(true);
 
-    onComplete({
-      username: username.trim(),
-      phone_number: phoneNumber,
-      sms_opt_in: smsOptIn,
-      email_newsletter_opt_in: emailNewsletterOptIn,
-    });
+    try {
+      await onComplete({
+        username: username.trim(),
+        phone_number: phoneNumber,
+        sms_opt_in: smsOptIn,
+        email_newsletter_opt_in: emailNewsletterOptIn,
+      });
+    } catch (error: any) {
+      setError(error.message || 'Failed to save profile. Please try again.');
+      setSaving(false);
+    }
   };
 
   return (

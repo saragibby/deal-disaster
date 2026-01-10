@@ -10,11 +10,15 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const isProduction = window.location.hostname !== 'localhost';
   const API_URL = isProduction ? '' : 'http://localhost:3001';
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   // Check for OAuth callback with token in URL
   useEffect(() => {
@@ -55,6 +59,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const handleEmailSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setSuccessMessage('');
     setLoading(true);
 
     try {
@@ -70,14 +75,79 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       const data = await response.json();
 
       if (!response.ok) {
+        // Check if needs verification
+        if (data.needsVerification) {
+          setNeedsVerification(true);
+          setVerificationEmail(data.email || email);
+        }
         throw new Error(data.error || 'Authentication failed');
       }
 
-      // Save token to localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      if (isLogin) {
+        // Login successful - save token
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        onSuccess(data.token, data.user);
+      } else {
+        // Registration successful - show verification message
+        setSuccessMessage(data.message);
+        setVerificationEmail(data.email);
+        setPassword('');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      onSuccess(data.token, data.user);
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send reset email');
+      }
+
+      setSuccessMessage(data.message);
+      setEmail('');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to resend verification');
+      }
+
+      setSuccessMessage(data.message);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -94,6 +164,21 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
         {errorMessage && (
           <div className="error-message">
             {errorMessage}
+            {needsVerification && (
+              <button 
+                className="resend-link"
+                onClick={handleResendVerification}
+                disabled={loading}
+              >
+                Resend verification email
+              </button>
+            )}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="success-message">
+            {successMessage}
           </div>
         )}
 
@@ -138,6 +223,41 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               Continue with Email
             </button>
           </>
+        ) : showForgotPassword ? (
+          <>
+            <button 
+              className="back-btn"
+              onClick={() => {
+                setShowForgotPassword(false);
+                setErrorMessage('');
+                setSuccessMessage('');
+              }}
+            >
+              ← Back to sign in
+            </button>
+
+            <h3>Reset Password</h3>
+            <p className="forgot-password-text">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+
+            <form onSubmit={handleForgotPassword} className="email-form">
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="submit-btn" disabled={loading}>
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+          </>
         ) : (
           <>
             <button 
@@ -145,6 +265,8 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               onClick={() => {
                 setShowEmailForm(false);
                 setErrorMessage('');
+                setSuccessMessage('');
+                setNeedsVerification(false);
               }}
             >
               ← Back to sign in options
@@ -176,6 +298,19 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 />
               </div>
 
+              {isLogin && (
+                <button 
+                  type="button"
+                  className="forgot-password-link"
+                  onClick={() => {
+                    setShowForgotPassword(true);
+                    setErrorMessage('');
+                  }}
+                >
+                  Forgot password?
+                </button>
+              )}
+
               <button type="submit" className="submit-btn" disabled={loading}>
                 {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
               </button>
@@ -189,6 +324,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setErrorMessage('');
+                  setSuccessMessage('');
                 }}
               >
                 {isLogin ? 'Sign Up' : 'Sign In'}

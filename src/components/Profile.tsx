@@ -179,21 +179,21 @@ export default function Profile({ onClose }: ProfileProps) {
 
               {!profile?.oauth_provider && (
                 <>
-                  <div className="info-item">
+                  <div className="form-group">
                     <label>Email</label>
                     <input
                       type="email"
                       value={profile?.email || ''}
-                      readOnly
+                      disabled
                       className="form-input"
                     />
                   </div>
-                  <div className="info-item">
+                  <div className="form-group">
                     <label>Name</label>
                     <input
                       type="text"
                       value={profile?.name || ''}
-                      readOnly
+                      disabled
                       className="form-input"
                     />
                   </div>

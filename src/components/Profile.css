@@ -184,10 +184,12 @@ p.oauth-value {
   margin: 0;
 }
 
-.form-group input[type="tel"],
-.form-group input[type="text"] {
+.profile-modal .form-group input[type="tel"],
+.profile-modal .form-group input[type="text"],
+.profile-modal .form-group input[type="email"] {
   flex: 1;
   margin: 0;
+  color: #ffffff !important;
 }
 
 .form-group .form-hint {
@@ -196,33 +198,33 @@ p.oauth-value {
   margin-top: 4px;
 }
 
-.form-input {
+.profile-modal .form-input {
   width: 100%;
   padding: 10px 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: #fff;
+  color: #ffffff !important;
   font-size: 15px;
   transition: all 0.2s;
   box-sizing: border-box;
 }
 
-.form-input:focus {
+.profile-modal .form-input:focus {
   outline: none;
   border-color: #6c5ce7;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.form-input.disabled-input {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+.profile-modal .form-input:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: not-allowed;
-  color: #d1d1db;
-  opacity: 1;
+  color: #ffffff !important;
+  opacity: 0.7;
 }
 
-.form-input::placeholder {
+.profile-modal .form-input::placeholder {
   color: #6b6b7b;
 }
 
