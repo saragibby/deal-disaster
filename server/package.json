@@ -24,6 +24,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@azure/ai-agents": "^1.1.0",
+    "@azure/ai-projects": "^1.0.1",
+    "@azure/core-auth": "^1.10.1",
+    "@azure/identity": "^4.13.0",
     "@azure/storage-blob": "^12.29.1",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
