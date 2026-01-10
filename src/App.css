@@ -2163,6 +2163,10 @@ body {
   margin-top: 10px;
 }
 
+.answer-result.correct .points-earned {
+  color: var(--text-dark) !important;
+}
+
 .answer-result .points-lost {
   font-weight: 700;
   color: var(--danger);
