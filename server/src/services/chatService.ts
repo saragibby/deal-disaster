@@ -49,9 +49,9 @@ export class ChatService {
       // Create and run the agent
       let run = await this.agentsClient.runs.create(thread.id, this.agentId);
 
-      // Poll for completion
+      // Poll for completion with faster polling interval
       while (run.status === 'queued' || run.status === 'in_progress') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         run = await this.agentsClient.runs.get(thread.id, run.id);
       }
 
