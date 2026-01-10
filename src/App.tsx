@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import CaseDisplay from './components/CaseDisplay';
 import DecisionButtons from './components/DecisionButtons';
 import ScoreDisplay from './components/ScoreDisplay';
@@ -16,10 +17,13 @@ import { api } from './services/api';
 import logo from './assets/logo.png';
 import './App.css';
 
-const CASE_TIME_LIMIT = 180; // 3 minutes in seconds
+const CASE_TIME_LIMIT = 300; // 5 minutes in seconds
 
 function App() {
+  const { date, dealId } = useParams();
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -36,6 +40,8 @@ function App() {
     badDealsAvoided: 0,
     mistakes: 0,
     redFlagsFound: 0,
+    redFlagCorrect: 0,
+    redFlagMistakes: 0,
   });
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
@@ -71,6 +77,8 @@ function App() {
     if (token && savedUser) {
       setIsAuthenticated(true);
       setUser(JSON.parse(savedUser));
+    } else {
+      setInitializing(false);
     }
   }, []);
 
@@ -81,6 +89,95 @@ function App() {
       fetchLeaderboard();
     }
   }, [isAuthenticated]);
+
+  // Handle URL parameters for direct links to challenges or deals
+  useEffect(() => {
+    if (isAuthenticated && !gameStarted && initializing) {
+      if (date) {
+        // Load specific daily challenge by date directly
+        loadChallengeByDateDirect(date);
+      } else if (dealId) {
+        // Load specific static deal by ID
+        loadDealById(dealId);
+      } else {
+        // No URL params, we're done initializing
+        setInitializing(false);
+      }
+    }
+  }, [isAuthenticated, date, dealId, gameStarted, initializing]);
+
+  const loadChallengeByDateDirect = async (challengeDate: string) => {
+    try {
+      const response = await api.getDailyChallengeByDate(challengeDate);
+      // API returns { challenge: {...}, completed: bool, completion: {...} }
+      // We need to transform it to the format startDailyChallenge expects
+      const challengeData = {
+        id: response.challenge.id,
+        challenge_date: response.challenge.date,
+        difficulty: response.challenge.difficulty,
+        property_data: {
+          address: response.challenge.address,
+          city: response.challenge.city,
+          state: response.challenge.state,
+          zipCode: response.challenge.zipCode,
+          propertyType: response.challenge.propertyType,
+          beds: response.challenge.beds,
+          baths: response.challenge.baths,
+          sqft: response.challenge.sqft,
+          yearBuilt: response.challenge.yearBuilt,
+          auctionPrice: response.challenge.auctionPrice,
+          estimatedValue: response.challenge.estimatedValue,
+          estimatedRepairs: response.challenge.estimatedRepairs,
+          monthlyRent: response.challenge.monthlyRent,
+          actualValue: response.challenge.actualValue,
+          isGoodDeal: response.challenge.isGoodDeal,
+          occupancyStatus: response.challenge.occupancyStatus,
+          hoaFees: response.challenge.hoaFees,
+          description: response.challenge.description,
+          funnyStory: response.challenge.funnyStory,
+          photos: response.challenge.photos,
+          liens: response.challenge.liens,
+          redFlags: response.challenge.redFlags,
+          hiddenIssues: response.challenge.hiddenIssues,
+          correctDecision: response.challenge.correctDecision,
+          explanation: response.challenge.explanation,
+        }
+      };
+      // Start the challenge directly without showing modal
+      startDailyChallenge(challengeData);
+      setInitializing(false);
+    } catch (error) {
+      console.error('Error loading challenge for date:', error);
+      alert('Failed to load challenge for this date. Please try again.');
+      navigate('/');
+      setInitializing(false);
+    }
+  };
+
+  const loadDealById = async (id: string) => {
+    try {
+      // Get the static case by ID from the cases data
+      const { propertyCases } = await import('./data/cases');
+      const caseData = propertyCases.find((c: PropertyCase) => c.id === id);
+      
+      if (caseData) {
+        setCurrentCase(caseData);
+        setGameStarted(true);
+        setIsDailyChallenge(false);
+        setTimeRemaining(CASE_TIME_LIMIT);
+        setResult(null);
+        setInitializing(false);
+      } else {
+        console.error('Deal not found:', id);
+        navigate('/');
+        setInitializing(false);
+      }
+    } catch (error) {
+      console.error('Error loading deal:', error);
+      navigate('/');
+      setInitializing(false);
+    }
+  };
 
   const fetchUserStats = async () => {
     try {
@@ -129,6 +226,8 @@ function App() {
       badDealsAvoided: 0,
       mistakes: 0,
       redFlagsFound: 0,
+      redFlagCorrect: 0,
+      redFlagMistakes: 0,
     });
     setCompletedCaseIds([]);
     loadNextCase();
@@ -146,6 +245,8 @@ function App() {
       badDealsAvoided: 0,
       mistakes: 0,
       redFlagsFound: 0,
+      redFlagCorrect: 0,
+      redFlagMistakes: 0,
     });
     
     // Convert daily challenge data to PropertyCase format
@@ -159,6 +260,8 @@ function App() {
       propertyValue: property.estimatedValue,
       auctionPrice: property.auctionPrice,
       repairEstimate: property.estimatedRepairs,
+      repairEstimateMin: property.estimatedRepairsMin,
+      repairEstimateMax: property.estimatedRepairsMax,
       liens: property.liens || [],
       redFlags: property.redFlags.map((flag: any, index: number) => ({
         id: `flag-${index}`,
@@ -166,6 +269,11 @@ function App() {
         severity: flag.severity,
         hiddenIn: flag.type,
         discovered: false,
+        impact: flag.impact,
+        question: flag.question,
+        choices: flag.choices,
+        correctChoice: flag.correctChoice,
+        answerExplanation: flag.answerExplanation,
       })),
       photos: property.photos || [],
       description: property.funnyStory || property.description || 'AI-generated foreclosure scenario',
@@ -173,11 +281,21 @@ function App() {
       hoaFees: property.hoaFees,
       actualValue: property.actualValue || property.estimatedValue,
       isGoodDeal: property.isGoodDeal,
+      difficulty: challengeData.difficulty,
+      correctDecision: property.correctDecision,
+      decisionExplanation: property.explanation,
     };
     
     setCurrentCase(dailyCase);
     setTimeRemaining(CASE_TIME_LIMIT);
     setResult(null);
+    
+    // Update URL to challenge date (format as YYYY-MM-DD)
+    const challengeDate = challengeData.challenge_date || challengeData.date;
+    const dateOnly = typeof challengeDate === 'string' 
+      ? challengeDate.split('T')[0] 
+      : new Date(challengeDate).toISOString().split('T')[0];
+    navigate(`/challenge/${dateOnly}`);
   };
 
   const loadNextCase = () => {
@@ -185,6 +303,9 @@ function App() {
     setCurrentCase(newCase);
     setTimeRemaining(CASE_TIME_LIMIT);
     setResult(null);
+    
+    // Update URL to deal ID
+    navigate(`/deal/${newCase.id}`);
   };
 
   const handleAuthSuccess = (_token: string, userData: any) => {
@@ -250,6 +371,8 @@ function App() {
       badDealsAvoided: 0,
       mistakes: 0,
       redFlagsFound: 0,
+      redFlagCorrect: 0,
+      redFlagMistakes: 0,
     });
   };
 
@@ -267,6 +390,7 @@ function App() {
       }
     }
 
+    // Reset all game state first
     setGameStarted(false);
     setCurrentCase(null);
     setResult(null);
@@ -279,8 +403,18 @@ function App() {
       badDealsAvoided: 0,
       mistakes: 0,
       redFlagsFound: 0,
+      redFlagCorrect: 0,
+      redFlagMistakes: 0,
     });
     setCompletedCaseIds([]);
+    
+    // Navigate to home and clear URL params immediately
+    navigate('/', { replace: true });
+    
+    // Stop initializing to prevent URL param effect from running
+    setInitializing(false);
+    
+    // Fetch updated stats
     fetchUserStats();
     fetchLeaderboard();
   };
@@ -305,10 +439,49 @@ function App() {
     if (flag && !flag.discovered) {
       flag.discovered = true;
       setCurrentCase(updatedCase);
+      
+      // Only award discovery points if there's no question (old behavior)
+      if (!flag.question) {
+        setScore((prev) => ({
+          ...prev,
+          points: prev.points + 25,
+          redFlagsFound: prev.redFlagsFound + 1,
+        }));
+      } else {
+        // Just mark as found for stats
+        setScore((prev) => ({
+          ...prev,
+          redFlagsFound: prev.redFlagsFound + 1,
+        }));
+      }
+    }
+  };
+
+  const handleRedFlagAnswer = (flagId: string, answerIndex: number) => {
+    if (!currentCase) return;
+
+    const updatedCase = { ...currentCase };
+    const flag = updatedCase.redFlags.find((f) => f.id === flagId);
+
+    if (flag && flag.correctChoice !== undefined) {
+      flag.userAnswer = answerIndex;
+      setCurrentCase(updatedCase);
+
+      const isCorrect = answerIndex === flag.correctChoice;
+      
+      // Bonus points for high/severe severity flags
+      let points = 0;
+      if (isCorrect) {
+        points = (flag.severity === 'high' || flag.severity === 'severe') ? 75 : 50;
+      } else {
+        points = -25;
+      }
+
       setScore((prev) => ({
         ...prev,
-        points: prev.points + 25,
-        redFlagsFound: prev.redFlagsFound + 1,
+        points: prev.points + points,
+        redFlagCorrect: isCorrect ? prev.redFlagCorrect + 1 : prev.redFlagCorrect,
+        redFlagMistakes: !isCorrect ? prev.redFlagMistakes + 1 : prev.redFlagMistakes,
       }));
     }
   };
@@ -319,7 +492,8 @@ function App() {
     let points = 0;
     let message = '';
     let explanation = '';
-    const undiscoveredFlags = currentCase.redFlags.filter((f) => !f.discovered && f.severity !== 'low');
+    const undiscoveredFlags = currentCase.redFlags.filter((f) => !f.discovered && f.severity !== 'red-herring');
+    const missedSevereFlags = currentCase.redFlags.filter((f) => !f.discovered && (f.severity === 'severe' || f.severity === 'high'));
 
     if (decision === 'BUY') {
       if (currentCase.isGoodDeal) {
@@ -333,6 +507,12 @@ function App() {
         const hiddenIssues = undiscoveredFlags.map((f) => f.description).join(' ');
         explanation = `This was a trap! ${hiddenIssues} You would lose approximately $${(currentCase.auctionPrice + currentCase.repairEstimate - currentCase.actualValue).toLocaleString()}.`;
         setScore((prev) => ({ ...prev, mistakes: prev.mistakes + 1 }));
+        
+        // Additional penalty for buying with missed severe issues
+        if (missedSevereFlags.length > 0) {
+          points -= 50;
+          explanation += ` WARNING: You missed ${missedSevereFlags.length} critical issue(s) that should have triggered WALK_AWAY.`;
+        }
       }
     } else if (decision === 'WALK_AWAY') {
       if (!currentCase.isGoodDeal) {
@@ -359,7 +539,7 @@ function App() {
       casesSolved: prev.casesSolved + 1,
     }));
 
-    setResult({ points, message, explanation });
+    setResult({ points, message, explanation, userDecision: decision });
     setCompletedCaseIds([...completedCaseIds, currentCase.id]);
 
     // Save to backend after each decision
@@ -394,11 +574,23 @@ function App() {
     }
   };
 
+  // Show loading screen while initializing
+  if (initializing) {
+    return (
+      <div className="app-container">
+        <div className="loading-screen">
+          <div className="spinner"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show auth form if not authenticated
   if (!isAuthenticated) {
     return (
       <div className="app-container">
-      <div className="homepage">
+        <div className="homepage">
         <div className="homepage-left">
           <img 
             src={logo} 
@@ -455,8 +647,8 @@ function App() {
       </div>
       <Footer />
     </div>
-    );
-  }
+  );
+}
 
   if (!gameStarted) {
     return (
@@ -631,6 +823,7 @@ function App() {
     );
   }
 
+  // Show game interface when authenticated and game started
   return (
     <div className="app-container">
     <div className="app">
@@ -653,6 +846,7 @@ function App() {
             propertyCase={currentCase}
             timeRemaining={timeRemaining}
             onRedFlagClick={handleRedFlagClick}
+            onRedFlagAnswer={handleRedFlagAnswer}
           />
           <DecisionButtons
             onDecision={handleDecision}

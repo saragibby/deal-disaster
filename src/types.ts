@@ -9,9 +9,15 @@ export interface Lien {
 export interface RedFlag {
   id: string;
   description: string;
-  severity: 'low' | 'medium' | 'high';
+  severity: 'red-herring' | 'low' | 'medium' | 'high' | 'severe';
   hiddenIn: string;
   discovered: boolean;
+  impact?: string;
+  question?: string;
+  choices?: string[];
+  correctChoice?: number;
+  userAnswer?: number;
+  answerExplanation?: string;
 }
 
 export interface PropertyCase {
@@ -23,6 +29,8 @@ export interface PropertyCase {
   propertyValue: number;
   auctionPrice: number;
   repairEstimate: number;
+  repairEstimateMin?: number;
+  repairEstimateMax?: number;
   liens: Lien[];
   redFlags: RedFlag[];
   photos: string[];
@@ -32,6 +40,9 @@ export interface PropertyCase {
   hoaFees?: number;
   actualValue: number; // true value after all issues considered
   isGoodDeal: boolean;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  correctDecision?: 'BUY' | 'INVESTIGATE' | 'WALK_AWAY';
+  decisionExplanation?: string;
   // Additional property details
   propertyType?: string;
   beds?: number;
@@ -49,10 +60,13 @@ export interface GameScore {
   badDealsAvoided: number;
   mistakes: number;
   redFlagsFound: number;
+  redFlagCorrect: number;
+  redFlagMistakes: number;
 }
 
 export interface ScoreResult {
   points: number;
   message: string;
   explanation: string;
+  userDecision?: Decision;
 }

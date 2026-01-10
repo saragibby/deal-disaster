@@ -226,7 +226,7 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
                   {userCompletion.time_taken === 0 
                     ? 'Timed Out'
                     : userCompletion.time_taken >= 180
-                    ? '3m 0s (Timed Out)'
+                    ? '5m 0s (Timed Out)'
                     : `${Math.floor(userCompletion.time_taken / 60)}m ${userCompletion.time_taken % 60}s`}
                 </span>
               </div>

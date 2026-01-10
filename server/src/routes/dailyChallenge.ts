@@ -121,6 +121,7 @@ router.get('/date/:date', authenticateToken, async (req: AuthRequest, res: Respo
       challenge: {
         id: challenge.id,
         date: challenge.challenge_date,
+        difficulty: challenge.difficulty || 'medium',
         ...challenge.property_data
       },
       completed: completionResult.rows.length > 0,

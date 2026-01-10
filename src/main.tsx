@@ -10,6 +10,8 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<App />} />
+        <Route path="/challenge/:date" element={<App />} />
+        <Route path="/deal/:dealId" element={<App />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>

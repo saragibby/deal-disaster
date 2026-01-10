@@ -133,17 +133,148 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
 
             {caseData.redFlags && caseData.redFlags.length > 0 && (
               <div className="red-flags-section">
-                <h4>🚩 Red Flags in This Property</h4>
-                {caseData.redFlags.map((flag, idx) => (
-                  <div key={idx} className={`flag-item severity-${flag.severity}`}>
-                    <div className="flag-severity">
-                      <strong>Severity: {flag.severity.toUpperCase()}</strong>
-                    </div>
-                    <div className="flag-text">{flag.description}</div>
-                    <div className="flag-location">Location: {flag.hiddenIn}</div>
-                    {flag.discovered && <div className="flag-discovered">✅ You found this!</div>}
+                <h4>🚩 Property Investigation Results</h4>
+                
+                {/* Group flags by discovered status and severity */}
+                {(() => {
+                  const discoveredFlags = caseData.redFlags.filter(f => f.discovered);
+                  const missedFlags = caseData.redFlags.filter(f => !f.discovered);
+                  const totalMissedCost = missedFlags.reduce((sum, flag) => {
+                    // Extract dollar amount from impact string
+                    const match = flag.impact?.match(/\$([0-9,]+)/);
+                    return sum + (match ? parseInt(match[1].replace(/,/g, '')) : 0);
+                  }, 0);
+
+                  return (
+                    <>
+                      {/* Red Herrings Found */}
+                      {discoveredFlags.filter(f => f.severity === 'red-herring').length > 0 && (
+                        <div className="flag-group red-herring-group">
+                          <h5>🟢 Red Herrings (Correctly Identified as Minor)</h5>
+                          {discoveredFlags.filter(f => f.severity === 'red-herring').map((flag, idx) => (
+                            <div key={idx} className="flag-item severity-red-herring">
+                              <div className="flag-text">{flag.description}</div>
+                              <div className="flag-location">📄 {flag.hiddenIn}</div>
+                              <div className="flag-note">💡 Good catch! This looks concerning but has minimal impact: {flag.impact}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Discovered Real Issues */}
+                      {discoveredFlags.filter(f => f.severity !== 'red-herring').length > 0 && (
+                        <div className="flag-group discovered-group">
+                          <h5>✅ Issues You Found</h5>
+                          {discoveredFlags.filter(f => f.severity !== 'red-herring').map((flag, idx) => (
+                            <div key={idx} className={`flag-item severity-${flag.severity}`}>
+                              <div className="flag-header">
+                                <span className={`severity-badge severity-${flag.severity}`}>
+                                  {flag.severity.toUpperCase()}
+                                </span>
+                                {flag.userAnswer === flag.correctChoice && <span className="correct-badge">✅ Answered Correctly</span>}
+                                {flag.userAnswer !== undefined && flag.userAnswer !== flag.correctChoice && <span className="incorrect-badge">❌ Incorrect Answer</span>}
+                              </div>
+                              <div className="flag-text">{flag.description}</div>
+                              <div className="flag-location">📄 {flag.hiddenIn}</div>
+                              <div className="flag-impact">💰 Impact: {flag.impact}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Missed Critical Issues */}
+                      {missedFlags.filter(f => f.severity === 'severe' || f.severity === 'high').length > 0 && (
+                        <div className="flag-group missed-critical-group">
+                          <h5>⚠️ Critical Issues You Missed</h5>
+                          <div className="missed-warning">
+                            <strong>Warning:</strong> These major issues could significantly impact your investment!
+                          </div>
+                          {missedFlags.filter(f => f.severity === 'severe' || f.severity === 'high').map((flag, idx) => (
+                            <div key={idx} className={`flag-item severity-${flag.severity} missed`}>
+                              <div className="flag-header">
+                                <span className={`severity-badge severity-${flag.severity}`}>
+                                  {flag.severity.toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="flag-text">{flag.description}</div>
+                              <div className="flag-location">📄 Hidden in: {flag.hiddenIn}</div>
+                              <div className="flag-impact">💰 Impact: {flag.impact}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Missed Minor Issues */}
+                      {missedFlags.filter(f => f.severity === 'low' || f.severity === 'medium').length > 0 && (
+                        <div className="flag-group missed-minor-group">
+                          <h5>📋 Other Issues Missed</h5>
+                          {missedFlags.filter(f => f.severity === 'low' || f.severity === 'medium').map((flag, idx) => (
+                            <div key={idx} className={`flag-item severity-${flag.severity} missed`}>
+                              <div className="flag-header">
+                                <span className={`severity-badge severity-${flag.severity}`}>
+                                  {flag.severity.toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="flag-text">{flag.description}</div>
+                              <div className="flag-location">📄 Hidden in: {flag.hiddenIn}</div>
+                              <div className="flag-impact">💰 Impact: {flag.impact}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Summary of Missed Costs */}
+                      {missedFlags.length > 0 && totalMissedCost > 0 && (
+                        <div className="missed-cost-summary">
+                          <strong>Total Missed Costs:</strong> ~${totalMissedCost.toLocaleString()}
+                          <p className="summary-note">These undetected issues could have changed your decision!</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Decision Analysis Section */}
+            {caseData.correctDecision && result.userDecision && (
+              <div className="decision-analysis">
+                <h4>🎯 Decision Analysis</h4>
+                <div className="decision-comparison">
+                  <div className="decision-item">
+                    <span className="decision-label">Your Decision:</span>
+                    <span className={`decision-value user-decision ${result.userDecision.toLowerCase()}`}>
+                      {result.userDecision}
+                    </span>
                   </div>
-                ))}
+                  <div className="decision-item">
+                    <span className="decision-label">Expert Recommendation:</span>
+                    <span className={`decision-value expert-decision ${caseData.correctDecision.toLowerCase()}`}>
+                      {caseData.correctDecision}
+                    </span>
+                  </div>
+                </div>
+                
+                {result.userDecision === caseData.correctDecision ? (
+                  <div className="decision-feedback correct">
+                    <p><strong>✅ Excellent Decision!</strong></p>
+                    <p>Your choice matches expert analysis. {caseData.decisionExplanation || 'This demonstrates strong due diligence skills.'}</p>
+                  </div>
+                ) : (
+                  <div className="decision-feedback incorrect">
+                    <p><strong>⚠️ Alternative Approach Recommended</strong></p>
+                    <p><strong>Why {caseData.correctDecision}:</strong> {caseData.decisionExplanation || 'This property requires more careful analysis before proceeding.'}</p>
+                    {result.userDecision === 'BUY' && caseData.correctDecision === 'INVESTIGATE' && (
+                      <p className="advice">💡 <em>Tip: When there are title issues or major unknowns, INVESTIGATE allows you to gather more information before committing.</em></p>
+                    )}
+                    {result.userDecision === 'BUY' && caseData.correctDecision === 'WALK_AWAY' && (
+                      <p className="advice">💡 <em>Tip: Some properties have too many red flags or costs that make them unprofitable even at auction price.</em></p>
+                    )}
+                    {result.userDecision === 'WALK_AWAY' && caseData.correctDecision === 'BUY' && (
+                      <p className="advice">💡 <em>Tip: This was a solid deal despite some issues. Calculate total costs including all liens before walking away.</em></p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
