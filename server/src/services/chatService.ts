@@ -10,6 +10,12 @@ export class ChatService {
   private agentsClient: AgentsClient;
   private agentId: string;
 
+  // Helper function to remove citation markers from agent responses
+  private removeCitations(text: string): string {
+    // Remove citation markers like 【4:2†yt-Finding a Foreclosure Fast.txt】
+    return text.replace(/【[^】]*】/g, '').trim();
+  }
+
   constructor() {
     // Initialize Azure AI Agent client with Azure AD authentication
     const endpoint = process.env.AZURE_AI_AGENT_ENDPOINT;
@@ -76,7 +82,9 @@ export class ChatService {
         throw new Error('No text content in agent response');
       }
 
-      return (textContent as any).text.value;
+      // Remove citation markers before returning
+      const rawText = (textContent as any).text.value;
+      return this.removeCitations(rawText);
     } catch (error) {
       console.error('Error in chat service:', error);
       if (error instanceof Error) {
