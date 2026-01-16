@@ -13,8 +13,8 @@ interface Message {
 // Configure marked to open links in new tabs and sanitize
 const renderer = new marked.Renderer();
 const originalLinkRenderer = renderer.link.bind(renderer);
-renderer.link = (href, title, text) => {
-  const html = originalLinkRenderer(href, title, text);
+renderer.link = (linkData) => {
+  const html = originalLinkRenderer(linkData);
   return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
 };
 
