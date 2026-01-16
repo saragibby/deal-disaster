@@ -11,9 +11,17 @@ interface Message {
 }
 
 // Configure marked to open links in new tabs and sanitize
+const renderer = new marked.Renderer();
+const originalLinkRenderer = renderer.link.bind(renderer);
+renderer.link = (href, title, text) => {
+  const html = originalLinkRenderer(href, title, text);
+  return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
+};
+
 marked.setOptions({
   breaks: true,
   gfm: true,
+  renderer: renderer,
 });
 
 export default function AskWill() {
