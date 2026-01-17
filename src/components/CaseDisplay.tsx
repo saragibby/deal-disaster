@@ -304,7 +304,7 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
 
               {showHelp && selectedFlag.impact && (
                 <div className="flag-impact">
-                  <p><strong>💡 Hint - Estimated Impact:</strong></p>
+                  <p><strong>💡 Estimated Impact:</strong></p>
                   <p>{selectedFlag.impact}</p>
                 </div>
               )}

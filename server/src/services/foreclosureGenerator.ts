@@ -338,7 +338,7 @@ Required JSON structure:
   
   EACH RED FLAG MUST HAVE ALL THESE FIELDS:
     {
-      "type": "CHOOSE FROM DIVERSE OPTIONS: 
+      "type": "One of these categories (choose diverse options across flags): 
         - Structural: Foundation cracks, settling, structural damage, roof collapse, basement flooding, retaining wall failure
         - Environmental: Asbestos, lead paint, mold infestation, radon, buried oil tank, contaminated soil, former meth lab
         - Title: Clouds on title, easement disputes, boundary conflicts, heir claims, forged deeds, undisclosed co-owners
@@ -352,7 +352,9 @@ Required JSON structure:
         For ${difficulty} difficulty: 
         - Easy: 2 issues + 0-1 red herring
         - Medium: 2-3 issues + 1 red herring  
-        - Hard: 3-4 issues + 1-2 red herrings",
+        - Hard: 3-4 issues + 1-2 red herrings
+        
+        OUTPUT FORMAT: Just the category name (e.g., 'Structural', 'Environmental', 'Title')",
       "description": "Tell a mini-story about this issue! Not just 'foundation problems' but 'Previous owner's DIY basement expansion undermined the foundation, causing a 3-inch crack from floor to ceiling that neighbors say has been growing for two years'",
       "severity": "MUST be exactly one of: 'red-herring', 'low', 'medium', 'high', or 'severe'. Choose based on cost and impact:
         
@@ -367,18 +369,27 @@ Required JSON structure:
         - severe: Over $75,000 or deal-breaking complexity (hazmat, condemned status, major structural failure, complex legal liability). Examples: Major foundation failure, former meth lab, building condemned, multiple cascading issues.
         
         CRITICAL: VARY severity levels! Example mix for 3 flags: 'red-herring, low, medium' OR 'low, medium, high' OR 'low, high, severe' - NOT all the same level!",
-      "impact": "Be specific with dollar amounts that EXACTLY match the severity level AND story consequences:
+      "impact": "EXACT dollar amount with repair details (no prefixes, no labels - just the information):
         - Red-herring: '$0 impact' or '$200 for minor cosmetic fix' + note about why it seems worse than it is
         - Low: '$500-$5,000 for [specific repair]'
         - Medium: '$5,000-$25,000 for [specific work]' + timeline
         - High: '$25,000-$75,000 for [major remediation]' + delays/complications
-        - Severe: '$75,000+ for [critical issue]' + potential deal-breaker consequences",
+        - Severe: '$75,000+ for [critical issue]' + potential deal-breaker consequences
+        
+        EXAMPLE OUTPUTS (copy this format exactly):
+        - '$2,000-$4,000 for title attorney to draft and record easement agreement'
+        - '$15,000-$25,000 for asbestos abatement including testing and professional removal'
+        - '$0-$500 impact - cosmetic issue that looks worse than it is'
+        
+        CRITICAL: Use DIFFERENT dollar ranges than what appears in your answer choices below! If choice B says '$12k-$20k', the impact should say something like '$10,000-$25,000' or '$8,000-$15,000' to avoid giving away the answer.
+        
+        DO NOT include words like 'Hint', 'Impact', 'Estimated', etc. - just the dollar amount and explanation.",
       "question": "Create a multiple choice question testing understanding of THIS specific issue. Examples:
         - For liens: 'This IRS tax lien will...' or 'The mechanics lien from ABC Roofing means...'
         - For structural: 'The foundation crack repair will likely cost...' or 'This structural issue affects the property value by...'
         - For legal: 'The unpermitted addition means you must...' or 'This zoning violation requires...'
         - For environmental: 'Asbestos remediation in this property will...' or 'The former meth lab designation means...'",
-      "choices": ["Array of 3-4 answer options. Make them plausible but only ONE correct. Examples:",
+      "choices": ["Array of 3-4 answer options with SPECIFIC dollar amounts. Make them plausible but only ONE correct. Examples:",
         "Option A: Gets wiped out at foreclosure sale (no cost to you)",
         "Option B: Survives foreclosure - add $XX,XXX to your costs",
         "Option C: Can be negotiated down to 50% before closing",
