@@ -120,7 +120,6 @@ function AdminAnalytics() {
     return null;
   }
 
-  const totalUsers = new Set(analytics.recentQuestions.map(q => q.user_name)).size;
   const totalRegistered = analytics.users.length;
 
   return (
