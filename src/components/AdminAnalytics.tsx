@@ -107,7 +107,6 @@ function AdminAnalytics() {
     return null;
   }
 
-  const totalQuestions = analytics.dailyStats.reduce((sum, stat) => sum + stat.question_count, 0);
   const totalUsers = new Set(analytics.recentQuestions.map(q => q.user_name)).size;
 
   return (
