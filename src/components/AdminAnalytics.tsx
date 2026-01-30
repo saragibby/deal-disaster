@@ -22,10 +22,23 @@ interface DailyStat {
   unique_users: number;
 }
 
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  is_admin: boolean;
+  created_at: string;
+  questions_asked: number;
+  games_played: number;
+  best_score: number;
+}
+
 interface AnalyticsData {
   topQuestions: TopQuestion[];
   recentQuestions: RecentQuestion[];
   dailyStats: DailyStat[];
+  users: User[];
 }
 
 function AdminAnalytics() {
@@ -33,7 +46,7 @@ function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'recent' | 'popular' | 'stats'>('recent');
+  const [activeTab, setActiveTab] = useState<'recent' | 'popular' | 'stats' | 'users'>('recent');
 
   useEffect(() => {
     fetchAnalytics();
@@ -47,12 +60,12 @@ function AdminAnalytics() {
       setError(null);
     } catch (err: any) {
       console.error('Error fetching analytics:', err);
-      if (err.message.includes('Admin access required') || err.message.includes('403')) {
-        setError('⛔ Access Denied: You need admin privileges to view this page.');
-      } else if (err.message.includes('Session expired')) {
-        setError('Your session has expired. Please log in again.');
-      } else {
-        setError('Failed to load analytics. Make sure you are logged in.');
+      // Redirect to home if not authenticated or not admin
+      if (err.message.includes('Admin access required') || 
+          err.message.includes('403') || 
+          err.message.includes('Session expired') ||
+          err.message.includes('401')) {
+        navigate('/');
       }
     } finally {
       setLoading(false);
@@ -108,6 +121,7 @@ function AdminAnalytics() {
   }
 
   const totalUsers = new Set(analytics.recentQuestions.map(q => q.user_name)).size;
+  const totalRegistered = analytics.users.length;
 
   return (
     <div className="admin-analytics">
@@ -123,8 +137,8 @@ function AdminAnalytics() {
           <div className="summary-label">Total Questions</div>
         </div>
         <div className="summary-card">
-          <div className="summary-number">{totalUsers}</div>
-          <div className="summary-label">Active Users</div>
+          <div className="summary-number">{totalRegistered}</div>
+          <div className="summary-label">Registered Users</div>
         </div>
         <div className="summary-card">
           <div className="summary-number">{analytics.topQuestions.length}</div>
@@ -154,6 +168,12 @@ function AdminAnalytics() {
           onClick={() => setActiveTab('stats')}
         >
           Daily Statistics
+        </button>
+        <button
+          className={`tab ${activeTab === 'users' ? 'active' : ''}`}
+          onClick={() => setActiveTab('users')}
+        >
+          Users
         </button>
       </div>
 
@@ -225,6 +245,40 @@ function AdminAnalytics() {
                     <div>{stat.question_count}</div>
                     <div>{stat.unique_users}</div>
                     <div>{(stat.question_count / stat.unique_users).toFixed(1)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="users-list">
+            <h2>All Users ({analytics.users.length})</h2>
+            {analytics.users.length === 0 ? (
+              <p className="no-data">No users found.</p>
+            ) : (
+              <div className="users-table">
+                <div className="users-header">
+                  <div>Name</div>
+                  <div>Email</div>
+                  <div>Username</div>
+                  <div>Questions</div>
+                  <div>Games</div>
+                  <div>Best Score</div>
+                  <div>Admin</div>
+                  <div>Joined</div>
+                </div>
+                {analytics.users.map((user) => (
+                  <div key={user.id} className="users-row">
+                    <div>{user.name || '—'}</div>
+                    <div className="user-email">{user.email}</div>
+                    <div>{user.username || '—'}</div>
+                    <div>{user.questions_asked}</div>
+                    <div>{user.games_played}</div>
+                    <div>{user.best_score || 0}</div>
+                    <div>{user.is_admin ? '✓' : ''}</div>
+                    <div>{formatDateOnly(user.created_at)}</div>
                   </div>
                 ))}
               </div>

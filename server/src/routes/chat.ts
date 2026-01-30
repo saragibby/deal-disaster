@@ -84,10 +84,30 @@ router.get('/analytics', authenticateToken, requireAdmin, async (req: AuthReques
       ORDER BY date DESC
     `);
 
+    // Get all users with their stats
+    const usersResult = await pool.query(`
+      SELECT 
+        u.id,
+        u.name,
+        u.email,
+        u.username,
+        u.is_admin,
+        u.created_at,
+        COUNT(DISTINCT cq.id) as questions_asked,
+        COUNT(DISTINCT gs.id) as games_played,
+        MAX(gs.points) as best_score
+      FROM users u
+      LEFT JOIN chat_questions cq ON u.id = cq.user_id
+      LEFT JOIN game_sessions gs ON u.id = gs.user_id
+      GROUP BY u.id, u.name, u.email, u.username, u.is_admin, u.created_at
+      ORDER BY u.created_at DESC
+    `);
+
     res.json({
       topQuestions: topQuestionsResult.rows,
       recentQuestions: recentQuestionsResult.rows,
-      dailyStats: dailyStatsResult.rows
+      dailyStats: dailyStatsResult.rows,
+      users: usersResult.rows
     });
   } catch (error) {
     console.error('Error fetching chat analytics:', error);
