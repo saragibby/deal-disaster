@@ -90,7 +90,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Find user
     const result = await pool.query(
-      'SELECT id, email, password_hash, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, onboarding_completed, email_verified FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, onboarding_completed, email_verified, is_admin FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -140,6 +140,7 @@ router.post('/login', async (req: Request, res: Response) => {
         sms_opt_in: user.sms_opt_in,
         email_newsletter_opt_in: user.email_newsletter_opt_in,
         onboarding_completed: user.onboarding_completed,
+        is_admin: user.is_admin || false,
       },
     });
   } catch (error) {
@@ -392,7 +393,7 @@ router.get(
 router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, onboarding_completed, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, onboarding_completed, is_admin, created_at FROM users WHERE id = $1',
       [req.userId]
     );
 
@@ -411,7 +412,7 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) =
 router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider FROM users WHERE id = $1',
+      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, is_admin FROM users WHERE id = $1',
       [req.userId]
     );
 

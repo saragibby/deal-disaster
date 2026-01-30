@@ -18,7 +18,9 @@
     "regenerate-images-date:prod": "node dist/scripts/regenerateImagesForDate.js",
     "regenerate-challenge": "tsx src/scripts/regenerateChallenge.ts",
     "regenerate-challenge:prod": "node dist/scripts/regenerateChallenge.js",
-    "generate-static-images": "tsx src/scripts/generateStaticCaseImages.ts"
+    "generate-static-images": "tsx src/scripts/generateStaticCaseImages.ts",
+    "make-admin": "tsx src/scripts/makeAdmin.ts",
+    "make-admin:prod": "node dist/scripts/makeAdmin.js"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ChatService } from '../services/chatService.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/adminAuth.js';
 import { pool } from '../db/pool.js';
 
 const router = Router();
@@ -43,8 +44,8 @@ router.post('/', authenticateToken, async (req: ChatRequest, res: Response) => {
   }
 });
 
-// Get chat analytics (admin endpoint - you can add admin auth later)
-router.get('/analytics', authenticateToken, async (req: AuthRequest, res: Response) => {
+// Get chat analytics (admin only endpoint)
+router.get('/analytics', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     // Get top questions (by frequency of similar questions)
     const topQuestionsResult = await pool.query(`
