@@ -196,23 +196,36 @@ export class ForeclosureScenarioGenerator {
       }
     });
 
-    const visualContext = visualIssues.length > 0 
-      ? `Property shows signs of: ${visualIssues.slice(0, 3).join(', ')}. ` 
-      : '';
+    // Determine overall property condition based on issues found
+    let conditionContext = '';
+    if (visualIssues.length === 0) {
+      conditionContext = 'Property appears well-maintained and in good condition. ';
+    } else if (visualIssues.length <= 2) {
+      conditionContext = `Property shows minor signs of: ${visualIssues.join(', ')}. `;
+    } else {
+      conditionContext = `Property shows signs of: ${visualIssues.slice(0, 3).join(', ')}. `;
+    }
+    
+    // Detect if property has multiple levels based on description
+    const descLower = (propertyDesc + ' ' + funnyStory).toLowerCase();
+    const hasMultipleLevels = descLower.includes('stair') || descLower.includes('upstairs') || 
+                              descLower.includes('two-story') || descLower.includes('two story') ||
+                              descLower.includes('second floor') || descLower.includes('multi-level');
+    const levelContext = hasMultipleLevels ? 'Two-story property with multiple levels. ' : '';
     
     // Occupancy-specific details for more realistic images
     const occupancyDetails = occupancyStatus === 'vacant' 
-      ? 'Property is vacant and unfurnished, showing signs of being unoccupied. ' 
+      ? 'Property is vacant and unfurnished. ' 
       : occupancyStatus === 'occupied'
       ? 'Property is currently occupied with furniture and lived-in appearance. '
-      : 'Property appearance uncertain. ';
+      : '';
 
     // Use the photo descriptions from the scenario and enhance them with property context
     const imagePrompts = scenario.photos.map((photoDesc, index) => {
       // Remove any emoji from the description if present
       const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
       
-      return `Ultra-realistic real estate photography: ${cleanDesc}. ${propertyType} in ${location}, built in ${scenario.yearBuilt}. ${occupancyDetails}${visualContext}${propertyDesc} ${funnyStory} Professional MLS listing photo showing actual property condition, natural daylight, high resolution DSLR camera, sharp focus, realistic textures and materials, photorealistic architectural photography, true-to-life colors and lighting, authentic property flaws visible. No text, no watermarks, no illustrations - photorealistic only.`;
+      return `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${propertyType} in ${location}, built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}${conditionContext}Professional MLS listing photo, natural daylight, high-resolution camera. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
     });
 
     const imageUrls: string[] = [];

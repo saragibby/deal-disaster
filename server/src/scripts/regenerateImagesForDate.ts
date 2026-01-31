@@ -110,8 +110,15 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, ch
     try {
       const cleanDesc = photoDescriptions[i];
       
+      // Detect if property has multiple levels
+      const descLower = (scenario.description || '').toLowerCase();
+      const hasMultipleLevels = descLower.includes('stair') || descLower.includes('upstairs') || 
+                                descLower.includes('two-story') || descLower.includes('two story') ||
+                                descLower.includes('second floor') || descLower.includes('multi-level');
+      const levelContext = hasMultipleLevels ? 'Two-story property with multiple levels. ' : '';
+      
       // Use the SAME simple prompt format as the original realistic static cases
-      const prompt = `Realistic real estate photograph: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${scenario.description}. Professional real estate photography style, natural lighting, high quality.`;
+      const prompt = `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}Professional MLS listing photo, natural daylight, high-resolution camera. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
       
       console.log(`Generating image ${i + 1}/${photoDescriptions.length}: ${cleanDesc}...`);
       

@@ -970,10 +970,10 @@ export const propertyCases: PropertyCase[] = [
     description: 'Music City bungalow with vintage charm and a few surprises. Previous owner was a session musician who soundproofed the garage studio with questionable materials. The house features original hardwood floors (mostly level), a recently updated kitchen with subway tile, and a backyard that\'s perfect for BBQs if you ignore the leaning fence. Neighbors mention the house had "legendary jam sessions" that may have exceeded noise ordinances.',
     photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
     photoUrls: [
-      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/23c568c4-f1c3-4c13-ae7a-092f1fd525ad.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A29Z&se=2036-01-31T18%3A56%3A29Z&sr=b&sp=r&sig=eI7UhJLB6UmjCcxMVMuiLBrIs6aMvlCZQ9LA7Jo2vHk%3D",
-      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/15315952-9316-4bc7-960b-dac5ea4fc47f.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A44Z&se=2036-01-31T18%3A56%3A44Z&sr=b&sp=r&sig=gAGHtpvR2eDOG9OdCIFwpT9ZS1LJJRgYz6b8fkL3jC4%3D",
-      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/3b16fcf4-910e-449c-b852-3803adb37310.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A58Z&se=2036-01-31T18%3A56%3A58Z&sr=b&sp=r&sig=WelU6oAeA6H7EHrel8kFR4kXhCx0aS%2F%2Ftc6h0hF3R0E%3D",
-      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/577e27dd-6ffe-459d-8170-5cbf51221f91.png?sv=2025-11-05&st=2026-01-31T18%3A57%3A14Z&se=2036-01-31T18%3A57%3A14Z&sr=b&sp=r&sig=%2BHin3ItpN2mYDltMxclM0UjnNk%2F6CuemQuiX0OF8tB0%3D"
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/934e04d5-ac9f-4ad6-b239-48bcacbef11d.png?sv=2025-11-05&st=2026-01-31T19%3A10%3A20Z&se=2036-01-31T19%3A10%3A20Z&sr=b&sp=r&sig=b8Xt0R89CVON%2Fq%2BjUFtBxNLszEoKhEi4AxoZc6roNtg%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/ee3ddb82-ac6d-49d5-9d32-df935de42053.png?sv=2025-11-05&st=2026-01-31T19%3A10%3A34Z&se=2036-01-31T19%3A10%3A34Z&sr=b&sp=r&sig=MsrYoYhb0m8ogTsgeHrJGXFF1tne%2BQv0bgO9fmwqleY%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/ab904e8a-6a74-43ed-b3ed-9488ea23e545.png?sv=2025-11-05&st=2026-01-31T19%3A10%3A50Z&se=2036-01-31T19%3A10%3A50Z&sr=b&sp=r&sig=ugBg0XcBAL3KvAFlJlD2McweEEcWD55VbXGJWfWYd%2BY%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/2e07dfd6-bec0-4a82-9e37-33504307116c.png?sv=2025-11-05&st=2026-01-31T19%3A11%3A05Z&se=2036-01-31T19%3A11%3A05Z&sr=b&sp=r&sig=7Qpb0H5WRKqJrM4xn0TjCqJWBYbIsGMe4dqrLPIiVVw%3D"
     ],
     liens: [
       {

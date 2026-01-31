@@ -31,42 +31,41 @@ const newCase: PropertyScenario & {
   isGoodDeal: boolean;
   hoaFees?: number;
 } = {
-  caseId: 'case-015',
-  address: '3030 Starter Home Street',
-  city: 'Raleigh',
-  state: 'NC',
-  zip: '27601',
-  propertyType: 'Townhouse',
+  caseId: 'case-014',
+  address: '1776 Freedom Drive',
+  city: 'Nashville',
+  state: 'TN',
+  zip: '37201',
+  propertyType: 'Single Family Home',
   beds: 3,
-  baths: 2.5,
-  sqft: 1680,
-  yearBuilt: 2010,
-  estimatedRepairs: 18000,
+  baths: 2,
+  sqft: 1750,
+  yearBuilt: 1992,
+  estimatedRepairs: 32000,
   occupancyStatus: 'vacant',
-  propertyValue: 310000,
-  auctionPrice: 162000,
-  actualValue: 285000,
+  propertyValue: 395000,
+  auctionPrice: 195000,
+  actualValue: 355000,
   isGoodDeal: true,
-  hoaFees: 180,
-  description: 'Modern townhouse in growing Raleigh suburb with granite counters and stainless appliances. Previous owner was a young professional who moved for work and left behind IKEA furniture and motivational wall decals. The unit has an open floor plan perfect for hosting, if you can overlook the mystery stain on the master bedroom carpet. Community amenities include a pool and fitness center that may or may not be fully operational.',
-  funnyStory: 'The HOA newsletter mentions ongoing "spirited discussions" about pet policies and parking spots.',
+  description: 'Music City bungalow with vintage charm and a few surprises. Previous owner was a session musician who soundproofed the garage studio with questionable materials. The house features original hardwood floors (mostly level), a recently updated kitchen with subway tile, and a backyard that\'s perfect for BBQs if you ignore the leaning fence. Neighbors mention the house had "legendary jam sessions" that may have exceeded noise ordinances.',
+  funnyStory: 'The seller left behind a fully functional recording studio in the garage, complete with egg cartons on the walls for "acoustic treatment."',
   redFlags: [
     {
-      description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
-      severity: 'low'
+      description: 'Foundation has minor settling - cracks in drywall, needs monitoring ($5k-$8k)',
+      severity: 'medium'
     },
     {
-      description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
-      severity: 'low'
+      description: 'Garage conversion lacks proper permits - $6k to bring to code or remove',
+      severity: 'medium'
     },
     {
-      description: 'HOA reserves underfunded by 30% - potential for special assessments',
+      description: 'Plumbing is galvanized steel from 1992 - recommend replacement soon ($10k-$15k)',
       severity: 'medium'
     }
   ],
   hiddenIssues: [
-    'Carpet in all bedrooms needs replacement - hardwood underneath',
-    'Community pool closed last summer due to repairs - still ongoing'
+    'Soundproofing materials in garage may contain asbestos - needs testing',
+    'Backyard fence is on neighbor\'s property - boundary dispute possible'
   ]
 };
 
@@ -101,8 +100,15 @@ async function generateCaseImages(scenario: PropertyScenario, caseId: string, da
     // Remove emoji from description
     const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
     
+    // Detect if property has multiple levels
+    const descLower = (scenario.description || '').toLowerCase();
+    const hasMultipleLevels = descLower.includes('stair') || descLower.includes('upstairs') || 
+                              descLower.includes('two-story') || descLower.includes('two story') ||
+                              descLower.includes('second floor') || descLower.includes('multi-level');
+    const levelContext = hasMultipleLevels ? 'Two-story property with multiple levels. ' : '';
+    
     // Use the SAME simple prompt format as the original realistic static cases
-    const prompt = `Realistic real estate photograph: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${scenario.description}. Professional real estate photography style, natural lighting, high quality.`;
+    const prompt = `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}Professional MLS listing photo, natural daylight, high-resolution camera. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
     
     console.log(`  Image ${i + 1}/4: ${cleanDesc}`);
     
@@ -192,39 +198,39 @@ async function main() {
     liens: [
       {
         type: 'First Mortgage',
-        holder: 'SunTrust Bank',
-        amount: 148000,
+        holder: 'Regions Bank',
+        amount: 178000,
         priority: 1,
         notes: 'Will be wiped at foreclosure sale'
       },
       {
-        type: 'HOA Lien',
-        holder: 'Piedmont Townhomes HOA',
-        amount: 2400,
+        type: 'Property Tax Lien',
+        holder: 'Davidson County',
+        amount: 4200,
         priority: 2,
-        notes: 'Unpaid HOA dues for 8 months'
+        notes: 'Unpaid property taxes - survives foreclosure'
       }
     ],
     redFlags: [
       {
-        id: 'rf-015-1',
-        description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
-        severity: 'low',
-        hiddenIn: 'HOA Budget Report',
-        discovered: false
-      },
-      {
-        id: 'rf-015-2',
-        description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
-        severity: 'low',
-        hiddenIn: 'Home Inspection',
-        discovered: false
-      },
-      {
-        id: 'rf-015-3',
-        description: 'HOA reserves underfunded by 30% - potential for special assessments',
+        id: 'rf-014-1',
+        description: 'Foundation has minor settling - cracks in drywall, needs monitoring ($5k-$8k)',
         severity: 'medium',
-        hiddenIn: 'HOA Financial Statement',
+        hiddenIn: 'Structural Engineer Report',
+        discovered: false
+      },
+      {
+        id: 'rf-014-2',
+        description: 'Garage conversion lacks proper permits - $6k to bring to code or remove',
+        severity: 'medium',
+        hiddenIn: 'Building Permit Records',
+        discovered: false
+      },
+      {
+        id: 'rf-014-3',
+        description: 'Plumbing is galvanized steel from 1992 - recommend replacement soon ($10k-$15k)',
+        severity: 'medium',
+        hiddenIn: 'Plumbing Inspection',
         discovered: false
       }
     ]
