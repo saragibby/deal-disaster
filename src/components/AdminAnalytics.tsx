@@ -34,11 +34,21 @@ interface User {
   best_score: number;
 }
 
+interface Feedback {
+  id: number;
+  message: string;
+  created_at: string;
+  user_name: string;
+  user_email: string;
+  read: boolean;
+}
+
 interface AnalyticsData {
   topQuestions: TopQuestion[];
   recentQuestions: RecentQuestion[];
   dailyStats: DailyStat[];
   users: User[];
+  feedback: Feedback[];
 }
 
 function AdminAnalytics() {
@@ -46,7 +56,7 @@ function AdminAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'recent' | 'popular' | 'stats' | 'users'>('recent');
+  const [activeTab, setActiveTab] = useState<'recent' | 'popular' | 'stats' | 'users' | 'feedback'>('recent');
 
   useEffect(() => {
     fetchAnalytics();
@@ -69,6 +79,23 @@ function AdminAnalytics() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (feedbackId: number) => {
+    try {
+      await api.markFeedbackAsRead(feedbackId);
+      // Update local state
+      if (analytics) {
+        setAnalytics({
+          ...analytics,
+          feedback: analytics.feedback.map(fb => 
+            fb.id === feedbackId ? { ...fb, read: true } : fb
+          )
+        });
+      }
+    } catch (error) {
+      console.error('Error marking feedback as read:', error);
     }
   };
 
@@ -104,6 +131,7 @@ function AdminAnalytics() {
   }
 
   if (error) {
+  const unreadFeedback = analytics.feedback.filter(f => !f.read).length;
     return (
       <div className="admin-analytics">
         <div className="analytics-header">
@@ -121,6 +149,7 @@ function AdminAnalytics() {
   }
 
   const totalRegistered = analytics.users.length;
+  const unreadFeedback = analytics.feedback.filter(f => !f.read).length;
 
   return (
     <div className="admin-analytics">
@@ -140,8 +169,8 @@ function AdminAnalytics() {
           <div className="summary-label">Registered Users</div>
         </div>
         <div className="summary-card">
-          <div className="summary-number">{analytics.topQuestions.length}</div>
-          <div className="summary-label">Unique Questions</div>
+          <div className="summary-number">{unreadFeedback}</div>
+          <div className="summary-label">Unread Feedback</div>
         </div>
         <div className="summary-card">
           <div className="summary-number">{analytics.dailyStats.length}</div>
@@ -173,6 +202,12 @@ function AdminAnalytics() {
           onClick={() => setActiveTab('users')}
         >
           Users
+        </button>
+        <button
+          className={`tab ${activeTab === 'feedback' ? 'active' : ''}`}
+          onClick={() => setActiveTab('feedback')}
+        >
+          Feedback
         </button>
       </div>
 
@@ -278,6 +313,44 @@ function AdminAnalytics() {
                     <div>{user.best_score || 0}</div>
                     <div>{user.is_admin ? '✓' : ''}</div>
                     <div>{formatDateOnly(user.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'feedback' && (
+          <div className="feedback-list">
+            <h2>User Feedback ({analytics.feedback.length})</h2>
+            {analytics.feedback.length === 0 ? (
+              <p className="no-data">No feedback submitted yet.</p>
+            ) : (
+              <div className="feedback-items">
+                {analytics.feedback.map((fb) => (
+                  <div key={fb.id} className={`feedback-item ${!fb.read ? 'unread' : ''}`}>
+                    <div className="feedback-header">
+                      <span className="user-name">
+                        {!fb.read && <span className="unread-badge">NEW</span>}
+                        {fb.user_name || 'Anonymous'}
+                      </span>
+                      <div className="feedback-actions">
+                        <span className="feedback-time">{formatDate(fb.created_at)}</span>
+                        {!fb.read && (
+                          <button 
+                            className="mark-read-btn"
+                            onClick={() => handleMarkAsRead(fb.id)}
+                            title="Mark as read"
+                          >
+                            ✓ Mark Read
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {fb.user_email && (
+                      <div className="user-email-small">{fb.user_email}</div>
+                    )}
+                    <div className="feedback-message">{fb.message}</div>
                   </div>
                 ))}
               </div>

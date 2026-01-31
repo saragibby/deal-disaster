@@ -262,6 +262,22 @@ class ApiService {
     return response.json();
   }
 
+  async markFeedbackAsRead(feedbackId: number) {
+    const response = await fetch(`${API_BASE_URL}/api/chat/feedback/${feedbackId}/read`, {
+      method: 'PUT',
+      headers: this.getHeaders(true),
+    });
+
+    await this.handleResponse(response);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to mark feedback as read');
+    }
+
+    return response.json();
+  }
+
   async submitFeedback(message: string) {
     const response = await fetch(`${API_BASE_URL}/api/feedback`, {
       method: 'POST',

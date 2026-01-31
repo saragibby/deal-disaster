@@ -311,6 +311,99 @@
   font-size: 0.9rem;
 }
 
+/* Feedback Section */
+.feedback-items {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.feedback-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 4px solid #4ecdc4;
+  border-radius: 8px;
+  padding: 15px;
+  transition: all 0.3s ease;
+}
+
+.feedback-item.unread {
+  border-left: 4px solid #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.feedback-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(78, 205, 196, 0.3);
+  transform: translateX(5px);
+}
+
+.feedback-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-time {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+}
+
+.unread-badge {
+  background: #ff6b6b;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  margin-right: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mark-read-btn {
+  background: rgba(78, 205, 196, 0.2);
+  border: 1px solid #4ecdc4;
+  color: #4ecdc4;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.mark-read-btn:hover {
+  background: rgba(78, 205, 196, 0.3);
+  transform: scale(1.05);
+}
+
+.user-email-small {
+  color: rgba(78, 205, 196, 0.7);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.feedback-message {
+  color: white;
+  font-size: 1rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 6px;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .analytics-header {

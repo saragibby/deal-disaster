@@ -103,15 +103,43 @@ router.get('/analytics', authenticateToken, requireAdmin, async (req: AuthReques
       ORDER BY u.created_at DESC
     `);
 
+    // Get all feedback
+    const feedbackResult = await pool.query(`
+      SELECT 
+        f.id,
+        f.message,
+        f.created_at,
+        f.read,
+        u.name as user_name,
+        u.email as user_email
+      FROM feedback f
+      LEFT JOIN users u ON f.user_id = u.id
+      ORDER BY f.read ASC, f.created_at DESC
+      LIMIT 200
+    `);
+
     res.json({
       topQuestions: topQuestionsResult.rows,
       recentQuestions: recentQuestionsResult.rows,
       dailyStats: dailyStatsResult.rows,
-      users: usersResult.rows
+      users: usersResult.rows,
+      feedback: feedbackResult.rows
     });
   } catch (error) {
     console.error('Error fetching chat analytics:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// Mark feedback as read (admin only)
+router.put('/feedback/:id/read', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE feedback SET read = TRUE WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking feedback as read:', error);
+    res.status(500).json({ error: 'Failed to mark feedback as read' });
   }
 });
 
