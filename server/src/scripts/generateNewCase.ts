@@ -113,7 +113,7 @@ async function generateCaseImages(scenario: PropertyScenario, caseId: string, da
     console.log(`  Image ${i + 1}/4: ${cleanDesc}`);
     
     try {
-      // Use DALL-E 2 like the original - produces more realistic photos
+      // Use DALL-E 2 - produces more photorealistic images
       const response = await dalleClient.images.generate({
         model: 'dall-e-2',
         prompt: prompt,
