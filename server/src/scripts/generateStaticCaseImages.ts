@@ -146,6 +146,20 @@ const staticCases: CaseImageData[] = [
     occupancyStatus: 'vacant',
     description: 'Stunning executive home with "character lines" (realtor-speak for cracks) running through the foundation.',
     photos: ['🏛️ Grand entrance', '🍽️ Gourmet kitchen', '🛁 Spa bathroom', '⛳ Golf course view']
+  },
+  {
+    caseId: 'case-011',
+    address: '555 Maple Ridge Lane',
+    city: 'Portland',
+    state: 'OR',
+    propertyType: 'Single Family Home',
+    beds: 3,
+    baths: 2,
+    sqft: 1950,
+    yearBuilt: 1985,
+    occupancyStatus: 'vacant',
+    description: 'Previous owner was a software engineer who decided to "automate" everything - the garage door opens at random times, the smart thermostat is stuck in Celsius.',
+    photos: ['🏡 Street view', '🏠 Interior', '🌲 Backyard', '🚪 Entry']
   }
 ];
 

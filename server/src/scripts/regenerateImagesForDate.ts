@@ -84,28 +84,43 @@ async function regenerateImagesForDate(dateString: string) {
 async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, challengeDate: string): Promise<string[]> {
   const scenario: PropertyScenario = propertyData;
   
-  // Always use standardized photo prompts for consistency
-  console.log('📝 Using standardized photo types: exterior, kitchen, backyard, interior room');
-  const imagePrompts = generateStandardPhotoPrompts(scenario);
-
-  console.log('\n🎨 Image prompts to generate:');
-  imagePrompts.forEach((prompt, idx) => {
-    console.log(`  ${idx + 1}. ${prompt.substring(0, 120)}...`);
-  });
-  console.log('');
+  // Use simple photo descriptions like the static cases
+  const photoDescriptions = [
+    'Front exterior view',
+    'Kitchen interior',
+    'Backyard view',
+    'Living room interior'
+  ];
+  
+  console.log('📝 Using realistic photo style with DALL-E 2 (same as static cases)');
+  console.log('Photo types: exterior, kitchen, backyard, living room\n');
 
   const imageUrls: string[] = [];
+  
+  const location = `${scenario.city}, ${scenario.state}`;
+  const propertyType = (scenario.propertyType || 'single family home').toLowerCase();
+  
+  const occupancyDetails = scenario.occupancyStatus === 'vacant' 
+    ? 'Property is vacant and unfurnished.' 
+    : scenario.occupancyStatus === 'occupied'
+    ? 'Property is currently occupied with furniture.'
+    : '';
 
-  for (let i = 0; i < imagePrompts.length; i++) {
+  for (let i = 0; i < photoDescriptions.length; i++) {
     try {
-      console.log(`Generating image ${i + 1}/${imagePrompts.length}...`);
+      const cleanDesc = photoDescriptions[i];
       
+      // Use the SAME simple prompt format as the original realistic static cases
+      const prompt = `Realistic real estate photograph: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${occupancyDetails} ${scenario.description}. Professional real estate photography style, natural lighting, high quality.`;
+      
+      console.log(`Generating image ${i + 1}/${photoDescriptions.length}: ${cleanDesc}...`);
+      
+      // Use DALL-E 2 like the static cases - produces more realistic photos
       const imageResponse = await dalleClient.images.generate({
-        model: 'dall-e-3',
-        prompt: imagePrompts[i],
+        model: 'dall-e-2',
+        prompt: prompt,
         n: 1,
-        size: '1024x1024',
-        quality: 'standard',
+        size: '512x512',
       });
 
       if (imageResponse.data && imageResponse.data[0]?.url) {
@@ -125,7 +140,7 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, ch
       }
 
       // Add delay to avoid rate limiting
-      if (i < imagePrompts.length - 1) {
+      if (i < photoDescriptions.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     } catch (error) {

@@ -745,6 +745,341 @@ export const propertyCases: PropertyCase[] = [
         discovered: false
       }
     ]
+  },
+  {
+    id: 'case-011',
+    address: '555 Maple Ridge Lane',
+    city: 'Portland',
+    state: 'OR',
+    zip: '97205',
+    propertyValue: 425000,
+    auctionPrice: 235000,
+    repairEstimate: 28000,
+    actualValue: 385000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    hoaFees: 95,
+    propertyType: 'Single Family Home',
+    beds: 3,
+    baths: 2,
+    sqft: 1950,
+    yearBuilt: 1985,
+    description: 'Previous owner was a software engineer who decided to "automate" everything - the garage door opens at random times, the smart thermostat is stuck in Celsius, and the Ring doorbell plays EDM instead of chimes. House has gorgeous hardwood floors under suspicious-looking carpet, and the kitchen boasts custom cabinets that may or may not be from IKEA. Neighbors say the seller left in a hurry after "a little tax situation." The backyard has a half-finished treehouse that definitely wasn\'t inspected by anyone official.',
+    photos: ['🏡 Street view', '🏠 Interior', '🌲 Backyard', '🚪 Entry'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-011/9e06929c-30c9-4c38-89aa-72e9f6dc233f.png?sv=2025-11-05&st=2026-01-31T18%3A44%3A06Z&se=2036-01-31T18%3A44%3A06Z&sr=b&sp=r&sig=HzUACitosFlgT0QZTnXd9SJhQyAWxSlMOw5cHX%2Br%2BZs%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-011/94a8a7e3-3d8a-41d4-9a70-62ac85b12a27.png?sv=2025-11-05&st=2026-01-31T18%3A44%3A18Z&se=2036-01-31T18%3A44%3A18Z&sr=b&sp=r&sig=wv9%2BqDlB4emEItroWh39ur%2B2M0%2FUCYAtvg91ZY6YaPI%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-011/5b7a7be2-411e-4c07-a487-338c57b86b48.png?sv=2025-11-05&st=2026-01-31T18%3A44%3A30Z&se=2036-01-31T18%3A44%3A30Z&sr=b&sp=r&sig=WrgEO8rGpUfHsVkLX28AssKiCzsXSSE2pfOEczrTARQ%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-011/eedb1d4c-750d-4371-8dd2-476b334e040b.png?sv=2025-11-05&st=2026-01-31T18%3A44%3A41Z&se=2036-01-31T18%3A44%3A41Z&sr=b&sp=r&sig=nI%2Fc%2BRZNrUO%2Bvr0cqodt4M7O4l5xsXXmoAtrFhQwEtk%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Wells Fargo',
+        amount: 198000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'HELOC',
+        holder: 'US Bank',
+        amount: 32000,
+        priority: 2,
+        notes: 'Also wiped at sale'
+      },
+      {
+        type: 'Mechanics Lien',
+        holder: 'Portland Roofing Co.',
+        amount: 14500,
+        priority: 3,
+        notes: 'Filed for unpaid roof work in 2024'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-011-1',
+        description: 'Mechanics lien survives foreclosure - you inherit $14.5k debt for roof work',
+        severity: 'high',
+        hiddenIn: 'County Lien Records',
+        discovered: false
+      },
+      {
+        id: 'rf-011-2',
+        description: 'Electrical panel is Federal Pacific (known fire hazard) - requires $8k replacement',
+        severity: 'high',
+        hiddenIn: 'Home Inspection Report',
+        discovered: false
+      },
+      {
+        id: 'rf-011-3',
+        description: 'Previous water damage in basement - mold remediation needed ($6k-$9k)',
+        severity: 'medium',
+        hiddenIn: 'Seller Disclosure (buried in footnotes)',
+        discovered: false
+      }
+    ]
+  },
+  {
+    id: 'case-012',
+    address: '2828 Renovation Road',
+    city: 'Denver',
+    state: 'CO',
+    zip: '80202',
+    propertyValue: 520000,
+    auctionPrice: 285000,
+    repairEstimate: 35000,
+    actualValue: 465000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    propertyType: 'Single Family Home',
+    beds: 4,
+    baths: 2.5,
+    sqft: 2200,
+    yearBuilt: 1978,
+    description: 'Charming fixer-upper in desirable Denver neighborhood. Previous owner was a "contractor" who left mid-renovation with paint samples on every wall and three different types of flooring in the hallway. Kitchen appliances are all different brands because apparently buying a matching set is for amateurs. The master bath has a jacuzzi tub that hasn\'t worked since 2019, and there\'s a mysterious locked room in the basement with a "DO NOT ENTER" sign.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-012/96260b9c-9edc-4857-b20e-61358a78e1fe.png?sv=2025-11-05&st=2026-01-31T18%3A52%3A46Z&se=2036-01-31T18%3A52%3A46Z&sr=b&sp=r&sig=5AMaD2m3w7RnfIDMBN5SwsGsi5YA2jO7i2eaPr4JbMQ%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-012/3d668001-1955-4505-8b3c-e5db45e6fd2d.png?sv=2025-11-05&st=2026-01-31T18%3A52%3A58Z&se=2036-01-31T18%3A52%3A58Z&sr=b&sp=r&sig=Y1zQoF1d7p9glLIhc4tuL8HLkokGKsDl5GNzelxgrmE%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-012/734efebb-70d1-4c0b-b607-18dda6a040c3.png?sv=2025-11-05&st=2026-01-31T18%3A53%3A11Z&se=2036-01-31T18%3A53%3A11Z&sr=b&sp=r&sig=Wx8Ln5v4De9K4D%2B3Fqc4RuLGxd0%2BREFBHXYBpmPODo4%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-012/e3f91722-6fc1-4571-8560-a0deba502b0f.png?sv=2025-11-05&st=2026-01-31T18%3A53%3A24Z&se=2036-01-31T18%3A53%3A24Z&sr=b&sp=r&sig=CvaZAwM%2BJ8JRmz2ZyrIJ3tuwuf93Ufi0edSZD4ceww8%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Wells Fargo',
+        amount: 245000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'Second Mortgage',
+        holder: 'Chase HELOC',
+        amount: 28000,
+        priority: 2,
+        notes: 'Also wiped at sale'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-012-1',
+        description: 'Unfinished renovation work - permits expired, need to restart inspections ($8k)',
+        severity: 'medium',
+        hiddenIn: 'Building Department Records',
+        discovered: false
+      },
+      {
+        id: 'rf-012-2',
+        description: 'Roof needs replacement within 2 years - current condition marginal ($12k-$18k)',
+        severity: 'medium',
+        hiddenIn: 'Home Inspection Report',
+        discovered: false
+      },
+      {
+        id: 'rf-012-3',
+        description: 'HVAC system is 20 years old and showing signs of failure ($7k-$10k replacement)',
+        severity: 'medium',
+        hiddenIn: 'Maintenance Records',
+        discovered: false
+      }
+    ]
+  },
+  {
+    id: 'case-013',
+    address: '999 Litigation Lane',
+    city: 'Miami',
+    state: 'FL',
+    zip: '33101',
+    propertyValue: 320000,
+    auctionPrice: 165000,
+    repairEstimate: 22000,
+    actualValue: 240000,
+    isGoodDeal: false,
+    occupancyStatus: 'occupied',
+    hoaFees: 425,
+    propertyType: 'Condo',
+    beds: 2,
+    baths: 2,
+    sqft: 1400,
+    yearBuilt: 2006,
+    description: 'Luxury waterfront condo with stunning ocean views and an even more stunning legal battle. Previous owner was in a dispute with the HOA over "excessive entertaining" and left behind a collection of party supplies and passive-aggressive HOA violation notices. The balcony has a hot tub that may or may not violate weight restrictions. Building is currently in litigation over special assessments, and the HOA president sends daily emails about new rules.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-013/7151fa31-d7e8-494f-b3d3-e61fdc4510b7.png?sv=2025-11-05&st=2026-01-31T18%3A54%3A31Z&se=2036-01-31T18%3A54%3A31Z&sr=b&sp=r&sig=5GvGts7SDLB%2F%2Bjb%2BY5ENOhuo1P1wBf45GZaUx6Eibm4%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-013/96b025b8-d8b5-4692-80b5-3d10d1cd041f.png?sv=2025-11-05&st=2026-01-31T18%3A54%3A46Z&se=2036-01-31T18%3A54%3A46Z&sr=b&sp=r&sig=ZW1WzK1oQ1c%2FcqLp5zU2taHDOgQa3geMSnFwpaC798c%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-013/99c7a92f-3cbc-4470-8d22-a79466f97b39.png?sv=2025-11-05&st=2026-01-31T18%3A55%3A01Z&se=2036-01-31T18%3A55%3A01Z&sr=b&sp=r&sig=k3z3kvAOmH00tgjlJPaceM56Nop6d4St6LHOlulzTiw%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-013/0bc4fd47-c5b6-466c-bd01-b536a3ff15af.png?sv=2025-11-05&st=2026-01-31T18%3A55%3A16Z&se=2036-01-31T18%3A55%3A16Z&sr=b&sp=r&sig=vbXUeuDuClPUY16%2BJUmHfXFp5LQNkj7xvHy%2BcMKoRGw%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Bank of America',
+        amount: 152000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'HOA Lien',
+        holder: 'Ocean Towers HOA',
+        amount: 8500,
+        priority: 2,
+        notes: 'Unpaid HOA dues - survives foreclosure!'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-013-1',
+        description: 'Pending HOA special assessment of $35,000 for building repairs - survives foreclosure',
+        severity: 'high',
+        hiddenIn: 'HOA Meeting Minutes',
+        discovered: false
+      },
+      {
+        id: 'rf-013-2',
+        description: 'Active lawsuit between HOA and previous owner - you may inherit legal costs ($15k-$25k)',
+        severity: 'high',
+        hiddenIn: 'Court Records',
+        discovered: false
+      },
+      {
+        id: 'rf-013-3',
+        description: 'Building has concrete spalling issues - major repair project starting next year',
+        severity: 'high',
+        hiddenIn: 'Engineering Report',
+        discovered: false
+      }
+    ]
+  },
+  {
+    id: 'case-014',
+    address: '1776 Freedom Drive',
+    city: 'Nashville',
+    state: 'TN',
+    zip: '37201',
+    propertyValue: 395000,
+    auctionPrice: 195000,
+    repairEstimate: 32000,
+    actualValue: 355000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    propertyType: 'Single Family Home',
+    beds: 3,
+    baths: 2,
+    sqft: 1750,
+    yearBuilt: 1992,
+    description: 'Music City bungalow with vintage charm and a few surprises. Previous owner was a session musician who soundproofed the garage studio with questionable materials. The house features original hardwood floors (mostly level), a recently updated kitchen with subway tile, and a backyard that\'s perfect for BBQs if you ignore the leaning fence. Neighbors mention the house had "legendary jam sessions" that may have exceeded noise ordinances.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/23c568c4-f1c3-4c13-ae7a-092f1fd525ad.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A29Z&se=2036-01-31T18%3A56%3A29Z&sr=b&sp=r&sig=eI7UhJLB6UmjCcxMVMuiLBrIs6aMvlCZQ9LA7Jo2vHk%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/15315952-9316-4bc7-960b-dac5ea4fc47f.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A44Z&se=2036-01-31T18%3A56%3A44Z&sr=b&sp=r&sig=gAGHtpvR2eDOG9OdCIFwpT9ZS1LJJRgYz6b8fkL3jC4%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/3b16fcf4-910e-449c-b852-3803adb37310.png?sv=2025-11-05&st=2026-01-31T18%3A56%3A58Z&se=2036-01-31T18%3A56%3A58Z&sr=b&sp=r&sig=WelU6oAeA6H7EHrel8kFR4kXhCx0aS%2F%2Ftc6h0hF3R0E%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-014/577e27dd-6ffe-459d-8170-5cbf51221f91.png?sv=2025-11-05&st=2026-01-31T18%3A57%3A14Z&se=2036-01-31T18%3A57%3A14Z&sr=b&sp=r&sig=%2BHin3ItpN2mYDltMxclM0UjnNk%2F6CuemQuiX0OF8tB0%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Regions Bank',
+        amount: 178000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'Property Tax Lien',
+        holder: 'Davidson County',
+        amount: 4200,
+        priority: 2,
+        notes: 'Unpaid property taxes - survives foreclosure'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-014-1',
+        description: 'Foundation has minor settling - cracks in drywall, needs monitoring ($5k-$8k)',
+        severity: 'medium',
+        hiddenIn: 'Structural Engineer Report',
+        discovered: false
+      },
+      {
+        id: 'rf-014-2',
+        description: 'Garage conversion lacks proper permits - $6k to bring to code or remove',
+        severity: 'medium',
+        hiddenIn: 'Building Permit Records',
+        discovered: false
+      },
+      {
+        id: 'rf-014-3',
+        description: 'Plumbing is galvanized steel from 1992 - recommend replacement soon ($10k-$15k)',
+        severity: 'medium',
+        hiddenIn: 'Plumbing Inspection',
+        discovered: false
+      }
+    ]
+  },
+  {
+    id: 'case-015',
+    address: '3030 Starter Home Street',
+    city: 'Raleigh',
+    state: 'NC',
+    zip: '27601',
+    propertyValue: 310000,
+    auctionPrice: 162000,
+    repairEstimate: 18000,
+    actualValue: 285000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    hoaFees: 180,
+    propertyType: 'Townhouse',
+    beds: 3,
+    baths: 2.5,
+    sqft: 1680,
+    yearBuilt: 2010,
+    description: 'Modern townhouse in growing Raleigh suburb with granite counters and stainless appliances. Previous owner was a young professional who moved for work and left behind IKEA furniture and motivational wall decals. The unit has an open floor plan perfect for hosting, if you can overlook the mystery stain on the master bedroom carpet. Community amenities include a pool and fitness center that may or may not be fully operational.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-015/971fa867-fd14-4d74-9f13-aa21099961c9.png?sv=2025-11-05&st=2026-01-31T18%3A58%3A29Z&se=2036-01-31T18%3A58%3A29Z&sr=b&sp=r&sig=sCyOlXZrmn2CbeQxGIRr4D2%2F8JliHgnUyyUMllwNx9A%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-015/0b846d62-6282-44c0-91e0-bdc2623e2acf.png?sv=2025-11-05&st=2026-01-31T18%3A58%3A43Z&se=2036-01-31T18%3A58%3A43Z&sr=b&sp=r&sig=V34nyqyX1hqepZgjsJMzCmCfxVosc1AiutaSkkVxxms%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-015/22dc5cf5-4ac2-40a0-80c9-e4489d494111.png?sv=2025-11-05&st=2026-01-31T18%3A58%3A59Z&se=2036-01-31T18%3A58%3A59Z&sr=b&sp=r&sig=rirjd5SkBCd87u8vKcV2x8L8qhV9ZdC%2BgRclxKuPV08%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-015/107b439b-8130-411b-bbf2-c41933389f58.png?sv=2025-11-05&st=2026-01-31T18%3A59%3A13Z&se=2036-01-31T18%3A59%3A13Z&sr=b&sp=r&sig=uZ3E088mE6hpuRaERtEZCM543UlmcDKwJCRB8Ccunws%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'SunTrust Bank',
+        amount: 148000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'HOA Lien',
+        holder: 'Piedmont Townhomes HOA',
+        amount: 2400,
+        priority: 2,
+        notes: 'Unpaid HOA dues for 8 months'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-015-1',
+        description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
+        severity: 'low',
+        hiddenIn: 'HOA Budget Report',
+        discovered: false
+      },
+      {
+        id: 'rf-015-2',
+        description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
+        severity: 'low',
+        hiddenIn: 'Home Inspection',
+        discovered: false
+      },
+      {
+        id: 'rf-015-3',
+        description: 'HOA reserves underfunded by 30% - potential for special assessments',
+        severity: 'medium',
+        hiddenIn: 'HOA Financial Statement',
+        discovered: false
+      }
+    ]
   }
 ];
 

@@ -6,7 +6,6 @@ import {
   generateStandardPhotoPrompts,
   PropertyScenario 
 } from '../utils/imagePromptBuilder.js';
-import { blobStorage } from '../services/blobStorage.js';
 
 // Get the directory of this script
 const __filename = fileURLToPath(import.meta.url);
@@ -32,45 +31,49 @@ const newCase: PropertyScenario & {
   isGoodDeal: boolean;
   hoaFees?: number;
 } = {
-  caseId: 'case-010',
-  address: '456 Whisper Woods Drive',
-  city: 'Austin',
-  state: 'TX',
-  zip: '78745',
-  propertyType: 'Single Family Home',
+  caseId: 'case-015',
+  address: '3030 Starter Home Street',
+  city: 'Raleigh',
+  state: 'NC',
+  zip: '27601',
+  propertyType: 'Townhouse',
   beds: 3,
-  baths: 2,
-  sqft: 1920,
-  yearBuilt: 2001,
-  estimatedRepairs: 28000,
+  baths: 2.5,
+  sqft: 1680,
+  yearBuilt: 2010,
+  estimatedRepairs: 18000,
   occupancyStatus: 'vacant',
-  propertyValue: 385000,
-  auctionPrice: 195000,
-  actualValue: 320000,
+  propertyValue: 310000,
+  auctionPrice: 162000,
+  actualValue: 285000,
   isGoodDeal: true,
-  description: 'Former Airbnb rental that the owner "forgot" to report on taxes for five years. The hot tub out back has been described as "organic" by neighbors, and the guest reviews mentioned something about a "friendly" family of raccoons in the attic. Kitchen was updated in 2018 with granite counters and stainless appliances, though the fridge has been making jazz sounds since the power got shut off.',
-  funnyStory: 'Previous owner tried to convert the garage into a "zen meditation studio" complete with a koi pond that leaked into the foundation.',
+  hoaFees: 180,
+  description: 'Modern townhouse in growing Raleigh suburb with granite counters and stainless appliances. Previous owner was a young professional who moved for work and left behind IKEA furniture and motivational wall decals. The unit has an open floor plan perfect for hosting, if you can overlook the mystery stain on the master bedroom carpet. Community amenities include a pool and fitness center that may or may not be fully operational.',
+  funnyStory: 'The HOA newsletter mentions ongoing "spirited discussions" about pet policies and parking spots.',
   redFlags: [
     {
-      description: 'Unpermitted garage conversion with electrical work done by "a guy from Craigslist"',
-      severity: 'high'
+      description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
+      severity: 'low'
     },
     {
-      description: 'Foundation moisture issues from failed koi pond installation',
-      severity: 'medium'
+      description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
+      severity: 'low'
     },
     {
-      description: 'HOA special assessment pending for community fence replacement - $4,500',
+      description: 'HOA reserves underfunded by 30% - potential for special assessments',
       severity: 'medium'
     }
   ],
   hiddenIssues: [
-    'Raccoon damage in attic insulation - needs full replacement',
-    'Hot tub has been disconnected and may have electrical code violations'
+    'Carpet in all bedrooms needs replacement - hardwood underneath',
+    'Community pool closed last summer due to repairs - still ongoing'
   ]
 };
 
 async function generateCaseImages(scenario: PropertyScenario, caseId: string, dalleClient: OpenAI): Promise<string[]> {
+  // Dynamic import of blobStorage to ensure .env is loaded first
+  const { blobStorage } = await import('../services/blobStorage.js');
+  
   const imageUrls: string[] = [];
   
   const location = `${scenario.city}, ${scenario.state}`;
@@ -189,39 +192,39 @@ async function main() {
     liens: [
       {
         type: 'First Mortgage',
-        holder: 'Chase Bank',
-        amount: 142000,
+        holder: 'SunTrust Bank',
+        amount: 148000,
         priority: 1,
         notes: 'Will be wiped at foreclosure sale'
       },
       {
         type: 'HOA Lien',
-        holder: 'Whisper Woods HOA',
-        amount: 8500,
+        holder: 'Piedmont Townhomes HOA',
+        amount: 2400,
         priority: 2,
-        notes: 'Unpaid dues plus special assessment'
+        notes: 'Unpaid HOA dues for 8 months'
       }
     ],
     redFlags: [
       {
-        id: 'rf-010-1',
-        description: 'Unpermitted garage conversion - city requires removal or $15k+ to bring to code',
-        severity: 'high',
-        hiddenIn: 'Building Permit Records',
+        id: 'rf-015-1',
+        description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
+        severity: 'low',
+        hiddenIn: 'HOA Budget Report',
         discovered: false
       },
       {
-        id: 'rf-010-2', 
-        description: 'Foundation moisture issues - inspector estimates $12k remediation',
-        severity: 'medium',
-        hiddenIn: 'Previous Inspection Report (2022)',
+        id: 'rf-015-2',
+        description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
+        severity: 'low',
+        hiddenIn: 'Home Inspection',
         discovered: false
       },
       {
-        id: 'rf-010-3',
-        description: 'HOA special assessment of $4,500 due within 60 days - not disclosed in sale docs',
+        id: 'rf-015-3',
+        description: 'HOA reserves underfunded by 30% - potential for special assessments',
         severity: 'medium',
-        hiddenIn: 'HOA Meeting Minutes',
+        hiddenIn: 'HOA Financial Statement',
         discovered: false
       }
     ]

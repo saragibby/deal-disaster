@@ -19,6 +19,8 @@
     "regenerate-challenge": "tsx src/scripts/regenerateChallenge.ts",
     "regenerate-challenge:prod": "node dist/scripts/regenerateChallenge.js",
     "generate-static-images": "tsx src/scripts/generateStaticCaseImages.ts",
+    "generate-case-images": "tsx src/scripts/generateCaseImages.ts",
+    "generate-new-case": "tsx src/scripts/generateNewCase.ts",
     "make-admin": "tsx src/scripts/makeAdmin.ts",
     "make-admin:prod": "node dist/scripts/makeAdmin.js"
   },
