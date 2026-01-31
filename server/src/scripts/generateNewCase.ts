@@ -1,6 +1,12 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import OpenAI from 'openai';
+import { 
+  generateStandardPhotoPrompts,
+  PropertyScenario 
+} from '../utils/imagePromptBuilder.js';
+import { blobStorage } from '../services/blobStorage.js';
 
 // Get the directory of this script
 const __filename = fileURLToPath(import.meta.url);
@@ -8,15 +14,6 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables from server/.env
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-// Now import modules that depend on environment variables
-const { blobStorage } = await import('../services/blobStorage.js');
-
-import OpenAI from 'openai';
-import { 
-  generateStandardPhotoPrompts,
-  PropertyScenario 
-} from '../utils/imagePromptBuilder.js';
 
 /**
  * Script to generate a new static case for the regular game
