@@ -131,7 +131,6 @@ function AdminAnalytics() {
   }
 
   if (error) {
-  const unreadFeedback = analytics.feedback.filter(f => !f.read).length;
     return (
       <div className="admin-analytics">
         <div className="analytics-header">
