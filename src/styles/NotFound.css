@@ -184,11 +184,19 @@
   border: 1px dashed rgba(255, 107, 107, 0.3);
 }
 
+.fun-fact-title {
+  font-size: 1.2rem;
+  color: #ff6b6b;
+  margin: 0 0 15px 0;
+  font-weight: bold;
+}
+
 .fun-fact {
   font-size: 1rem;
-  color: #ff6b6b;
+  color: rgba(255, 255, 255, 0.9);
   margin: 0;
   font-style: italic;
+  line-height: 1.6;
 }
 
 /* Responsive */

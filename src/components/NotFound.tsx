@@ -3,9 +3,28 @@ import { useState } from 'react';
 import willImage from '../assets/will.png';
 import '../styles/NotFound.css';
 
+const FORECLOSURE_FACTS = [
+  "100% of 404 pages have been foreclosed on by the internet. This one included.",
+  "Did you know? More people visit foreclosure auctions than their in-laws. Coincidence? We think not.",
+  "The most common question at foreclosure auctions: 'Does it come with the mystery stains?'",
+  "Banks hate this one weird trick: Not being on a page that exists.",
+  "Studies show that 87% of statistics about foreclosures are made up on the spot. Just like this one.",
+  "The word 'foreclosure' comes from the Latin 'fore' meaning 'front' and 'closure' meaning 'absolutely not happening here.'",
+  "This page has been foreclosed on for failure to exist. The bank is very confused.",
+  "Foreclosure auction pro tip: If you hear banjo music, it's not part of the property tour.",
+  "Breaking: Local man finds page that doesn't exist, immediately tries to flip it for profit.",
+  "The #1 rule of foreclosure investing: Always check if the property actually exists. Unlike this page.",
+  "Will says: 'In my 20 years of foreclosure experience, I've never seen a property disappear like this page just did.'",
+  "60% of foreclosure investors are just really into weird smells and questionable carpeting.",
+  "This 404 error has more red flags than a foreclosure auction in a flood zone.",
+  "Legend has it that somewhere, someone is still trying to flip this missing page for a profit.",
+  "Foreclosure wisdom: Location, location, location... and apparently, existence, existence, existence."
+];
+
 function NotFound() {
   const navigate = useNavigate();
   const [showAskWill, setShowAskWill] = useState(false);
+  const randomFact = FORECLOSURE_FACTS[Math.floor(Math.random() * FORECLOSURE_FACTS.length)];
 
   return (
     <div className="not-found-container">
@@ -53,8 +72,9 @@ function NotFound() {
         )}
 
         <div className="fun-facts">
+          <h3 className="fun-fact-title">Foreclosure Fun Fact</h3>
           <p className="fun-fact">
-            🏚️ Fun Fact: {Math.floor(Math.random() * 100) + 1}% of foreclosure deals don't exist... just like this page!
+            {randomFact}
           </p>
         </div>
       </div>
