@@ -159,19 +159,19 @@ function AdminAnalytics() {
       </div>
 
       <div className="analytics-summary">
-        <div className="summary-card">
+        <div className="summary-card" onClick={() => setActiveTab('recent')}>
           <div className="summary-number">{analytics.recentQuestions.length}</div>
           <div className="summary-label">Total Questions</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card" onClick={() => setActiveTab('users')}>
           <div className="summary-number">{totalRegistered}</div>
           <div className="summary-label">Registered Users</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card" onClick={() => setActiveTab('feedback')}>
           <div className="summary-number">{unreadFeedback}</div>
           <div className="summary-label">Unread Feedback</div>
         </div>
-        <div className="summary-card">
+        <div className="summary-card" onClick={() => setActiveTab('stats')}>
           <div className="summary-number">{analytics.dailyStats.length}</div>
           <div className="summary-label">Days Active</div>
         </div>

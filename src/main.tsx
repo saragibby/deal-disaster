@@ -5,6 +5,7 @@ import App from './App.tsx'
 import VerifyEmail from './components/VerifyEmail.tsx'
 import ResetPassword from './components/ResetPassword.tsx'
 import AdminAnalytics from './components/AdminAnalytics.tsx'
+import NotFound from './components/NotFound.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin/analytics" element={<AdminAnalytics />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
