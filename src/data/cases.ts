@@ -680,6 +680,71 @@ export const propertyCases: PropertyCase[] = [
         discovered: false
       }
     ]
+  },
+  {
+    id: 'case-010',
+    address: '456 Whisper Woods Drive',
+    city: 'Austin',
+    state: 'TX',
+    zip: '78745',
+    propertyValue: 385000,
+    auctionPrice: 195000,
+    repairEstimate: 28000,
+    actualValue: 320000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    propertyType: 'Single Family Home',
+    beds: 3,
+    baths: 2,
+    sqft: 1920,
+    yearBuilt: 2001,
+    description: 'Former Airbnb rental that the owner "forgot" to report on taxes for five years. The hot tub out back has been described as "organic" by neighbors, and the guest reviews mentioned something about a "friendly" family of raccoons in the attic. Kitchen was updated in 2018 with granite counters and stainless appliances, though the fridge has been making jazz sounds since the power got shut off.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🌳 Backyard', '🛋️ Interior'],
+    photoUrls: [
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-010/fa465442-8f35-408d-b4a6-b76309fc63c3.png?sv=2025-11-05&st=2026-01-31T18%3A02%3A24Z&se=2036-01-31T18%3A02%3A24Z&sr=b&sp=r&sig=NQPzNtxmfk3p%2FivTMDY0t05zW3ILVdGt8NDgKs1HgcA%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-010/130abe4e-076d-4c4c-8eda-775c208b091a.png?sv=2025-11-05&st=2026-01-31T18%3A02%3A39Z&se=2036-01-31T18%3A02%3A39Z&sr=b&sp=r&sig=kPycxPS3Z7p8tLrWPsHIsdRk0ofmH9FttufO3VvA%2FEg%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-010/7a7c74b9-aae8-4095-80c4-13dcb4112036.png?sv=2025-11-05&st=2026-01-31T18%3A02%3A55Z&se=2036-01-31T18%3A02%3A55Z&sr=b&sp=r&sig=fN5iLJ1CfYG7FaEtYa2T0NU83fZiUVcRRBdt%2FIK%2BU98%3D",
+      "https://dealdisaster.blob.core.windows.net/dealdisaster/dev/static-cases/case-010/33fceae7-baf8-4e38-9615-5d8986a22436.png?sv=2025-11-05&st=2026-01-31T18%3A03%3A09Z&se=2036-01-31T18%3A03%3A09Z&sr=b&sp=r&sig=EvMMlRgEck0dlGshoe%2F%2BcsNi2Z2emPBPyuEzb2TyiNw%3D"
+    ],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Chase Bank',
+        amount: 142000,
+        priority: 1,
+        notes: 'Will be wiped at foreclosure sale'
+      },
+      {
+        type: 'HOA Lien',
+        holder: 'Whisper Woods HOA',
+        amount: 8500,
+        priority: 2,
+        notes: 'Unpaid dues plus special assessment'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-010-1',
+        description: 'Unpermitted garage conversion - city requires removal or $15k+ to bring to code',
+        severity: 'high',
+        hiddenIn: 'Building Permit Records',
+        discovered: false
+      },
+      {
+        id: 'rf-010-2',
+        description: 'Foundation moisture issues - inspector estimates $12k remediation',
+        severity: 'medium',
+        hiddenIn: 'Previous Inspection Report (2022)',
+        discovered: false
+      },
+      {
+        id: 'rf-010-3',
+        description: 'HOA special assessment of $4,500 due within 60 days - not disclosed in sale docs',
+        severity: 'medium',
+        hiddenIn: 'HOA Meeting Minutes',
+        discovered: false
+      }
+    ]
   }
 ];
 

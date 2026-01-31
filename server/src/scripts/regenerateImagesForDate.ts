@@ -1,9 +1,14 @@
 import { pool } from '../db/pool.js';
 import OpenAI from 'openai';
 import { blobStorage } from '../services/blobStorage.js';
+import { 
+  generateStandardPhotoPrompts,
+  PropertyScenario 
+} from '../utils/imagePromptBuilder.js';
 
 /**
  * Script to regenerate images for a specific daily challenge by date
+ * Uses standardized photo types: exterior, kitchen, backyard, interior room
  * Run with: npm run regenerate-images-date YYYY-MM-DD
  * Example: npm run regenerate-images-date 2025-12-30
  */
@@ -77,22 +82,17 @@ async function regenerateImagesForDate(dateString: string) {
 }
 
 async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, challengeDate: string): Promise<string[]> {
-  const location = `${propertyData.city || 'suburban area'}, ${propertyData.state || 'USA'}`;
-  const propertyDesc = propertyData.description || '';
-  const funnyStory = propertyData.funnyStory || '';
-  const condition = propertyData.estimatedRepairs > 50000 ? 'showing significant wear, dated features, and deferred maintenance' : 
-                    propertyData.estimatedRepairs > 30000 ? 'showing moderate wear and some dated features' : 
-                    'in functional condition with minor cosmetic updates needed';
+  const scenario: PropertyScenario = propertyData;
+  
+  // Always use standardized photo prompts for consistency
+  console.log('📝 Using standardized photo types: exterior, kitchen, backyard, interior room');
+  const imagePrompts = generateStandardPhotoPrompts(scenario);
 
-  const imagePrompts = [
-    `Realistic real estate photograph of the exterior of a ${propertyData.propertyType?.toLowerCase() || 'single family home'} in ${location}. Built in ${propertyData.yearBuilt || 1980}. ${propertyData.occupancyStatus === 'occupied' ? 'Property shows signs of current habitation' : 'Vacant property'}. ${propertyDesc}. Natural daylight, street view perspective, professional real estate photography.`,
-    
-    `Interior photograph of the living room in a ${propertyData.beds || 3} bedroom, ${propertyData.baths || 2} bathroom ${propertyData.propertyType?.toLowerCase() || 'home'}. ${condition}. ${funnyStory.includes('carpet') || funnyStory.includes('floor') ? 'Focus on flooring and overall room condition' : ''}. Realistic residential interior, real estate listing quality photo.`,
-    
-    `Interior photograph of the kitchen in a residential ${propertyData.propertyType?.toLowerCase() || 'home'}. ${condition}. ${funnyStory.includes('kitchen') || funnyStory.includes('appliance') ? 'Show appliances and cabinetry condition clearly' : 'Standard kitchen layout with appliances visible'}. Natural lighting, real estate photography style.`,
-    
-    `Interior photograph of a bathroom in a ${propertyData.yearBuilt || 1980} built home. ${condition}. ${funnyStory.includes('bathroom') || funnyStory.includes('plumb') || funnyStory.includes('fixture') ? 'Show fixtures and overall bathroom condition' : 'Standard bathroom fixtures'}. Real estate listing photograph.`
-  ];
+  console.log('\n🎨 Image prompts to generate:');
+  imagePrompts.forEach((prompt, idx) => {
+    console.log(`  ${idx + 1}. ${prompt.substring(0, 120)}...`);
+  });
+  console.log('');
 
   const imageUrls: string[] = [];
 
