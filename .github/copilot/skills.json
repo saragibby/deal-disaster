@@ -1,0 +1,18 @@
+{
+  "$schema": "https://github.com/github/copilot-skills-schema/blob/main/schemas/skills.schema.json",
+  "skills": [
+    {
+      "name": "heroku-logs",
+      "description": "Analyzes Heroku logs to diagnose deployment and runtime errors, providing specific fixes based on the application code",
+      "instructions": "heroku-logs.md",
+      "conversation_starters": [
+        "Help me analyze this Heroku error log",
+        "Why is my Heroku app crashing with H10 error?",
+        "Debug this R10 boot timeout in Heroku",
+        "My Heroku app has memory issues (R14)",
+        "Explain this Heroku log error and how to fix it"
+      ],
+      "tags": ["deployment", "heroku", "debugging", "logs", "devops"]
+    }
+  ]
+}

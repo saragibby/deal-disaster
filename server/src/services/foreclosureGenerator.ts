@@ -1,5 +1,9 @@
 import OpenAI from 'openai';
 import { blobStorage } from './blobStorage.js';
+import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
+import { IImageProvider } from './imageProviders/IImageProvider.js';
+import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
+import { IImageProvider } from './imageProviders/IImageProvider.js';
 
 interface ForeclosureScenario {
   address: string;
@@ -48,7 +52,7 @@ interface ForeclosureScenario {
 
 export class ForeclosureScenarioGenerator {
   private client: OpenAI;
-  private dalleClient: OpenAI | null = null;
+  private imageProvider: IImageProvider | null = null;
   private recentLocations: Array<{ city: string; state: string }> = [];
   private readonly MAX_RECENT_LOCATIONS = 10;
 
@@ -73,14 +77,18 @@ export class ForeclosureScenarioGenerator {
       defaultHeaders: { 'api-key': apiKey },
     });
 
-    // Initialize standard OpenAI client for DALL-E image generation
-    if (process.env.OPENAI_API_KEY) {
-      this.dalleClient = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-      console.log('✅ DALL-E image generation enabled');
-    } else {
-      console.log('ℹ️  DALL-E image generation disabled (set OPENAI_API_KEY to enable)');
+    // Initialize image provider (DALL-E or Gemini based on IMAGE_PROVIDER env var)
+    try {
+      this.imageProvider = ImageProviderFactory.createProvider();
+      if (this.imageProvider.isConfigured()) {
+        console.log(`✅ Image generation enabled using ${this.imageProvider.getProviderName()}`);
+      } else {
+        console.log(`ℹ️  Image generation disabled (${this.imageProvider.getProviderName()} not configured)`);
+        this.imageProvider = null;
+      }
+    } catch (error) {
+      console.log('ℹ️  Image generation disabled (provider initialization failed)');
+      this.imageProvider = null;
     }
   }
 
@@ -149,9 +157,9 @@ export class ForeclosureScenarioGenerator {
   }
 
   private async generatePropertyImages(scenario: ForeclosureScenario, challengeDate?: string): Promise<string[]> {
-    // If no DALL-E client configured, return emoji placeholders
-    if (!this.dalleClient) {
-      console.log('Skipping image generation - no OpenAI API key configured');
+    // If no image provider configured, return emoji placeholders
+    if (!this.imageProvider) {
+      console.log('Skipping image generation - no image provider configured');
       return scenario.photos;
     }
 
@@ -237,31 +245,19 @@ export class ForeclosureScenarioGenerator {
         try {
           console.log(`Generating image ${i + 1}/${imagePrompts.length}...`);
           
-          const imageResponse = await this.dalleClient.images.generate({
-            model: 'dall-e-3',
-            prompt: imagePrompts[i],
-            n: 1,
-            size: '1024x1024',
-            quality: 'standard',
-          });
-
-          if (imageResponse.data && imageResponse.data[0]?.url) {
-            const tempUrl = imageResponse.data[0].url;
-            console.log(`Generated temporary URL for image ${i + 1}`);
-            
-            // Download the image
-            const imageBuffer = await this.downloadImage(tempUrl);
-            
-            // Azure Blob Storage is required - no fallback to base64
-            if (!blobStorage.isConfigured()) {
-              throw new Error('Azure Blob Storage not configured. Cannot save images.');
-            }
-            
-            const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
-            const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
-            imageUrls.push(blobUrl);
-            console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
+          // Use the image provider to generate the image
+          const imageBuffer = await this.imageProvider.generateImage(imagePrompts[i]);
+          console.log(`Generated image ${i + 1} using ${this.imageProvider.getProviderName()}`);
+          
+          // Azure Blob Storage is required - no fallback to base64
+          if (!blobStorage.isConfigured()) {
+            throw new Error('Azure Blob Storage not configured. Cannot save images.');
           }
+          
+          const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
+          const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
+          imageUrls.push(blobUrl);
+          console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
         } catch (error) {
           console.error(`Failed to generate image ${i + 1}:`, error);
           // Continue to next image
@@ -281,15 +277,6 @@ export class ForeclosureScenarioGenerator {
 
     // Fallback to emoji placeholders
     return scenario.photos;
-  }
-
-  private async downloadImage(url: string): Promise<Buffer> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download image: ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
   }
 
   private buildPrompt(difficulty: string): string {

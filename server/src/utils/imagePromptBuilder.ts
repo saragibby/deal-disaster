@@ -111,8 +111,8 @@ export function buildStandardPhotoPrompt(
   const visualIssues = extractVisualIssues(scenario);
   const issueContext = visualIssues.length > 0 ? visualIssues.join(', ') : '';
 
-  // Base realistic photo requirements - emphasize it's a REAL photo
-  const photoRealism = 'Real photograph taken with smartphone camera. Actual MLS real estate listing photo. Raw unedited photo. NOT a 3D render, NOT digital art, NOT an illustration, NOT a blueprint, NOT architectural visualization.';
+  // Base realistic photo requirements - emphasize it's a REAL photo with NO TEXT
+  const photoRealism = 'Real photograph taken with smartphone camera. Actual MLS real estate listing photo. Raw unedited photo. NO TEXT, NO WATERMARKS, NO LOGOS, NO CAPTIONS, NO SIGNS, NO LABELS of any kind in the image. NOT a 3D render, NOT digital art, NOT an illustration, NOT a blueprint, NOT architectural visualization.';
 
   let specificPrompt = '';
 
@@ -179,7 +179,7 @@ export function buildRealisticImagePrompt(
   const cleanDesc = photoDescription.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
 
   // Simplified, more direct prompt for realistic photos
-  return `Real estate listing photograph: ${cleanDesc}. ${propertyType} in ${location}, built ${yearBuilt}. ${occupancyDetails}${visualContext}Property in ${condition}. Real photograph taken with smartphone. Actual MLS listing photo. NOT a 3D render, NOT digital art, NOT an illustration, NOT architectural visualization.`;
+  return `Real estate listing photograph: ${cleanDesc}. ${propertyType} in ${location}, built ${yearBuilt}. ${occupancyDetails}${visualContext}Property in ${condition}. Real photograph taken with smartphone. Actual MLS listing photo. NO TEXT, NO WATERMARKS, NO LOGOS, NO SIGNS in the image. NOT a 3D render, NOT digital art, NOT an illustration, NOT architectural visualization.`;
 }
 
 /**
