@@ -6,6 +6,14 @@ interface Message {
   content: string;
 }
 
+interface DailyChallengeContext {
+  propertyData: any;
+  hasCompleted: boolean;
+  userDecision: string | null;
+  userPoints: number | null;
+  difficulty: string;
+}
+
 export class ChatService {
   private agentsClient: AgentsClient;
   private agentId: string;
@@ -14,6 +22,45 @@ export class ChatService {
   private removeCitations(text: string): string {
     // Remove citation markers like 【4:2†yt-Finding a Foreclosure Fast.txt】
     return text.replace(/【[^】]*】/g, '').trim();
+  }
+
+  // Build context message for daily challenge
+  private buildDailyChallengeContextMessage(context: DailyChallengeContext): string {
+    const propertyData = context.propertyData;
+    
+    let message = `IMPORTANT CONTEXT: The user is working on today's daily challenge. Here are the property details:
+
+`;
+    message += `Property Address: ${propertyData.address}\n`;
+    message += `List Price: $${propertyData.listPrice?.toLocaleString() || 'N/A'}\n`;
+    message += `Estimated Value: $${propertyData.estimatedValue?.toLocaleString() || 'N/A'}\n`;
+    message += `Estimated Repairs: $${propertyData.repairEstimate?.toLocaleString() || 'N/A'}\n`;
+    
+    if (propertyData.propertyType) {
+      message += `Property Type: ${propertyData.propertyType}\n`;
+    }
+    if (propertyData.squareFeet) {
+      message += `Square Feet: ${propertyData.squareFeet.toLocaleString()}\n`;
+    }
+    if (propertyData.bedrooms && propertyData.bathrooms) {
+      message += `Bedrooms/Bathrooms: ${propertyData.bedrooms}/${propertyData.bathrooms}\n`;
+    }
+    
+    message += `\nYOUR ROLE: Help the user understand this foreclosure opportunity. You can:\n`;
+    message += `- Explain what different property details mean\n`;
+    message += `- Give hints about what to look for in a good vs. bad deal\n`;
+    message += `- Help them understand the scoring system\n`;
+    message += `- Encourage them to think critically about the numbers\n`;
+    message += `- Provide general real estate investment education\n\n`;
+    message += `CRITICAL: DO NOT tell them whether this is a "Deal" or "Disaster" or what decision to make. DO NOT calculate exact scores for them. Your job is to educate and guide, not to give away the answer. Give them clues and help them learn, but let them make the final decision themselves.\n\n`;
+    
+    if (context.hasCompleted) {
+      message += `Note: The user has already completed this challenge. They chose "${context.userDecision}" and earned ${context.userPoints} points. You can now discuss their decision and help them understand why it was scored that way.\n`;
+    } else {
+      message += `Note: The user has NOT yet made their decision. Help them learn without giving away the answer.\n`;
+    }
+    
+    return message;
   }
 
   constructor() {
@@ -33,10 +80,16 @@ export class ChatService {
     this.agentsClient = new AgentsClient(endpoint, new DefaultAzureCredential());
   }
 
-  async chat(userMessage: string, conversationHistory: Message[] = []): Promise<string> {
+  async chat(userMessage: string, conversationHistory: Message[] = [], dailyChallengeContext: DailyChallengeContext | null = null): Promise<string> {
     try {
       // Create a new thread for this conversation
       const thread = await this.agentsClient.threads.create();
+
+      // If daily challenge context is provided, add it as system context
+      if (dailyChallengeContext) {
+        const contextMessage = this.buildDailyChallengeContextMessage(dailyChallengeContext);
+        await this.agentsClient.messages.create(thread.id, 'user', contextMessage);
+      }
 
       // Add conversation history to the thread
       for (const msg of conversationHistory) {

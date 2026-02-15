@@ -3,6 +3,7 @@ import { ChatService } from '../services/chatService.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { pool } from '../db/pool.js';
+import { getTodayInTimezone } from '../utils/dateUtils.js';
 
 const router = Router();
 const chatService = new ChatService();
@@ -11,19 +12,55 @@ interface ChatRequest extends AuthRequest {
   body: {
     message: string;
     conversationHistory?: Array<{ role: string; content: string }>;
+    includeDailyChallenge?: boolean;
   };
 }
 
 // Chat endpoint
 router.post('/', authenticateToken, async (req: ChatRequest, res: Response) => {
   try {
-    const { message, conversationHistory = [] } = req.body;
+    const { message, conversationHistory = [], includeDailyChallenge = true } = req.body;
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const response = await chatService.chat(message, conversationHistory);
+    // Fetch today's daily challenge if requested
+    let dailyChallengeContext = null;
+    if (includeDailyChallenge) {
+      try {
+        const userTimezone = (req.headers['x-user-timezone'] as string) || 'UTC';
+        const today = getTodayInTimezone(userTimezone);
+        
+        const challengeResult = await pool.query(
+          'SELECT * FROM daily_challenges WHERE challenge_date = $1',
+          [today]
+        );
+
+        if (challengeResult.rows.length > 0) {
+          const challenge = challengeResult.rows[0];
+          
+          // Check if user has already completed this challenge
+          const completionResult = await pool.query(
+            'SELECT * FROM user_daily_challenges WHERE user_id = $1 AND challenge_id = $2',
+            [req.userId, challenge.id]
+          );
+
+          dailyChallengeContext = {
+            propertyData: challenge.property_data,
+            hasCompleted: completionResult.rows.length > 0,
+            userDecision: completionResult.rows.length > 0 ? completionResult.rows[0].decision : null,
+            userPoints: completionResult.rows.length > 0 ? completionResult.rows[0].points_earned : null,
+            difficulty: challenge.difficulty || 'medium'
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching daily challenge context:', error);
+        // Continue without daily challenge context if there's an error
+      }
+    }
+
+    const response = await chatService.chat(message, conversationHistory, dailyChallengeContext);
     
     // Save the question for analytics
     try {

@@ -30,7 +30,7 @@ export default function AskWill() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hey! Will here! Ready to crush some foreclosure deals? I've got all the insider tips to help you spot winners and avoid the duds. What can I help you with today?",
+      content: "Hey! Will here! Ready to crush some foreclosure deals? I've got all the insider tips to help you spot winners and avoid the duds. Ask me about today's daily challenge, or anything else about real estate investing!",
       timestamp: new Date()
     }
   ]);

@@ -25,7 +25,7 @@ const sampleScenario = {
   sqft: 1650,
   yearBuilt: 1985,
   estimatedRepairs: 45000,
-  occupancyStatus: 'vacant',
+  occupancyStatus: 'vacant' as const,
   description: 'Distressed property in need of significant repairs. Shows signs of water damage and deferred maintenance.',
   redFlags: [
     { description: 'Visible roof damage with missing shingles', severity: 'high' },

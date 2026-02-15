@@ -230,11 +230,11 @@ class ApiService {
     return response.json();
   }
 
-  async chat(message: string, conversationHistory: Array<{ role: string; content: string }> = []) {
+  async chat(message: string, conversationHistory: Array<{ role: string; content: string }> = [], includeDailyChallenge: boolean = true) {
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: this.getHeaders(true),
-      body: JSON.stringify({ message, conversationHistory }),
+      body: JSON.stringify({ message, conversationHistory, includeDailyChallenge }),
     });
 
     await this.handleResponse(response);
