@@ -30,6 +30,7 @@ function App() {
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
   const [isDailyChallenge, setIsDailyChallenge] = useState(false);
   const [dailyChallengeData, setDailyChallengeData] = useState<any>(null);
+  const [challengeStartPoints, setChallengeStartPoints] = useState(0);
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'calendar'>('leaderboard');
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
@@ -238,7 +239,7 @@ function App() {
     setGameStarted(true);
     setIsDailyChallenge(true);
     setDailyChallengeData(challengeData);
-    setScore({
+    const initialScore = {
       points: 0,
       casesSolved: 0,
       goodDeals: 0,
@@ -247,7 +248,9 @@ function App() {
       redFlagsFound: 0,
       redFlagCorrect: 0,
       redFlagMistakes: 0,
-    });
+    };
+    setScore(initialScore);
+    setChallengeStartPoints(0); // Track starting points for this challenge
     
     // Convert daily challenge data to PropertyCase format
     const property = challengeData.property_data;
@@ -533,13 +536,24 @@ function App() {
       explanation = 'In a real auction, you don\'t have time to investigate further. You need to decide now: BUY or WALK AWAY.';
     }
 
+    // Calculate total points earned for this challenge (investigation + decision)
+    const investigationPoints = score.points - challengeStartPoints;
+    const totalPointsEarned = investigationPoints + points;
+
     setScore((prev) => ({
       ...prev,
       points: prev.points + points,
       casesSolved: prev.casesSolved + 1,
     }));
 
-    setResult({ points, message, explanation, userDecision: decision });
+    setResult({ 
+      points: totalPointsEarned, 
+      message, 
+      explanation, 
+      userDecision: decision,
+      investigationPoints,
+      decisionPoints: points
+    });
     setCompletedCaseIds([...completedCaseIds, currentCase.id]);
 
     // Save to backend after each decision
@@ -554,10 +568,10 @@ function App() {
 
     try {
       if (isDailyChallenge && dailyChallengeData) {
-        // Save daily challenge completion
+        // Save daily challenge completion with total points (investigation + decision)
         await api.completeDailyChallenge(dailyChallengeData.id, {
           decision,
-          points_earned: points,
+          points_earned: totalPointsEarned,
           time_taken: forcedTimeTaken !== undefined ? forcedTimeTaken : CASE_TIME_LIMIT - timeRemaining,
         });
       } else {

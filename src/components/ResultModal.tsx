@@ -45,6 +45,13 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
           <div className="result-points">
             {result.points > 0 ? '+' : ''}{result.points} points
           </div>
+          {result.investigationPoints !== undefined && result.decisionPoints !== undefined && (
+            <div className="points-breakdown">
+              <span className="breakdown-item">Investigation: {result.investigationPoints > 0 ? '+' : ''}{result.investigationPoints}</span>
+              <span className="breakdown-divider">•</span>
+              <span className="breakdown-item">Decision: {result.decisionPoints > 0 ? '+' : ''}{result.decisionPoints}</span>
+            </div>
+          )}
         </div>
 
         <div className="result-explanation">

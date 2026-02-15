@@ -1566,7 +1566,25 @@ body {
 .result-points {
   font-size: 2rem;
   font-weight: bold;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+}
+
+.points-breakdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.breakdown-item {
+  font-weight: 500;
+}
+
+.breakdown-divider {
+  opacity: 0.5;
 }
 
 .excellent .result-points {

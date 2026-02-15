@@ -254,7 +254,9 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
                       {flag.discovered && flag.userAnswer !== undefined && (
                         <div className="flag-result">
                           <span className="result-points">
-                            {flag.userAnswer === flag.correctChoice ? '+50 pts' : '-25 pts'}
+                            {flag.userAnswer === flag.correctChoice 
+                              ? `+${(flag.severity === 'high' || flag.severity === 'severe') ? '75' : '50'} pts` 
+                              : '-25 pts'}
                           </span>
                         </div>
                       )}

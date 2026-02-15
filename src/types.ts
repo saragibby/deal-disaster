@@ -69,4 +69,6 @@ export interface ScoreResult {
   message: string;
   explanation: string;
   userDecision?: Decision;
+  investigationPoints?: number;
+  decisionPoints?: number;
 }
