@@ -2,8 +2,6 @@ import OpenAI from 'openai';
 import { blobStorage } from './blobStorage.js';
 import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
 import { IImageProvider } from './imageProviders/IImageProvider.js';
-import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
-import { IImageProvider } from './imageProviders/IImageProvider.js';
 
 interface ForeclosureScenario {
   address: string;
