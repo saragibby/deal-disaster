@@ -258,6 +258,31 @@ export class ForeclosureScenarioGenerator {
           console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage`);
         } catch (error) {
           console.error(`Failed to generate image ${i + 1}:`, error);
+          
+          // Try fallback to DALL-E if Gemini fails
+          if (this.imageProvider.getProviderName().includes('Imagen')) {
+            console.log(`🔄 Attempting fallback to DALL-E for image ${i + 1}...`);
+            try {
+              const dalleProvider = ImageProviderFactory.createProvider('dalle');
+              if (dalleProvider.isConfigured()) {
+                const imageBuffer = await dalleProvider.generateImage(imagePrompts[i]);
+                console.log(`Generated image ${i + 1} using ${dalleProvider.getProviderName()} (fallback)`);
+                
+                if (!blobStorage.isConfigured()) {
+                  throw new Error('Azure Blob Storage not configured. Cannot save images.');
+                }
+                
+                const dateFolder = challengeDate || new Date().toISOString().split('T')[0];
+                const blobUrl = await blobStorage.uploadImage(imageBuffer, dateFolder, 'image/png');
+                imageUrls.push(blobUrl);
+                console.log(`✅ Uploaded image ${i + 1} to Azure Blob Storage (via DALL-E fallback)`);
+              } else {
+                console.log(`⚠️  DALL-E fallback not configured, skipping image ${i + 1}`);
+              }
+            } catch (fallbackError) {
+              console.error(`DALL-E fallback also failed for image ${i + 1}:`, fallbackError);
+            }
+          }
           // Continue to next image
         }
       }

@@ -21,9 +21,9 @@ async function regenerateChallenge(dateString: string) {
       process.exit(1);
     }
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY not set. Please configure it first.');
+    // Check if Gemini API key is configured (for image generation)
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY not set. Please configure it first.');
       process.exit(1);
     }
 

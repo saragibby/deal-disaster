@@ -1,7 +1,8 @@
 import { pool } from '../db/pool.js';
 import { foreclosureGenerator } from '../services/foreclosureGenerator.js';
-import OpenAI from 'openai';
 import { blobStorage } from '../services/blobStorage.js';
+import { ImageProviderFactory } from '../services/imageProviders/ImageProviderFactory.js';
+import { IImageProvider } from '../services/imageProviders/IImageProvider.js';
 import { 
   generateStandardPhotoPrompts,
   PropertyScenario 
@@ -9,7 +10,7 @@ import {
 
 /**
  * Script to regenerate images for past daily challenges
- * Uses standardized photo types: exterior, kitchen, backyard, interior room
+ * Uses Gemini for image generation with standardized photo types
  * Run with: npm run regenerate-images
  */
 
@@ -17,9 +18,9 @@ async function regenerateImagesForPastChallenges() {
   console.log('🔄 Starting image regeneration for past challenges...\n');
 
   try {
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY not set. Please configure it first.');
+    // Check if Gemini API key is configured
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY not set. Please configure it first.');
       process.exit(1);
     }
 
@@ -32,9 +33,12 @@ async function regenerateImagesForPastChallenges() {
 
     console.log(`Found ${result.rows.length} challenges to check\n`);
 
-    const dalleClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const imageProvider = ImageProviderFactory.createProvider('gemini');
+    
+    if (!imageProvider.isConfigured()) {
+      console.error('❌ Gemini image provider is not configured properly.');
+      process.exit(1);
+    }
 
     let updatedCount = 0;
     let skippedCount = 0;
@@ -58,7 +62,7 @@ async function regenerateImagesForPastChallenges() {
       try {
         // Format challenge_date to YYYY-MM-DD
         const challengeDateStr = new Date(challenge.challenge_date).toISOString().split('T')[0];
-        const imageUrls = await generatePropertyImages(dalleClient, propertyData, challengeDateStr);
+        const imageUrls = await generatePropertyImages(imageProvider, propertyData, challengeDateStr);
 
         if (imageUrls.length >= 2) {
           // Update the property_data with new photos
@@ -99,13 +103,12 @@ async function regenerateImagesForPastChallenges() {
   }
 }
 
-async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, challengeDate: string): Promise<string[]> {
+async function generatePropertyImages(imageProvider: IImageProvider, propertyData: any, challengeDate: string): Promise<string[]> {
   const scenario: PropertyScenario = propertyData;
   
   // Always use standardized photo prompts for consistency
   console.log('  📝 Using standardized photo types: exterior, kitchen, backyard, interior room');
-  const imagePrompts = generateStandardPhotoPrompts(scenario
-  );
+  const imagePrompts = generateStandardPhotoPrompts(scenario);
 
   const imageUrls: string[] = [];
 
@@ -113,35 +116,44 @@ async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, ch
     try {
       console.log(`  Generating image ${i + 1}/${imagePrompts.length}...`);
       
-      const imageResponse = await dalleClient.images.generate({
-        model: 'dall-e-3',
-        prompt: imagePrompts[i],
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
-      });
-
-      if (imageResponse.data && imageResponse.data[0]?.url) {
-        const tempUrl = imageResponse.data[0].url;
-        
-        // Download the image
-        try {
-          const imageBuffer = await downloadImage(tempUrl);
-          
-          // Azure Blob Storage is required - no fallback to base64
-          if (!blobStorage.isConfigured()) {
-            throw new Error('Azure Blob Storage not configured. Cannot save images.');
-          }
-          
-          const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
-          imageUrls.push(blobUrl);
-          console.log(`  ✓ Image ${i + 1} uploaded to blob storage`);
-        } catch (downloadError) {
-          console.error(`  Failed to download image ${i + 1}:`, downloadError);
-        }
+      // Use the image provider to generate the image
+      const imageBuffer = await imageProvider.generateImage(imagePrompts[i]);
+      console.log(`  Generated image ${i + 1} using ${imageProvider.getProviderName()}`);
+      
+      // Azure Blob Storage is required - no fallback to base64
+      if (!blobStorage.isConfigured()) {
+        throw new Error('Azure Blob Storage not configured. Cannot save images.');
       }
+      
+      const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
+      imageUrls.push(blobUrl);
+      console.log(`  ✓ Image ${i + 1} uploaded to blob storage`);
     } catch (error) {
       console.error(`  ✗ Failed to generate image ${i + 1}:`, error);
+      
+      // Try fallback to DALL-E if Gemini fails
+      if (imageProvider.getProviderName().includes('Imagen')) {
+        console.log(`  🔄 Attempting fallback to DALL-E for image ${i + 1}...`);
+        try {
+          const dalleProvider = ImageProviderFactory.createProvider('dalle');
+          if (dalleProvider.isConfigured()) {
+            const imageBuffer = await dalleProvider.generateImage(imagePrompts[i]);
+            console.log(`  Generated image ${i + 1} using ${dalleProvider.getProviderName()} (fallback)`);
+            
+            if (!blobStorage.isConfigured()) {
+              throw new Error('Azure Blob Storage not configured. Cannot save images.');
+            }
+            
+            const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
+            imageUrls.push(blobUrl);
+            console.log(`  ✓ Image ${i + 1} uploaded to blob storage (via DALL-E fallback)`);
+          } else {
+            console.log(`  ⚠️  DALL-E fallback not configured, skipping image ${i + 1}`);
+          }
+        } catch (fallbackError) {
+          console.error(`  DALL-E fallback also failed for image ${i + 1}:`, fallbackError);
+        }
+      }
     }
   }
 

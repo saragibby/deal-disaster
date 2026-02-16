@@ -11,10 +11,10 @@ export type ImageProviderType = 'dalle' | 'gemini';
 export class ImageProviderFactory {
   /**
    * Create an image provider based on the IMAGE_PROVIDER environment variable
-   * Defaults to 'dalle' if not specified
+   * Defaults to 'gemini' if not specified
    */
   static createProvider(providerType?: ImageProviderType): IImageProvider {
-    const type = providerType || (process.env.IMAGE_PROVIDER as ImageProviderType) || 'dalle';
+    const type = providerType || (process.env.IMAGE_PROVIDER as ImageProviderType) || 'gemini';
 
     console.log(`📸 Initializing image provider: ${type}`);
 
@@ -24,8 +24,8 @@ export class ImageProviderFactory {
       case 'dalle':
         return new DalleImageProvider();
       default:
-        console.warn(`⚠️  Unknown image provider type: ${type}. Falling back to DALL-E.`);
-        return new DalleImageProvider();
+        console.warn(`⚠️  Unknown image provider type: ${type}. Falling back to Gemini.`);
+        return new GeminiImageProvider();
     }
   }
 
@@ -33,6 +33,6 @@ export class ImageProviderFactory {
    * Get the currently configured provider type from environment
    */
   static getConfiguredProviderType(): ImageProviderType {
-    return (process.env.IMAGE_PROVIDER as ImageProviderType) || 'dalle';
+    return (process.env.IMAGE_PROVIDER as ImageProviderType) || 'gemini';
   }
 }

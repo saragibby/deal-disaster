@@ -1,6 +1,7 @@
 import { pool } from '../db/pool.js';
-import OpenAI from 'openai';
 import { blobStorage } from '../services/blobStorage.js';
+import { ImageProviderFactory } from '../services/imageProviders/ImageProviderFactory.js';
+import { IImageProvider } from '../services/imageProviders/IImageProvider.js';
 import { 
   generateStandardPhotoPrompts,
   PropertyScenario 
@@ -8,7 +9,7 @@ import {
 
 /**
  * Script to regenerate images for a specific daily challenge by date
- * Uses standardized photo types: exterior, kitchen, backyard, interior room
+ * Uses Gemini for image generation with standardized photo types
  * Run with: npm run regenerate-images-date YYYY-MM-DD
  * Example: npm run regenerate-images-date 2025-12-30
  */
@@ -23,9 +24,9 @@ async function regenerateImagesForDate(dateString: string) {
       process.exit(1);
     }
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY not set. Please configure it first.');
+    // Check if Gemini API key is configured
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY not set. Please configure it first.');
       process.exit(1);
     }
 
@@ -46,13 +47,16 @@ async function regenerateImagesForDate(dateString: string) {
     console.log(`Found challenge: ${challenge.challenge_date}`);
     console.log(`Property: ${propertyData.address}, ${propertyData.city}, ${propertyData.state}\n`);
 
-    const dalleClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const imageProvider = ImageProviderFactory.createProvider('gemini');
+    
+    if (!imageProvider.isConfigured()) {
+      console.error('❌ Gemini image provider is not configured properly.');
+      process.exit(1);
+    }
 
-    console.log('🖼️  Generating new images...\n');
+    console.log('🖼️  Generating new images using Gemini...\n');
 
-    const imageUrls = await generatePropertyImages(dalleClient, propertyData, dateString);
+    const imageUrls = await generatePropertyImages(imageProvider, propertyData, dateString);
 
     if (imageUrls.length >= 2) {
       // Update the property_data with new photos
@@ -81,77 +85,68 @@ async function regenerateImagesForDate(dateString: string) {
   }
 }
 
-async function generatePropertyImages(dalleClient: OpenAI, propertyData: any, challengeDate: string): Promise<string[]> {
+async function generatePropertyImages(imageProvider: IImageProvider, propertyData: any, challengeDate: string): Promise<string[]> {
   const scenario: PropertyScenario = propertyData;
   
-  // Use simple photo descriptions like the static cases
-  const photoDescriptions = [
-    'Front exterior view',
-    'Kitchen interior',
-    'Backyard view',
-    'Living room interior'
-  ];
-  
-  console.log('📝 Using realistic photo style with DALL-E 2 (same as static cases)');
+  // Use standardized photo prompts
+  console.log('📝 Using realistic photo style with Gemini (standardized prompts)');
   console.log('Photo types: exterior, kitchen, backyard, living room\n');
 
+  const imagePrompts = generateStandardPhotoPrompts(scenario);
   const imageUrls: string[] = [];
   
-  const location = `${scenario.city}, ${scenario.state}`;
-  const propertyType = (scenario.propertyType || 'single family home').toLowerCase();
-  
-  const occupancyDetails = scenario.occupancyStatus === 'vacant' 
-    ? 'Property is vacant and unfurnished.' 
-    : scenario.occupancyStatus === 'occupied'
-    ? 'Property is currently occupied with furniture.'
-    : '';
-
-  for (let i = 0; i < photoDescriptions.length; i++) {
+  for (let i = 0; i < imagePrompts.length; i++) {
     try {
-      const cleanDesc = photoDescriptions[i];
+      console.log(`Generating image ${i + 1}/${imagePrompts.length}...`);
       
-      // Detect if property has multiple levels
-      const descLower = (scenario.description || '').toLowerCase();
-      const hasMultipleLevels = descLower.includes('stair') || descLower.includes('upstairs') || 
-                                descLower.includes('two-story') || descLower.includes('two story') ||
-                                descLower.includes('second floor') || descLower.includes('multi-level');
-      const levelContext = hasMultipleLevels ? 'Two-story property with multiple levels. ' : '';
+      // Use the image provider to generate the image
+      const imageBuffer = await imageProvider.generateImage(imagePrompts[i]);
+      console.log(`Generated image ${i + 1} using ${imageProvider.getProviderName()}`);
       
-      // Use the SAME simple prompt format as the original realistic static cases
-      const prompt = `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${propertyType} in ${location}. Built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}Professional MLS listing photo, natural daylight, high-resolution camera. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
-      
-      console.log(`Generating image ${i + 1}/${photoDescriptions.length}: ${cleanDesc}...`);
-      
-      // Use DALL-E 2 like the static cases - produces more realistic photos
-      const imageResponse = await dalleClient.images.generate({
-        model: 'dall-e-2',
-        prompt: prompt,
-        n: 1,
-        size: '512x512',
-      });
-
-      if (imageResponse.data && imageResponse.data[0]?.url) {
-        const tempUrl = imageResponse.data[0].url;
-        
-        // Download the image
-        const imageBuffer = await downloadImage(tempUrl);
-        
-        // Azure Blob Storage is required - no fallback to base64
-        if (!blobStorage.isConfigured()) {
-          throw new Error('Azure Blob Storage not configured. Cannot save images.');
-        }
-        
-        const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
-        imageUrls.push(blobUrl);
-        console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage`);
+      // Azure Blob Storage is required - no fallback to base64
+      if (!blobStorage.isConfigured()) {
+        throw new Error('Azure Blob Storage not configured. Cannot save images.');
       }
+      
+      const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
+      imageUrls.push(blobUrl);
+      console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage`);
 
       // Add delay to avoid rate limiting
-      if (i < photoDescriptions.length - 1) {
+      if (i < imagePrompts.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     } catch (error) {
       console.error(`✗ Failed to generate image ${i + 1}:`, error);
+      
+      // Try fallback to DALL-E if Gemini fails
+      if (imageProvider.getProviderName().includes('Imagen')) {
+        console.log(`🔄 Attempting fallback to DALL-E for image ${i + 1}...`);
+        try {
+          const dalleProvider = ImageProviderFactory.createProvider('dalle');
+          if (dalleProvider.isConfigured()) {
+            const imageBuffer = await dalleProvider.generateImage(imagePrompts[i]);
+            console.log(`Generated image ${i + 1} using ${dalleProvider.getProviderName()} (fallback)`);
+            
+            if (!blobStorage.isConfigured()) {
+              throw new Error('Azure Blob Storage not configured. Cannot save images.');
+            }
+            
+            const blobUrl = await blobStorage.uploadImage(imageBuffer, challengeDate, 'image/png');
+            imageUrls.push(blobUrl);
+            console.log(`✓ Image ${i + 1} uploaded to Azure Blob Storage (via DALL-E fallback)`);
+            
+            // Add delay after fallback too
+            if (i < imagePrompts.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } else {
+            console.log(`⚠️  DALL-E fallback not configured, skipping image ${i + 1}`);
+          }
+        } catch (fallbackError) {
+          console.error(`DALL-E fallback also failed for image ${i + 1}:`, fallbackError);
+        }
+      }
     }
   }
 
