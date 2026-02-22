@@ -430,7 +430,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
 // Update user profile settings
 router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
+    const { name, username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
 
     // Validate username is required
     if (!username || username.trim() === '') {
@@ -454,6 +454,19 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
       return res.status(400).json({ error: 'Username is already taken' });
     }
 
+    // Only allow name changes for email-registered users
+    let nameUpdate = null;
+    if (name !== undefined) {
+      const currentUser = await pool.query('SELECT oauth_provider FROM users WHERE id = $1', [req.userId]);
+      if (currentUser.rows[0]?.oauth_provider && currentUser.rows[0].oauth_provider !== 'email') {
+        return res.status(400).json({ error: 'Name cannot be changed for OAuth accounts' });
+      }
+      if (name.trim() === '') {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      nameUpdate = name.trim();
+    }
+
     // Validate phone number format if provided
     if (phone_number && phone_number.trim() !== '') {
       const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
@@ -464,14 +477,15 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
 
     const result = await pool.query(
       `UPDATE users 
-       SET username = COALESCE($1, username),
-           phone_number = $2, 
-           sms_opt_in = $3, 
-           email_newsletter_opt_in = $4,
+       SET name = COALESCE($1, name),
+           username = COALESCE($2, username),
+           phone_number = $3, 
+           sms_opt_in = $4, 
+           email_newsletter_opt_in = $5,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5 
+       WHERE id = $6 
        RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider`,
-      [username || null, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
+      [nameUpdate, username || null, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
     );
 
     if (result.rows.length === 0) {

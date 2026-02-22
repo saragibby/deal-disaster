@@ -1,5 +1,5 @@
 {
-  "name": "deal-or-disaster",
+  "name": "deal-platform",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -7,28 +7,24 @@
     "node": "24.x",
     "npm": "10.x"
   },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "server"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "cd server && npm run dev",
-    "start": "concurrently \"npm run server\" \"npm run dev\"",
-    "setup": "cd server && npm install && npm run db:setup",
-    "heroku-postbuild": "npm run build && cd server && npm install && npm run build"
-  },
-  "dependencies": {
-    "lucide-react": "^0.562.0",
-    "marked": "^17.0.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^7.11.0"
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:dashboard\" \"npm run dev:game\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:dashboard": "cd apps/dashboard && npm run dev",
+    "dev:game": "cd apps/deal-or-disaster && npm run dev",
+    "build": "npm run build:packages && npm run build:apps && npm run build:server",
+    "build:packages": "cd packages/shared-types && npm run build && cd ../shared-auth && npm run build && cd ../shared-ui && npm run build",
+    "build:apps": "cd apps/dashboard && npm run build && cd ../deal-or-disaster && npm run build",
+    "build:server": "cd server && npm run build",
+    "setup": "cd server && npm run db:setup",
+    "heroku-postbuild": "npm run build:packages && npm run build:apps && cd server && npm install && npm run build"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
-    "concurrently": "^8.2.2",
-    "typescript": "^5.6.2",
-    "vite": "^5.4.10"
+    "concurrently": "^8.2.2"
   }
 }
