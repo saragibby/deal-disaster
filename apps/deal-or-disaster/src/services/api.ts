@@ -1,6 +1,6 @@
-// In production (Heroku), use same origin. In dev, use localhost:3001
+// In production (Heroku), use same origin. In dev, use localhost:3002
 const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
-const API_BASE_URL = isProduction ? '' : 'http://localhost:3001';
+const API_BASE_URL = isProduction ? '' : 'http://localhost:3002';
 
 class ApiService {
   private onUnauthorized?: () => void;

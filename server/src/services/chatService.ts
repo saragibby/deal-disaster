@@ -1,4 +1,4 @@
-import { AgentsClient } from '@azure/ai-agents';
+import { AgentsClient, MessageStreamEvent, DoneEvent, MessageDeltaChunk, MessageDeltaTextContent } from '@azure/ai-agents';
 import { DefaultAzureCredential } from '@azure/identity';
 
 interface Message {
@@ -14,14 +14,22 @@ interface DailyChallengeContext {
   difficulty: string;
 }
 
+type StreamCallback = (chunk: string) => void;
+
 export class ChatService {
   private agentsClient: AgentsClient;
   private agentId: string;
+  private endpoint: string;
 
-  // Helper function to remove citation markers from agent responses
+  // Remove citation markers like 【4:2†yt-Finding a Foreclosure Fast.txt】
+  // Use stripCitations for streaming chunks (preserves whitespace between words)
+  // Use removeCitations for final output (also trims)
+  private stripCitations(text: string): string {
+    return text.replace(/【[^】]*】/g, '');
+  }
+
   private removeCitations(text: string): string {
-    // Remove citation markers like 【4:2†yt-Finding a Foreclosure Fast.txt】
-    return text.replace(/【[^】]*】/g, '').trim();
+    return this.stripCitations(text).trim();
   }
 
   // Build context message for daily challenge
@@ -73,11 +81,18 @@ export class ChatService {
     }
 
     this.agentId = agentId;
+    this.endpoint = endpoint;
     
     // Use DefaultAzureCredential which automatically uses:
     // - Environment variables (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET) in production/Heroku
     // - Azure CLI credentials for local development
     this.agentsClient = new AgentsClient(endpoint, new DefaultAzureCredential());
+  }
+
+  // Create a fresh AgentsClient for streaming requests
+  // The singleton client's internal state can hang when reused for streaming
+  private createFreshClient(): AgentsClient {
+    return new AgentsClient(this.endpoint, new DefaultAzureCredential());
   }
 
   async chat(userMessage: string, conversationHistory: Message[] = [], dailyChallengeContext: DailyChallengeContext | null = null): Promise<string> {
@@ -145,6 +160,107 @@ export class ChatService {
         console.error('Error stack:', error.stack);
       }
       throw new Error('Failed to generate chat response');
+    }
+  }
+
+  async chatStream(
+    userMessage: string,
+    onChunk: StreamCallback,
+    conversationHistory: Message[] = [],
+    dailyChallengeContext: DailyChallengeContext | null = null
+  ): Promise<string> {
+    try {
+      // Use a fresh client for streaming — the singleton client's HTTP pipeline
+      // can stall when reused for SSE streaming connections
+      const client = this.createFreshClient();
+
+      // Create a new thread for this conversation
+      const thread = await client.threads.create();
+
+      // If daily challenge context is provided, add it as system context
+      if (dailyChallengeContext) {
+        const contextMessage = this.buildDailyChallengeContextMessage(dailyChallengeContext);
+        await client.messages.create(thread.id, 'user', contextMessage);
+      }
+
+      // Add conversation history to the thread
+      for (const msg of conversationHistory) {
+        await client.messages.create(thread.id, msg.role as 'user' | 'assistant', msg.content);
+      }
+
+      // Add the new user message
+      await client.messages.create(thread.id, 'user', userMessage);
+
+      // Create a run and get the stream (don't await — use .stream() instead)
+      const runResponse = client.runs.create(thread.id, this.agentId);
+      const stream = await runResponse.stream();
+
+      let fullText = '';
+      // Buffer for handling citation markers that may span chunks
+      let citationBuffer = '';
+
+      for await (const event of stream) {
+        if (event.event === MessageStreamEvent.ThreadMessageDelta) {
+          const deltaChunk = event.data as MessageDeltaChunk;
+          for (const content of deltaChunk.delta.content) {
+            if (content.type === 'text') {
+              const textDelta = (content as MessageDeltaTextContent).text?.value;
+              if (textDelta) {
+                fullText += textDelta;
+
+                // Buffer text to strip citation markers that may span chunks
+                citationBuffer += textDelta;
+                
+                // Process buffer: flush everything before any potential partial citation
+                const openBracketIdx = citationBuffer.lastIndexOf('【');
+                if (openBracketIdx === -1) {
+                  // No open bracket — safe to flush entire buffer
+                  const cleaned = this.stripCitations(citationBuffer);
+                  if (cleaned) {
+                    onChunk(cleaned);
+                  }
+                  citationBuffer = '';
+                } else {
+                  // Check if we have a complete citation in the buffer
+                  const closeBracketIdx = citationBuffer.indexOf('】', openBracketIdx);
+                  if (closeBracketIdx !== -1) {
+                    // Complete citation found — remove it and flush
+                    const cleaned = this.stripCitations(citationBuffer);
+                    if (cleaned) {
+                      onChunk(cleaned);
+                    }
+                    citationBuffer = '';
+                  } else {
+                    // Partial citation — flush everything before the open bracket
+                    const safeText = citationBuffer.substring(0, openBracketIdx);
+                    if (safeText) {
+                      onChunk(safeText);
+                    }
+                    citationBuffer = citationBuffer.substring(openBracketIdx);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Flush any remaining buffer (e.g., if a 【 was not a citation after all)
+      if (citationBuffer) {
+        const cleaned = this.stripCitations(citationBuffer);
+        if (cleaned) {
+          onChunk(cleaned);
+        }
+      }
+
+      return this.removeCitations(fullText);
+    } catch (error) {
+      console.error('Error in chat stream service:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      throw new Error('Failed to generate streaming chat response');
     }
   }
 }

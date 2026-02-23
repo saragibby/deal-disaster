@@ -111,7 +111,7 @@
 .chat-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 16px;
+  padding: 16px 16px 0 16px;
   border-radius: 16px 16px 0 0;
   display: flex;
   justify-content: space-between;
@@ -121,7 +121,8 @@
 .chat-header-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
+  line-height: 1.5;
 }
 
 .chat-avatar {

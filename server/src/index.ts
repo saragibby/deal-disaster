@@ -18,13 +18,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.CLIENT_URL || true
-    : ['http://localhost:5173', 'http://localhost:5174'],
+    : ['http://localhost:5200', 'http://localhost:5201'],
   credentials: true,
 }));
 app.use(express.json());

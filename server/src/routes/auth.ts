@@ -341,11 +341,11 @@ router.get(
       if (err) {
         // Extract error message for user
         const errorMessage = err.message || 'Authentication failed';
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=${encodeURIComponent(errorMessage)}`);
+        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=${encodeURIComponent(errorMessage)}`);
       }
       
       if (!user) {
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=authentication_failed`);
+        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=authentication_failed`);
       }
 
       const token = jwt.sign(
@@ -354,7 +354,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
     })(req, res, next);
   }
 );
@@ -371,11 +371,11 @@ router.get(
       if (err) {
         // Extract error message for user
         const errorMessage = err.message || 'Authentication failed';
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=${encodeURIComponent(errorMessage)}`);
+        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=${encodeURIComponent(errorMessage)}`);
       }
       
       if (!user) {
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?error=authentication_failed`);
+        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=authentication_failed`);
       }
 
       const token = jwt.sign(
@@ -384,7 +384,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
     })(req, res, next);
   }
 );

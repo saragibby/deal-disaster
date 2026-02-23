@@ -81,6 +81,98 @@ router.post('/', authenticateToken, async (req: ChatRequest, res: Response) => {
   }
 });
 
+// SSE test endpoint - direct Azure streaming (no ChatService)
+// Streaming chat endpoint (SSE)
+router.post('/stream', authenticateToken, async (req: ChatRequest, res: Response) => {
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if proxied
+  res.flushHeaders();
+
+  let aborted = false;
+  res.on('close', () => {
+    aborted = true;
+  });
+
+  try {
+    const { message, conversationHistory = [], includeDailyChallenge = true } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      res.write(`data: ${JSON.stringify({ error: 'Message is required' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // Fetch today's daily challenge if requested (same logic as non-streaming)
+    let dailyChallengeContext = null;
+    if (includeDailyChallenge) {
+      try {
+        const userTimezone = (req.headers['x-user-timezone'] as string) || 'UTC';
+        const today = getTodayInTimezone(userTimezone);
+        
+        const challengeResult = await pool.query(
+          'SELECT * FROM daily_challenges WHERE challenge_date = $1',
+          [today]
+        );
+
+        if (challengeResult.rows.length > 0) {
+          const challenge = challengeResult.rows[0];
+          
+          const completionResult = await pool.query(
+            'SELECT * FROM user_daily_challenges WHERE user_id = $1 AND challenge_id = $2',
+            [req.userId, challenge.id]
+          );
+
+          dailyChallengeContext = {
+            propertyData: challenge.property_data,
+            hasCompleted: completionResult.rows.length > 0,
+            userDecision: completionResult.rows.length > 0 ? completionResult.rows[0].decision : null,
+            userPoints: completionResult.rows.length > 0 ? completionResult.rows[0].points_earned : null,
+            difficulty: challenge.difficulty || 'medium'
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching daily challenge context:', error);
+      }
+    }
+
+    const fullResponse = await chatService.chatStream(
+      message,
+      (chunk: string) => {
+        if (!aborted) {
+          res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
+        }
+      },
+      conversationHistory,
+      dailyChallengeContext
+    );
+
+    if (!aborted) {
+      res.write(`data: [DONE]\n\n`);
+      res.end();
+    }
+
+    // Save the question for analytics (fire-and-forget)
+    try {
+      const responsePreview = fullResponse.substring(0, 200);
+      await pool.query(
+        'INSERT INTO chat_questions (user_id, question, response_preview) VALUES ($1, $2, $3)',
+        [req.userId, message, responsePreview]
+      );
+    } catch (dbError) {
+      console.error('Error saving chat question:', dbError);
+    }
+  } catch (error) {
+    console.error('Error processing streaming chat request:', error);
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ error: 'Failed to process chat request' })}\n\n`);
+      res.end();
+    }
+  }
+});
+
 // Get chat analytics (admin only endpoint)
 router.get('/analytics', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {

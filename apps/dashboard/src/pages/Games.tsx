@@ -55,7 +55,9 @@ export default function Games() {
 
   const handleGameClick = (game: GameInfo) => {
     if (game.status !== 'coming-soon') {
-      window.location.href = game.path;
+      const isDev = window.location.hostname === 'localhost';
+      const gameUrl = isDev ? `http://localhost:5201${game.path}` : game.path;
+      window.location.href = gameUrl;
     }
   };
 

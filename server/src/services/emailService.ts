@@ -33,7 +33,7 @@ export async function sendVerificationEmail(
   name?: string
 ): Promise<void> {
   const transporter = createTransporter();
-  const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
+  const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:5200'}/verify-email?token=${token}`;
 
   const bodyHtml = `
     <p>Hi ${name || 'there'},</p>
@@ -106,7 +106,7 @@ export async function sendPasswordResetEmail(
   name?: string
 ): Promise<void> {
   const transporter = createTransporter();
-  const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5200'}/reset-password?token=${token}`;
 
   const bodyHtml = `
     <p>Hi ${name || 'there'},</p>

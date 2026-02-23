@@ -13,7 +13,7 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // In production, use same origin. In dev, use localhost:3001
+  // In production, use same origin. In dev, use localhost:3002
   const apiUrl = api.getBaseUrl();
 
   // If already authenticated redirect to home

@@ -17,7 +17,7 @@ interface ProfileData {
 
 export default function Profile({ onClose }: ProfileProps) {
   const isProduction = window.location.hostname !== 'localhost';
-  const API_URL = isProduction ? '' : 'http://localhost:3001';
+  const API_URL = isProduction ? '' : 'http://localhost:3002';
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [username, setUsername] = useState('');

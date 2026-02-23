@@ -1,8 +1,8 @@
 // Shared API service for all apps in the platform
-// In production (same-origin), use ''. In dev, use localhost:3001.
+// In production (same-origin), use ''. In dev, use localhost:3002.
 
 const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
-const API_BASE_URL = isProduction ? '' : 'http://localhost:3001';
+const API_BASE_URL = isProduction ? '' : 'http://localhost:3002';
 
 export class ApiService {
   private onUnauthorized?: () => void;
@@ -296,6 +296,103 @@ export class ApiService {
       throw new Error(error.error || 'Chat request failed');
     }
     return response.json();
+  }
+
+  async chatStream(
+    message: string,
+    conversationHistory: Array<{ role: string; content: string }> = [],
+    includeDailyChallenge: boolean = true,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: Error) => void
+  ): Promise<AbortController> {
+    const abortController = new AbortController();
+
+    fetch(`${API_BASE_URL}/api/chat/stream`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify({ message, conversationHistory, includeDailyChallenge }),
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 401 || response.status === 403) {
+          if (this.onUnauthorized) {
+            this.onUnauthorized();
+          }
+          throw new Error('Session expired. Please login again.');
+        }
+        if (!response.ok) {
+          throw new Error('Chat stream request failed');
+        }
+        if (!response.body) {
+          throw new Error('No response body');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const data = trimmed.slice(6);
+
+            if (data === '[DONE]') {
+              onDone();
+              return;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.error) {
+                onError(new Error(parsed.error));
+                return;
+              }
+              if (parsed.content) {
+                onChunk(parsed.content);
+              }
+            } catch {
+              // Skip malformed JSON lines
+            }
+          }
+        }
+
+        // Process any remaining buffer
+        if (buffer.trim()) {
+          const trimmed = buffer.trim();
+          if (trimmed.startsWith('data: ')) {
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') {
+              onDone();
+            } else {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) onChunk(parsed.content);
+              } catch {
+                // Skip
+              }
+              onDone();
+            }
+          }
+        }
+
+        onDone();
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          onError(err);
+        }
+      });
+
+    return abortController;
   }
 
   // ===== Generic fetch helper for app-specific endpoints =====

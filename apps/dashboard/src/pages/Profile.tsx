@@ -213,7 +213,7 @@ export default function Profile() {
 
       {/* Actions */}
       <div className="profile-actions">
-        <a href="/deal-or-disaster/" className="btn btn--primary">Play Deal or Disaster</a>
+        <a href={window.location.hostname === 'localhost' ? 'http://localhost:5201/deal-or-disaster/' : '/deal-or-disaster/'} className="btn btn--primary">Play Deal or Disaster</a>
       </div>
     </div>
   );

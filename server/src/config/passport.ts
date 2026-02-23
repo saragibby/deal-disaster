@@ -29,7 +29,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: `${process.env.SERVER_URL || 'http://localhost:3001'}/api/auth/google/callback`,
+        callbackURL: `${process.env.SERVER_URL || 'http://localhost:3002'}/api/auth/google/callback`,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -90,7 +90,7 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
       {
         clientID: process.env.MICROSOFT_CLIENT_ID,
         clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-        callbackURL: `${process.env.SERVER_URL || 'http://localhost:3001'}/api/auth/microsoft/callback`,
+        callbackURL: `${process.env.SERVER_URL || 'http://localhost:3002'}/api/auth/microsoft/callback`,
         tenant: 'common', // Allows personal and work/school accounts
       },
       async (accessToken: string, refreshToken: string, params: any, profile: any, done: any) => {

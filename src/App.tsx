@@ -10,7 +10,7 @@ import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
 import DailyChallenge from './components/DailyChallenge';
 import ChallengeCalendar from './components/ChallengeCalendar';
-import AskWill from './components/AskWill';
+import { AskWill } from '@deal-platform/shared-ui';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { api } from './services/api';
@@ -322,7 +322,7 @@ function App() {
 
   const handleOnboardingComplete = async (data: any) => {
     const isProduction = window.location.hostname !== 'localhost';
-    const API_URL = isProduction ? '' : 'http://localhost:3001';
+    const API_URL = isProduction ? '' : 'http://localhost:3002';
     
     try {
       const token = localStorage.getItem('token');

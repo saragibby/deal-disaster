@@ -10,9 +10,9 @@ export default function ResetPassword() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   
-  // In production (Heroku), use same origin. In dev, use localhost:3001
+  // In production (Heroku), use same origin. In dev, use localhost:3002
   const isProduction = window.location.hostname !== 'localhost';
-  const API_URL = isProduction ? '' : 'http://localhost:3001';
+  const API_URL = isProduction ? '' : 'http://localhost:3002';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
