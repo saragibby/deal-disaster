@@ -1,5 +1,5 @@
 import { GameCard } from '@deal-platform/shared-ui';
-import { useAuth } from '@deal-platform/shared-auth';
+import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
 import type { GameInfo } from '@deal-platform/shared-types';
 
 const ALL_GAMES: GameInfo[] = [
@@ -55,9 +55,7 @@ export default function Games() {
 
   const handleGameClick = (game: GameInfo) => {
     if (game.status !== 'coming-soon') {
-      const isDev = window.location.hostname === 'localhost';
-      const gameUrl = isDev ? `http://localhost:5201${game.path}` : game.path;
-      window.location.href = gameUrl;
+      window.location.href = buildAppUrl(game.path);
     }
   };
 

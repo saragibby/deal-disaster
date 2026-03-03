@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏡 Your First Investment Property</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sky: #e0f2fe;
+            --ocean: #0ea5e9;
+            --ocean-dark: #0284c7;
+            --grass: #4ade80;
+            --grass-dark: #22c55e;
+            --sunset: #fb923c;
+            --sunset-dark: #f97316;
+            --cloud: #ffffff;
+            --night: #1e293b;
+            --purple: #a78bfa;
+            --pink: #f472b6;
+            --gold: #fbbf24;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Floating clouds animation */
+        .cloud {
+            position: fixed;
+            background: white;
+            border-radius: 100px;
+            opacity: 0.7;
+            animation: float 60s infinite linear;
+            z-index: 0;
+        }
+
+        .cloud::before,
+        .cloud::after {
+            content: '';
+            position: absolute;
+            background: white;
+            border-radius: 100px;
+        }
+
+        .cloud1 {
+            width: 100px;
+            height: 40px;
+            top: 10%;
+            left: -100px;
+        }
+
+        .cloud1::before {
+            width: 50px;
+            height: 50px;
+            top: -25px;
+            left: 10px;
+        }
+
+        .cloud1::after {
+            width: 60px;
+            height: 40px;
+            top: -20px;
+            right: 10px;
+        }
+
+        .cloud2 {
+            width: 80px;
+            height: 35px;
+            top: 30%;
+            left: -80px;
+            animation-delay: 20s;
+        }
+
+        .cloud2::before {
+            width: 40px;
+            height: 40px;
+            top: -20px;
+            left: 15px;
+        }
+
+        .cloud3 {
+            width: 120px;
+            height: 45px;
+            top: 60%;
+            left: -120px;
+            animation-delay: 40s;
+        }
+
+        .cloud3::before {
+            width: 60px;
+            height: 60px;
+            top: -30px;
+            left: 20px;
+        }
+
+        @keyframes float {
+            to {
+                left: 110%;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            animation: slideDown 0.8s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 3.5rem;
+            color: var(--night);
+            margin-bottom: 0.5rem;
+            text-shadow: 3px 3px 0px rgba(255, 255, 255, 0.8);
+            line-height: 1.2;
+        }
+
+        .emoji-large {
+            font-size: 4rem;
+            display: inline-block;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            color: var(--ocean-dark);
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .intro-text {
+            font-size: 1.125rem;
+            color: var(--night);
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            line-height: 1.8;
+            background: rgba(255, 255, 255, 0.6);
+            padding: 1.5rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .progress-bar {
+            background: rgba(255, 255, 255, 0.5);
+            height: 12px;
+            border-radius: 20px;
+            margin: 2rem auto;
+            max-width: 600px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--grass), var(--grass-dark));
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 20px;
+        }
+
+        .step {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            animation: fadeInUp 0.6s ease-out forwards;
+            border: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .step:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step:nth-child(1) { animation-delay: 0.1s; border-color: var(--sunset); }
+        .step:nth-child(2) { animation-delay: 0.2s; border-color: var(--ocean); }
+        .step:nth-child(3) { animation-delay: 0.3s; border-color: var(--grass); }
+        .step:nth-child(4) { animation-delay: 0.4s; border-color: var(--purple); }
+        .step:nth-child(5) { animation-delay: 0.5s; border-color: var(--pink); }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .step-number {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2.5rem;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--sunset), var(--sunset-dark));
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(251, 146, 60, 0.4);
+        }
+
+        .step-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2rem;
+            color: var(--night);
+            flex: 1;
+        }
+
+        .question-box {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            padding: 1.5rem;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            border-left: 6px solid var(--gold);
+        }
+
+        .question {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--night);
+            margin-bottom: 0.5rem;
+        }
+
+        .hint {
+            font-size: 0.95rem;
+            color: #78350f;
+            font-style: italic;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .input-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        label {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--night);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .slider-container {
+            flex: 1;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            border-radius: 10px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--ocean), var(--ocean-dark));
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.6);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--ocean), var(--ocean-dark));
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+        }
+
+        .value-display {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--ocean-dark);
+            min-width: 150px;
+            text-align: right;
+            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .results-container {
+            margin-top: 3rem;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .results-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2.5rem;
+            text-align: center;
+            color: var(--night);
+            margin-bottom: 2rem;
+        }
+
+        .big-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(90deg, var(--grass), var(--grass-dark));
+        }
+
+        .result-card.warning::before {
+            background: linear-gradient(90deg, var(--sunset), var(--sunset-dark));
+        }
+
+        .result-card.info::before {
+            background: linear-gradient(90deg, var(--ocean), var(--ocean-dark));
+        }
+
+        .result-emoji {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+            animation: wiggle 3s infinite;
+        }
+
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(-5deg); }
+            50% { transform: rotate(5deg); }
+        }
+
+        .result-label {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--night);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .result-value {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--ocean-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value.positive {
+            color: var(--grass-dark);
+        }
+
+        .result-value.negative {
+            color: #ef4444;
+        }
+
+        .result-explanation {
+            font-size: 0.95rem;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .story-section {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 24px;
+            padding: 2.5rem;
+            margin-top: 2rem;
+            border: 4px solid var(--gold);
+        }
+
+        .story-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2rem;
+            color: var(--night);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .story-content {
+            font-size: 1.125rem;
+            color: #78350f;
+            line-height: 1.8;
+            background: rgba(255, 255, 255, 0.6);
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+
+        .story-content strong {
+            color: var(--night);
+            font-weight: 800;
+        }
+
+        .toggle-section {
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .toggle-btn {
+            background: linear-gradient(135deg, var(--purple), #8b5cf6);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 16px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 1.125rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(167, 139, 250, 0.6);
+        }
+
+        .advanced-section {
+            display: none;
+            margin-top: 2rem;
+        }
+
+        .advanced-section.show {
+            display: block;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .mini-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .mini-input {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .mini-input label {
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .mini-input .value-display {
+            font-size: 1.25rem;
+            padding: 0.5rem 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .forecast-preview {
+            background: white;
+            border-radius: 24px;
+            padding: 2rem;
+            margin-top: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .forecast-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.75rem;
+            color: var(--night);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .year-pills {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .year-pill {
+            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+            border: 3px solid var(--ocean);
+        }
+
+        .year-pill-label {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--ocean-dark);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .year-pill-value {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--night);
+            margin-top: 0.25rem;
+        }
+
+        .reserve-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .reserve-card {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 4px solid var(--gold);
+            transition: all 0.3s ease;
+        }
+
+        .reserve-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(251, 191, 36, 0.3);
+        }
+
+        .reserve-icon {
+            font-size: 3.5rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .reserve-title {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--night);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .reserve-description {
+            font-size: 1rem;
+            color: #78350f;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.6);
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .reserve-amount {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--ocean-dark);
+            text-align: center;
+            margin-bottom: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .reserve-explanation {
+            font-size: 0.95rem;
+            color: #78350f;
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        .reserve-explanation span {
+            font-weight: 700;
+            color: var(--night);
+        }
+
+        .total-reserves-box {
+            background: linear-gradient(135deg, var(--grass), var(--grass-dark));
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            margin-top: 2rem;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+        }
+
+        .total-reserves-label {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        .total-reserves-value {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .total-reserves-text {
+            font-size: 1.125rem;
+            color: white;
+            line-height: 1.8;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .total-reserves-text span {
+            font-weight: 800;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .subtitle {
+                font-size: 1.25rem;
+            }
+
+            .step {
+                padding: 1.5rem;
+            }
+
+            .step-title {
+                font-size: 1.5rem;
+            }
+
+            .result-value {
+                font-size: 2rem;
+            }
+
+            .reserve-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating clouds -->
+    <div class="cloud cloud1"></div>
+    <div class="cloud cloud2"></div>
+    <div class="cloud cloud3"></div>
+
+    <div class="container">
+        <header>
+            <div class="emoji-large">🏡</div>
+            <h1>Your Dream Investment Property!</h1>
+            <p class="subtitle">Let's Find Out If This House Makes You Money</p>
+            <div class="intro-text">
+                Imagine buying a house and having someone else pay you to live in it! That's what real estate investing is all about. Let's see if this property would be a good investment by answering some fun questions! 
+            </div>
+        </header>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <!-- Step 1: The House -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">🏠 Let's Pick Your House!</div>
+            </div>
+
+            <div class="question-box">
+                <div class="question">How much does the house cost?</div>
+                <div class="hint">💡 Most starter homes cost between $50,000 - $300,000 depending on where you live!</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">💰</div>
+                <div class="slider-container">
+                    <input type="range" id="purchasePrice" min="50000" max="500000" step="5000" value="75000">
+                </div>
+                <div class="value-display" id="purchasePriceDisplay">$75,000</div>
+            </div>
+
+            <div class="question-box" style="margin-top: 2rem;">
+                <div class="question">How much money will you put down?</div>
+                <div class="hint">💡 Banks usually want you to put down at least 20% of your own money. The rest they'll lend you!</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">📊</div>
+                <div class="slider-container">
+                    <input type="range" id="downPayment" min="5" max="50" step="5" value="20">
+                </div>
+                <div class="value-display" id="downPaymentDisplay">20%</div>
+            </div>
+        </div>
+
+        <!-- Step 2: The Loan -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number" style="background: linear-gradient(135deg, var(--ocean), var(--ocean-dark));">2</div>
+                <div class="step-title">🏦 The Bank Loan</div>
+            </div>
+
+            <div class="question-box">
+                <div class="question">What interest rate will the bank charge?</div>
+                <div class="hint">💡 This is like a "rental fee" the bank charges to lend you money. Currently around 6-8%!</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">📈</div>
+                <div class="slider-container">
+                    <input type="range" id="interestRate" min="3" max="10" step="0.5" value="7">
+                </div>
+                <div class="value-display" id="interestRateDisplay">7.0%</div>
+            </div>
+        </div>
+
+        <!-- Step 3: The Rent -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number" style="background: linear-gradient(135deg, var(--grass), var(--grass-dark));">3</div>
+                <div class="step-title">💵 How Much Rent Can You Charge?</div>
+            </div>
+
+            <div class="question-box">
+                <div class="question">How much will your tenant pay you each month?</div>
+                <div class="hint">💡 Check websites like Zillow to see what similar homes rent for in your area!</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">🎫</div>
+                <div class="slider-container">
+                    <input type="range" id="rentalIncome" min="500" max="5000" step="50" value="1700">
+                </div>
+                <div class="value-display" id="rentalIncomeDisplay">$1,700</div>
+            </div>
+        </div>
+
+        <!-- Step 4: The Costs -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number" style="background: linear-gradient(135deg, var(--purple), #8b5cf6);">4</div>
+                <div class="step-title">💸 What Will It Cost to Own?</div>
+            </div>
+
+            <div class="question-box">
+                <div class="question">Property taxes each year?</div>
+                <div class="hint">💡 This is what you pay to your city/county. Usually 1-2% of the home's value per year.</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">🏛️</div>
+                <div class="slider-container">
+                    <input type="range" id="propertyTax" min="500" max="10000" step="100" value="2200">
+                </div>
+                <div class="value-display" id="propertyTaxDisplay">$2,200</div>
+            </div>
+
+            <div class="question-box" style="margin-top: 2rem;">
+                <div class="question">Home insurance each year?</div>
+                <div class="hint">💡 This protects your house if something bad happens, like a fire or storm.</div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-icon">🛡️</div>
+                <div class="slider-container">
+                    <input type="range" id="insurance" min="500" max="5000" step="100" value="2000">
+                </div>
+                <div class="value-display" id="insuranceDisplay">$2,000</div>
+            </div>
+
+            <div class="toggle-section">
+                <button class="toggle-btn" onclick="toggleAdvanced()">
+                    🔧 Want to add more details? (Optional!)
+                </button>
+            </div>
+
+            <div class="advanced-section" id="advancedSection">
+                <div class="question-box" style="margin-top: 1.5rem;">
+                    <div class="question">Extra expenses (these help protect your investment!)</div>
+                    <div class="hint">💡 Smart investors save money each month for repairs, vacancies, and big replacements!</div>
+                </div>
+
+                <div class="mini-grid">
+                    <div class="mini-input">
+                        <label>🔨 Repairs (% of rent)</label>
+                        <input type="range" id="repairsPct" min="0" max="20" step="1" value="10">
+                        <div class="value-display" id="repairsPctDisplay">10%</div>
+                    </div>
+
+                    <div class="mini-input">
+                        <label>🚪 Vacancy (% of rent)</label>
+                        <input type="range" id="vacancyPct" min="0" max="20" step="1" value="10">
+                        <div class="value-display" id="vacancyPctDisplay">10%</div>
+                    </div>
+
+                    <div class="mini-input">
+                        <label>🏗️ Big Repairs (% of rent)</label>
+                        <input type="range" id="capexPct" min="0" max="20" step="1" value="10">
+                        <div class="value-display" id="capexPctDisplay">10%</div>
+                    </div>
+
+                    <div class="mini-input">
+                        <label>👔 Property Manager (% of rent)</label>
+                        <input type="range" id="managementPct" min="0" max="15" step="1" value="0">
+                        <div class="value-display" id="managementPctDisplay">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Money Reserves -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number" style="background: linear-gradient(135deg, var(--pink), #ec4899);">5</div>
+                <div class="step-title">🏦 Your Safety Piggy Banks!</div>
+            </div>
+
+            <div class="question-box">
+                <div class="question">Smart investors save money each month for three important things:</div>
+                <div class="hint">💡 These are like safety nets! By saving a little each month, you're prepared for anything!</div>
+            </div>
+
+            <div class="reserve-cards">
+                <div class="reserve-card">
+                    <div class="reserve-icon">🚪</div>
+                    <div class="reserve-title">Vacancy Fund</div>
+                    <div class="reserve-description">
+                        Sometimes tenants move out and it takes time to find new ones. During that time, the house is empty (vacant) and you're not collecting rent!
+                    </div>
+                    <div class="reserve-amount" id="vacancyAmount">$170/mo</div>
+                    <div class="reserve-explanation">
+                        Setting aside <span id="vacancyPctText">10%</span> of your rent means you'll have money saved up to cover the mortgage even when the house is empty. Most investors budget for the house being empty about 1 month per year.
+                    </div>
+                </div>
+
+                <div class="reserve-card">
+                    <div class="reserve-icon">🔧</div>
+                    <div class="reserve-title">Repairs Fund</div>
+                    <div class="reserve-description">
+                        Things break! The toilet might leak, the dishwasher could stop working, or the fence might need fixing. These are small repairs that happen regularly.
+                    </div>
+                    <div class="reserve-amount" id="repairsAmount">$170/mo</div>
+                    <div class="reserve-explanation">
+                        Saving <span id="repairsPctText">10%</span> of your rent each month means when something breaks, you have the money ready to fix it quickly! Happy tenants = steady rent checks!
+                    </div>
+                </div>
+
+                <div class="reserve-card">
+                    <div class="reserve-icon">🏗️</div>
+                    <div class="reserve-title">Big Stuff Fund (CapEx)</div>
+                    <div class="reserve-description">
+                        Every 10-20 years, BIG things need replacing: the roof, the furnace, the water heater, or the appliances. These are expensive!
+                    </div>
+                    <div class="reserve-amount" id="capexAmount">$170/mo</div>
+                    <div class="reserve-explanation">
+                        By saving <span id="capexPctText">10%</span> each month, when the roof needs replacing in 15 years (about $10,000!), you'll have $18,000+ saved up. No panic, no problem!
+                    </div>
+                </div>
+            </div>
+
+            <div class="total-reserves-box">
+                <div class="total-reserves-label">💰 Total Monthly Reserves</div>
+                <div class="total-reserves-value" id="totalReserves">$510/mo</div>
+                <div class="total-reserves-text">
+                    This is money you set aside each month to protect your investment. Think of it like insurance - you're paying yourself to be ready for anything! After one year, you'll have <span id="yearlyReserves">$6,120</span> saved up!
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-container">
+            <div class="results-title">✨ The Magic Numbers! ✨</div>
+
+            <div class="big-results">
+                <div class="result-card">
+                    <div class="result-emoji">💰</div>
+                    <div class="result-label">Money Left Over Each Month</div>
+                    <div class="result-value positive" id="monthlyCashFlow">$421</div>
+                    <div class="result-explanation">This is your profit! Money you get to keep after paying all the bills.</div>
+                </div>
+
+                <div class="result-card warning">
+                    <div class="result-emoji">📊</div>
+                    <div class="result-label">Return on Investment</div>
+                    <div class="result-value" id="cocROI">26.93%</div>
+                    <div class="result-explanation">This shows how well your money is working for you! Higher is better!</div>
+                </div>
+
+                <div class="result-card info">
+                    <div class="result-emoji">🎯</div>
+                    <div class="result-label">Money In vs Money Out</div>
+                    <div class="result-value" style="font-size: 1.5rem;" id="incomeVsExpense">$1,700 vs $1,279</div>
+                    <div class="result-explanation">Monthly rent you collect vs. all your monthly bills</div>
+                </div>
+            </div>
+
+            <!-- Story Section -->
+            <div class="story-section" id="storySection">
+                <div class="story-title">
+                    <span>📖</span>
+                    <span>What Does This Mean?</span>
+                </div>
+                <div class="story-content" id="storyContent">
+                    <!-- Dynamic story will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Future Forecast -->
+            <div class="forecast-preview">
+                <div class="forecast-title">
+                    <span>🔮</span>
+                    <span>Looking Into the Future...</span>
+                </div>
+                <p style="color: #64748b; margin-bottom: 1.5rem;">As rent goes up over time (about 2% per year), here's how much you could be making:</p>
+                
+                <div class="year-pills">
+                    <div class="year-pill">
+                        <div class="year-pill-label">Year 5</div>
+                        <div class="year-pill-value" id="year5">$465/mo</div>
+                    </div>
+                    <div class="year-pill">
+                        <div class="year-pill-label">Year 10</div>
+                        <div class="year-pill-value" id="year10">$513/mo</div>
+                    </div>
+                    <div class="year-pill">
+                        <div class="year-pill-label">Year 20</div>
+                        <div class="year-pill-value" id="year20">$625/mo</div>
+                    </div>
+                    <div class="year-pill">
+                        <div class="year-pill-label">Year 30</div>
+                        <div class="year-pill-value" id="year30">$747/mo</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let advancedOpen = false;
+
+        function toggleAdvanced() {
+            advancedOpen = !advancedOpen;
+            const section = document.getElementById('advancedSection');
+            section.classList.toggle('show');
+            updateProgress();
+        }
+
+        function formatCurrency(num) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(num);
+        }
+
+        function formatPercent(num) {
+            return num.toFixed(2) + '%';
+        }
+
+        function calculateMortgagePayment(principal, annualRate, years) {
+            const monthlyRate = annualRate / 100 / 12;
+            const numPayments = years * 12;
+            
+            if (monthlyRate === 0) return principal / numPayments;
+            
+            const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+                           (Math.pow(1 + monthlyRate, numPayments) - 1);
+            
+            return payment;
+        }
+
+        function updateProgress() {
+            const totalQuestions = advancedOpen ? 9 : 8;
+            const progress = (totalQuestions / 9) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+        }
+
+        function generateStory(cashFlow, roi, income, expenses) {
+            let story = '';
+            
+            if (cashFlow > 500) {
+                story = `<strong>Wow! This is an amazing deal! 🎉</strong><br><br>Every month, after your tenant pays you <strong>${formatCurrency(income)}</strong> in rent and you pay all your bills of <strong>${formatCurrency(expenses)}</strong>, you get to keep <strong>${formatCurrency(cashFlow)}</strong>! That's like getting paid <strong>${formatCurrency(cashFlow * 12)}</strong> per year just for owning this house!<br><br>Your return on investment of <strong>${formatPercent(roi)}</strong> is incredible! That's WAY better than putting money in a savings account (which only gives you about 1-2% per year). You're basically printing money! 💸`;
+            } else if (cashFlow > 200) {
+                story = `<strong>This is a pretty good investment! 👍</strong><br><br>You're making <strong>${formatCurrency(cashFlow)}</strong> every month, which adds up to <strong>${formatCurrency(cashFlow * 12)}</strong> per year! Plus, your tenant is helping you pay off the house. In 30 years, you'll own the entire house free and clear!<br><br>Your <strong>${formatPercent(roi)}</strong> return is solid - much better than most other investments!`;
+            } else if (cashFlow > 0) {
+                story = `<strong>This could work, but it's a bit tight. 🤔</strong><br><br>You're only making <strong>${formatCurrency(cashFlow)}</strong> each month. That's <strong>${formatCurrency(cashFlow * 12)}</strong> per year. While you're making money, you might want to look for a property that gives you a bigger cushion in case something unexpected happens (like a big repair).<br><br>Your <strong>${formatPercent(roi)}</strong> return is okay, but there might be better opportunities out there!`;
+            } else {
+                story = `<strong>Uh oh! This property loses money every month! ❌</strong><br><br>You're losing <strong>${formatCurrency(Math.abs(cashFlow))}</strong> every month! That means you'd have to pay <strong>${formatCurrency(Math.abs(cashFlow * 12))}</strong> out of your own pocket each year just to keep this house.<br><br>This is what investors call a "bad deal." Keep looking - there are better properties out there! The good news is you learned how to spot a bad investment before buying it! 🎓`;
+            }
+            
+            return story;
+        }
+
+        function calculateAll() {
+            // Get values
+            const purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
+            const downPaymentPct = parseFloat(document.getElementById('downPayment').value);
+            const interestRate = parseFloat(document.getElementById('interestRate').value);
+            const rentalIncome = parseFloat(document.getElementById('rentalIncome').value);
+            const propertyTax = parseFloat(document.getElementById('propertyTax').value);
+            const insurance = parseFloat(document.getElementById('insurance').value);
+            const repairsPct = parseFloat(document.getElementById('repairsPct').value);
+            const vacancyPct = parseFloat(document.getElementById('vacancyPct').value);
+            const capexPct = parseFloat(document.getElementById('capexPct').value);
+            const managementPct = parseFloat(document.getElementById('managementPct').value);
+
+            // Update displays
+            document.getElementById('purchasePriceDisplay').textContent = formatCurrency(purchasePrice);
+            document.getElementById('downPaymentDisplay').textContent = downPaymentPct + '%';
+            document.getElementById('interestRateDisplay').textContent = interestRate.toFixed(1) + '%';
+            document.getElementById('rentalIncomeDisplay').textContent = formatCurrency(rentalIncome);
+            document.getElementById('propertyTaxDisplay').textContent = formatCurrency(propertyTax);
+            document.getElementById('insuranceDisplay').textContent = formatCurrency(insurance);
+            document.getElementById('repairsPctDisplay').textContent = repairsPct + '%';
+            document.getElementById('vacancyPctDisplay').textContent = vacancyPct + '%';
+            document.getElementById('capexPctDisplay').textContent = capexPct + '%';
+            document.getElementById('managementPctDisplay').textContent = managementPct + '%';
+
+            // Calculate loan details
+            const downPaymentAmount = purchasePrice * (downPaymentPct / 100);
+            const loanAmount = purchasePrice - downPaymentAmount;
+            const monthlyMortgage = calculateMortgagePayment(loanAmount, interestRate, 30);
+
+            // Calculate expenses
+            const repairs = rentalIncome * (repairsPct / 100);
+            const vacancy = rentalIncome * (vacancyPct / 100);
+            const capex = rentalIncome * (capexPct / 100);
+            const management = rentalIncome * (managementPct / 100);
+
+            const totalExpenses = monthlyMortgage + (propertyTax / 12) + (insurance / 12) + 
+                                 repairs + vacancy + capex + management;
+
+            // Calculate cash flow and ROI
+            const monthlyCashFlow = rentalIncome - totalExpenses;
+            const annualCashFlow = monthlyCashFlow * 12;
+            const totalCashInvested = downPaymentAmount + (purchasePrice * 0.05); // Simplified with closing costs
+            const cocROI = totalCashInvested > 0 ? (annualCashFlow / totalCashInvested) * 100 : 0;
+
+            // Update results
+            const cashFlowEl = document.getElementById('monthlyCashFlow');
+            cashFlowEl.textContent = formatCurrency(monthlyCashFlow);
+            cashFlowEl.className = 'result-value ' + (monthlyCashFlow > 0 ? 'positive' : 'negative');
+
+            document.getElementById('cocROI').textContent = formatPercent(cocROI);
+            document.getElementById('incomeVsExpense').textContent = 
+                formatCurrency(rentalIncome) + ' vs ' + formatCurrency(totalExpenses);
+
+            // Update story
+            document.getElementById('storyContent').innerHTML = 
+                generateStory(monthlyCashFlow, cocROI, rentalIncome, totalExpenses);
+
+            // Update reserve amounts in Step 5
+            document.getElementById('vacancyAmount').textContent = formatCurrency(vacancy) + '/mo';
+            document.getElementById('vacancyPctText').textContent = vacancyPct + '%';
+            
+            document.getElementById('repairsAmount').textContent = formatCurrency(repairs) + '/mo';
+            document.getElementById('repairsPctText').textContent = repairsPct + '%';
+            
+            document.getElementById('capexAmount').textContent = formatCurrency(capex) + '/mo';
+            document.getElementById('capexPctText').textContent = capexPct + '%';
+            
+            const totalReserves = vacancy + repairs + capex;
+            document.getElementById('totalReserves').textContent = formatCurrency(totalReserves) + '/mo';
+            document.getElementById('yearlyReserves').textContent = formatCurrency(totalReserves * 12);
+
+            // Calculate future values
+            const inflationRate = 0.02;
+            const year5Income = rentalIncome * Math.pow(1 + inflationRate, 5);
+            const year5Expenses = totalExpenses * Math.pow(1 + inflationRate, 5);
+            document.getElementById('year5').textContent = formatCurrency(year5Income - year5Expenses) + '/mo';
+
+            const year10Income = rentalIncome * Math.pow(1 + inflationRate, 10);
+            const year10Expenses = totalExpenses * Math.pow(1 + inflationRate, 10);
+            document.getElementById('year10').textContent = formatCurrency(year10Income - year10Expenses) + '/mo';
+
+            const year20Income = rentalIncome * Math.pow(1 + inflationRate, 20);
+            const year20Expenses = totalExpenses * Math.pow(1 + inflationRate, 20);
+            document.getElementById('year20').textContent = formatCurrency(year20Income - year20Expenses) + '/mo';
+
+            const year30Income = rentalIncome * Math.pow(1 + inflationRate, 30);
+            const year30Expenses = totalExpenses * Math.pow(1 + inflationRate, 30);
+            document.getElementById('year30').textContent = formatCurrency(year30Income - year30Expenses) + '/mo';
+        }
+
+        // Add event listeners
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            input.addEventListener('input', calculateAll);
+        });
+
+        // Initial calculation
+        updateProgress();
+        calculateAll();
+    </script>
+</body>
+</html>

@@ -354,7 +354,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
     })(req, res, next);
   }
 );
@@ -384,7 +384,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed }))}`);
+      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
     })(req, res, next);
   }
 );

@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [logout]);
 
-  // Check for existing auth on mount
+  // Check for existing auth on mount and refresh user profile from server
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
@@ -41,6 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const user = JSON.parse(savedUser);
         setAuthState({ isAuthenticated: true, user, token });
+
+        // Refresh user profile from server to pick up changes (e.g. admin status)
+        api.getCurrentUser().then((data: { user: User }) => {
+          const freshUser = data.user;
+          localStorage.setItem('user', JSON.stringify(freshUser));
+          setAuthState(prev => ({ ...prev, user: freshUser }));
+        }).catch(() => {
+          // If refresh fails (e.g. expired token), keep cached user
+        });
       } catch {
         localStorage.removeItem('token');
         localStorage.removeItem('user');

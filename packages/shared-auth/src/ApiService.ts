@@ -413,6 +413,70 @@ export class ApiService {
     }
     return response.json();
   }
+
+  // ===== Property Data endpoints (general-purpose, reusable) =====
+
+  async lookupProperty(params: { url?: string; zpid?: string; address?: string; city?: string; state?: string }) {
+    return this.fetchJson<{ property: any }>('/api/property/lookup', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify(params),
+    });
+  }
+
+  async getRentalEstimate(params: { zpid?: string; price?: number; bedrooms?: number; sqft?: number; yearBuilt?: number; propertyType?: string }) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v != null) qs.set(k, String(v)); });
+    return this.fetchJson<{ rentalEstimate: any }>(`/api/property/rental-estimate?${qs.toString()}`, { auth: true });
+  }
+
+  async runPropertyAnalysis(input: { url?: string; zpid?: string; property?: any; params?: Record<string, any> }) {
+    return this.fetchJson<{ property: any; results: any; rentalEstimate: any }>('/api/property/analyze', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify(input),
+    });
+  }
+
+  async searchProperties(query: string) {
+    return this.fetchJson<{ results: any[] }>(`/api/property/search?q=${encodeURIComponent(query)}`, { auth: true });
+  }
+
+  // ===== Property Analyzer endpoints (app-specific with history) =====
+
+  async runAndSaveAnalysis(url: string, params?: Record<string, any>) {
+    return this.fetchJson<any>('/api/analyzer/run', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ url, params }),
+    });
+  }
+
+  async getAnalysisHistory(page = 1, limit = 20) {
+    return this.fetchJson<{ analyses: any[]; total: number; page: number; limit: number }>(
+      `/api/analyzer/history?page=${page}&limit=${limit}`,
+      { auth: true },
+    );
+  }
+
+  async getAnalysis(id: number) {
+    return this.fetchJson<{ analysis: any }>(`/api/analyzer/history/${id}`, { auth: true });
+  }
+
+  async deleteAnalysis(id: number) {
+    return this.fetchJson<{ success: boolean }>(`/api/analyzer/history/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  }
+
+  async reAnalyze(id: number, params: Record<string, any>) {
+    return this.fetchJson<any>(`/api/analyzer/re-analyze/${id}`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ params }),
+    });
+  }
 }
 
 export const api = new ApiService();

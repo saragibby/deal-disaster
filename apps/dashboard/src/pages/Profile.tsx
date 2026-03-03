@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, api } from '@deal-platform/shared-auth';
+import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import type { UserStats } from '@deal-platform/shared-types';
 import { useTheme } from '../contexts/ThemeContext';
 import { User, Mail, Trophy, Flame, Target, TrendingUp, Sun, Moon, Settings, Bell, Shield, Pencil, Check, X, Lock } from 'lucide-react';
@@ -213,7 +213,7 @@ export default function Profile() {
 
       {/* Actions */}
       <div className="profile-actions">
-        <a href={window.location.hostname === 'localhost' ? 'http://localhost:5201/deal-or-disaster/' : '/deal-or-disaster/'} className="btn btn--primary">Play Deal or Disaster</a>
+        <a href={buildAppUrl('/deal-or-disaster/')} className="btn btn--primary">Play Deal or Disaster</a>
       </div>
     </div>
   );

@@ -70,8 +70,30 @@ function App() {
     });
   }, []);
 
-  // Check for existing auth on mount
+  // Check for existing auth on mount — first look for SSO params passed
+  // from the main dashboard (cross-origin in dev), then fall back to localStorage.
   useEffect(() => {
+    // SSO: check for token + user in URL query params
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    const urlUserStr = params.get('user');
+
+    if (urlToken && urlUserStr) {
+      try {
+        const urlUser = JSON.parse(decodeURIComponent(urlUserStr));
+        localStorage.setItem('token', urlToken);
+        localStorage.setItem('user', JSON.stringify(urlUser));
+        setIsAuthenticated(true);
+        setUser(urlUser);
+        // Strip SSO params from the address bar
+        window.history.replaceState({}, '', window.location.pathname);
+        return; // done — skip localStorage fallback
+      } catch (err) {
+        console.error('Failed to parse SSO params:', err);
+      }
+    }
+
+    // Fallback: check localStorage
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     

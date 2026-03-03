@@ -13,13 +13,14 @@
     "server"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:dashboard\" \"npm run dev:game\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:dashboard\" \"npm run dev:game\" \"npm run dev:analyzer\"",
     "dev:server": "cd server && npm run dev",
     "dev:dashboard": "cd apps/dashboard && npm run dev",
     "dev:game": "cd apps/deal-or-disaster && npm run dev",
+    "dev:analyzer": "cd apps/property-analyzer && npm run dev",
     "build": "npm run build:packages && npm run build:apps && npm run build:server",
     "build:packages": "cd packages/shared-types && npm run build && cd ../shared-auth && npm run build && cd ../shared-ui && npm run build",
-    "build:apps": "cd apps/dashboard && npm run build && cd ../deal-or-disaster && npm run build",
+    "build:apps": "cd apps/dashboard && npm run build && cd ../deal-or-disaster && npm run build && cd ../property-analyzer && npm run build",
     "build:server": "cd server && npm run build",
     "setup": "cd server && npm run db:setup",
     "heroku-postbuild": "npm run build:packages && npm run build:apps && cd server && npm install && npm run build"

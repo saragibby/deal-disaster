@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Property Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --success: #10b981;
+            --success-dark: #059669;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: var(--text);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        h1 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+
+        /* Input Section */
+        .input-section {
+            background: white;
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .input-header {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        .input-description {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.05rem;
+        }
+
+        .url-input-wrapper {
+            position: relative;
+            margin-bottom: 2rem;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 1.25rem 1.5rem;
+            padding-right: 150px;
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            font-size: 1.125rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .analyze-btn {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Advanced Options */
+        .advanced-toggle {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .toggle-link {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+
+        .toggle-link:hover {
+            text-decoration: underline;
+        }
+
+        .advanced-options {
+            display: none;
+            margin-top: 2rem;
+            padding: 2rem;
+            background: var(--bg);
+            border-radius: 16px;
+            border: 2px dashed var(--border);
+        }
+
+        .advanced-options.show {
+            display: block;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .option-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .option-input {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .option-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Loading State */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Results Section */
+        .results-section {
+            display: none;
+        }
+
+        .results-section.show {
+            display: block;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Property Info Card */
+        .property-card {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .property-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 2rem;
+            gap: 2rem;
+        }
+
+        .property-info h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .property-address {
+            color: var(--text-muted);
+            font-size: 1.125rem;
+        }
+
+        .property-price {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .property-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid var(--border);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        /* Analysis Grid */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .analysis-card {
+            background: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        }
+
+        .analysis-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .analysis-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .analysis-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.125rem;
+        }
+
+        .metric-value.positive {
+            color: var(--success);
+        }
+
+        .metric-value.negative {
+            color: var(--danger);
+        }
+
+        .metric-value.warning {
+            color: var(--warning);
+        }
+
+        /* Big Numbers */
+        .big-result {
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg);
+            border-radius: 16px;
+            margin: 2rem 0;
+        }
+
+        .big-result-label {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .big-result-value {
+            font-family: 'Poppins', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+        }
+
+        .big-result-value.positive {
+            color: var(--success);
+        }
+
+        .big-result-value.negative {
+            color: var(--danger);
+        }
+
+        .big-result-description {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Tax Savings Card */
+        .tax-savings-card {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 60px rgba(16, 185, 129, 0.3);
+            margin-bottom: 2rem;
+        }
+
+        .tax-savings-card .analysis-icon {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tax-savings-card .analysis-title {
+            color: white;
+        }
+
+        .tax-breakdown {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .tax-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tax-row:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 1.125rem;
+            padding-top: 1rem;
+        }
+
+        /* Rental Comp Section */
+        .comp-table {
+            margin-top: 1.5rem;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            background: var(--bg);
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tr:hover {
+            background: var(--bg);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .input-section {
+                padding: 2rem 1.5rem;
+            }
+
+            .url-input {
+                padding-right: 1.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .analyze-btn {
+                position: static;
+                width: 100%;
+            }
+
+            .property-header {
+                flex-direction: column;
+            }
+
+            .property-price {
+                text-align: left;
+            }
+
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Instant Property Analyzer</h1>
+            <p class="subtitle">Paste a Zillow link and get comprehensive investment analysis in seconds</p>
+        </div>
+
+        <!-- Input Section -->
+        <div class="input-section">
+            <h2 class="input-header">Enter Property URL</h2>
+            <p class="input-description">Paste any Zillow property link and we'll analyze rental comps, cash flow, and tax savings</p>
+            
+            <div class="url-input-wrapper">
+                <input 
+                    type="text" 
+                    class="url-input" 
+                    id="zillowUrl" 
+                    placeholder="https://www.zillow.com/homedetails/..."
+                >
+                <button class="analyze-btn" onclick="analyzeProperty()">Analyze</button>
+            </div>
+
+            <div class="advanced-toggle">
+                <a class="toggle-link" onclick="toggleAdvanced()">⚙️ Advanced Options</a>
+            </div>
+
+            <div class="advanced-options" id="advancedOptions">
+                <div class="options-grid">
+                    <div class="option-group">
+                        <label class="option-label">Down Payment %</label>
+                        <input type="number" class="option-input" id="downPayment" value="20" min="0" max="100">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Interest Rate %</label>
+                        <input type="number" class="option-input" id="interestRate" value="7.0" step="0.1">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Vacancy %</label>
+                        <input type="number" class="option-input" id="vacancyPct" value="8" min="0" max="20">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Repairs %</label>
+                        <input type="number" class="option-input" id="repairsPct" value="10" min="0" max="20">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">CapEx %</label>
+                        <input type="number" class="option-input" id="capexPct" value="10" min="0" max="20">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Property Tax (Annual)</label>
+                        <input type="number" class="option-input" id="propertyTax" value="2500">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Insurance (Annual)</label>
+                        <input type="number" class="option-input" id="insurance" value="1500">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Cost Seg Deduction %</label>
+                        <input type="number" class="option-input" id="costSegPct" value="22.5" step="0.5" min="15" max="30">
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Tax Rate %</label>
+                        <input type="number" class="option-input" id="taxRate" value="20" min="0" max="50">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loadingState">
+            <div class="spinner"></div>
+            <p>Analyzing property and finding rental comps...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section" id="resultsSection">
+            <!-- Property Info -->
+            <div class="property-card">
+                <div class="property-header">
+                    <div class="property-info">
+                        <h2 id="propertyTitle">Property Address</h2>
+                        <p class="property-address" id="propertyAddress">City, State ZIP</p>
+                    </div>
+                    <div class="property-price" id="propertyPrice">$0</div>
+                </div>
+
+                <div class="property-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="bedrooms">-</div>
+                        <div class="stat-label">Bedrooms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="bathrooms">-</div>
+                        <div class="stat-label">Bathrooms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="sqft">-</div>
+                        <div class="stat-label">Sq Ft</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="yearBuilt">-</div>
+                        <div class="stat-label">Year Built</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Grid -->
+            <div class="analysis-grid">
+                <!-- Rental Comps -->
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="analysis-icon">🏘️</div>
+                        <div class="analysis-title">Rental Comparables</div>
+                    </div>
+
+                    <div class="big-result" style="margin-top: 0;">
+                        <div class="big-result-label">Estimated Monthly Rent</div>
+                        <div class="big-result-value" id="estimatedRent">$0</div>
+                        <div class="big-result-description">Based on similar properties in <span id="zipCode">-</span></div>
+                    </div>
+
+                    <div class="comp-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Comp Type</th>
+                                    <th>Monthly Rent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="compTableBody">
+                                <!-- Comps will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Cash Flow Analysis -->
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="analysis-icon">💵</div>
+                        <div class="analysis-title">Cash Flow Analysis</div>
+                    </div>
+
+                    <div class="metric-row">
+                        <span class="metric-label">Monthly Rent Income</span>
+                        <span class="metric-value positive" id="monthlyIncome">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Mortgage Payment (P&I)</span>
+                        <span class="metric-value" id="mortgagePayment">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Property Tax</span>
+                        <span class="metric-value" id="monthlyTax">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Insurance</span>
+                        <span class="metric-value" id="monthlyInsurance">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Vacancy Reserve</span>
+                        <span class="metric-value" id="vacancyAmount">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Repairs Reserve</span>
+                        <span class="metric-value" id="repairsAmount">$0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">CapEx Reserve</span>
+                        <span class="metric-value" id="capexAmount">$0</span>
+                    </div>
+
+                    <div class="big-result">
+                        <div class="big-result-label">Monthly Cash Flow</div>
+                        <div class="big-result-value" id="monthlyCashFlow">$0</div>
+                        <div class="big-result-description">After all expenses</div>
+                    </div>
+
+                    <div class="metric-row" style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--border);">
+                        <span class="metric-label">Cash-on-Cash ROI</span>
+                        <span class="metric-value positive" id="cashOnCash">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tax Savings Card -->
+            <div class="tax-savings-card">
+                <div class="analysis-header">
+                    <div class="analysis-icon">💰</div>
+                    <div class="analysis-title">Cost Segregation Tax Savings</div>
+                </div>
+
+                <p style="margin-bottom: 1.5rem; opacity: 0.95;">Cost segregation accelerates depreciation deductions by reclassifying property components, providing immediate tax benefits.</p>
+
+                <div class="tax-breakdown">
+                    <div class="tax-row">
+                        <span>Purchase Price</span>
+                        <span id="taxPurchasePrice">$0</span>
+                    </div>
+                    <div class="tax-row">
+                        <span>Accelerated Depreciation (<span id="costSegPctDisplay">22.5</span>%)</span>
+                        <span id="depreciationAmount">$0</span>
+                    </div>
+                    <div class="tax-row">
+                        <span>Your Tax Rate (<span id="taxRateDisplay">20</span>%)</span>
+                        <span>Applied</span>
+                    </div>
+                    <div class="tax-row">
+                        <span>💚 Total Tax Savings (Year 1)</span>
+                        <span id="totalTaxSavings">$0</span>
+                    </div>
+                </div>
+
+                <div class="big-result" style="background: rgba(255, 255, 255, 0.15); margin-top: 2rem;">
+                    <div class="big-result-label" style="color: rgba(255, 255, 255, 0.9);">Effective First-Year Return</div>
+                    <div class="big-result-value" style="color: white;" id="effectiveReturn">0%</div>
+                    <div class="big-result-description" style="color: rgba(255, 255, 255, 0.9);">
+                        Including rental income + tax savings
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleAdvanced() {
+            const options = document.getElementById('advancedOptions');
+            options.classList.toggle('show');
+        }
+
+        function formatCurrency(num) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(num);
+        }
+
+        function formatPercent(num) {
+            return num.toFixed(2) + '%';
+        }
+
+        function calculateMortgagePayment(principal, annualRate, years) {
+            const monthlyRate = annualRate / 100 / 12;
+            const numPayments = years * 12;
+            
+            if (monthlyRate === 0) return principal / numPayments;
+            
+            const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
+                           (Math.pow(1 + monthlyRate, numPayments) - 1);
+            
+            return payment;
+        }
+
+        function estimateRentalIncome(price, bedrooms, sqft) {
+            // Simplified rental estimation based on property characteristics
+            // In production, this would call a real API
+            
+            const baseRent = price * 0.008; // 0.8% of purchase price as monthly rent (rough estimate)
+            
+            // Adjust based on bedrooms
+            let bedroomMultiplier = 1;
+            if (bedrooms >= 4) bedroomMultiplier = 1.15;
+            else if (bedrooms >= 3) bedroomMultiplier = 1.05;
+            else if (bedrooms <= 1) bedroomMultiplier = 0.85;
+            
+            // Adjust based on size
+            let sizeMultiplier = 1;
+            if (sqft > 2500) sizeMultiplier = 1.1;
+            else if (sqft < 1000) sizeMultiplier = 0.9;
+            
+            return baseRent * bedroomMultiplier * sizeMultiplier;
+        }
+
+        function generateRentalComps(estimatedRent) {
+            // Generate realistic-looking comps with some variance
+            return [
+                { type: 'Low Range', rent: estimatedRent * 0.9 },
+                { type: 'Market Average', rent: estimatedRent },
+                { type: 'High Range', rent: estimatedRent * 1.1 },
+                { type: 'Premium', rent: estimatedRent * 1.15 }
+            ];
+        }
+
+        async function analyzeProperty() {
+            const urlInput = document.getElementById('zillowUrl').value.trim();
+            
+            if (!urlInput) {
+                alert('Please enter a Zillow URL');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loadingState').classList.add('show');
+            document.getElementById('resultsSection').classList.remove('show');
+
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Parse Zillow URL and extract property data
+            // In production, this would call actual Zillow API or scraping service
+            const mockPropertyData = extractMockPropertyData(urlInput);
+
+            // Get advanced options
+            const downPaymentPct = parseFloat(document.getElementById('downPayment').value);
+            const interestRate = parseFloat(document.getElementById('interestRate').value);
+            const vacancyPct = parseFloat(document.getElementById('vacancyPct').value);
+            const repairsPct = parseFloat(document.getElementById('repairsPct').value);
+            const capexPct = parseFloat(document.getElementById('capexPct').value);
+            const propertyTax = parseFloat(document.getElementById('propertyTax').value);
+            const insurance = parseFloat(document.getElementById('insurance').value);
+            const costSegPct = parseFloat(document.getElementById('costSegPct').value);
+            const taxRate = parseFloat(document.getElementById('taxRate').value);
+
+            // Calculate rental income estimate
+            const estimatedRent = estimateRentalIncome(
+                mockPropertyData.price, 
+                mockPropertyData.bedrooms, 
+                mockPropertyData.sqft
+            );
+
+            // Generate comps
+            const rentalComps = generateRentalComps(estimatedRent);
+
+            // Calculate mortgage
+            const downPayment = mockPropertyData.price * (downPaymentPct / 100);
+            const loanAmount = mockPropertyData.price - downPayment;
+            const monthlyMortgage = calculateMortgagePayment(loanAmount, interestRate, 30);
+
+            // Calculate reserves
+            const vacancy = estimatedRent * (vacancyPct / 100);
+            const repairs = estimatedRent * (repairsPct / 100);
+            const capex = estimatedRent * (capexPct / 100);
+
+            // Calculate total expenses
+            const totalExpenses = monthlyMortgage + (propertyTax / 12) + (insurance / 12) + 
+                                 vacancy + repairs + capex;
+
+            // Calculate cash flow
+            const monthlyCashFlow = estimatedRent - totalExpenses;
+            const annualCashFlow = monthlyCashFlow * 12;
+
+            // Calculate ROI
+            const totalCashInvested = downPayment + (mockPropertyData.price * 0.03); // Include closing costs
+            const cashOnCashROI = (annualCashFlow / totalCashInvested) * 100;
+
+            // Calculate tax savings
+            const depreciationDeduction = mockPropertyData.price * (costSegPct / 100);
+            const taxSavings = depreciationDeduction * (taxRate / 100);
+            const totalFirstYearBenefit = annualCashFlow + taxSavings;
+            const effectiveROI = (totalFirstYearBenefit / totalCashInvested) * 100;
+
+            // Update UI
+            updatePropertyInfo(mockPropertyData);
+            updateRentalComps(rentalComps, estimatedRent, mockPropertyData.zipCode);
+            updateCashFlowAnalysis({
+                estimatedRent,
+                monthlyMortgage,
+                propertyTax,
+                insurance,
+                vacancy,
+                repairs,
+                capex,
+                monthlyCashFlow,
+                cashOnCashROI
+            });
+            updateTaxSavings({
+                price: mockPropertyData.price,
+                costSegPct,
+                taxRate,
+                depreciationDeduction,
+                taxSavings,
+                effectiveROI
+            });
+
+            // Hide loading and show results
+            document.getElementById('loadingState').classList.remove('show');
+            document.getElementById('resultsSection').classList.add('show');
+
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function extractMockPropertyData(url) {
+            // In production, this would parse actual Zillow data
+            // For demo, return mock data
+            return {
+                address: '1234 Investment Lane',
+                city: 'Austin',
+                state: 'TX',
+                zipCode: '78701',
+                price: 325000,
+                bedrooms: 3,
+                bathrooms: 2.5,
+                sqft: 1850,
+                yearBuilt: 2015
+            };
+        }
+
+        function updatePropertyInfo(data) {
+            document.getElementById('propertyTitle').textContent = data.address;
+            document.getElementById('propertyAddress').textContent = `${data.city}, ${data.state} ${data.zipCode}`;
+            document.getElementById('propertyPrice').textContent = formatCurrency(data.price);
+            document.getElementById('bedrooms').textContent = data.bedrooms;
+            document.getElementById('bathrooms').textContent = data.bathrooms;
+            document.getElementById('sqft').textContent = data.sqft.toLocaleString();
+            document.getElementById('yearBuilt').textContent = data.yearBuilt;
+        }
+
+        function updateRentalComps(comps, estimatedRent, zipCode) {
+            document.getElementById('estimatedRent').textContent = formatCurrency(estimatedRent);
+            document.getElementById('zipCode').textContent = zipCode;
+
+            const tbody = document.getElementById('compTableBody');
+            tbody.innerHTML = comps.map(comp => `
+                <tr>
+                    <td>${comp.type}</td>
+                    <td><strong>${formatCurrency(comp.rent)}</strong></td>
+                </tr>
+            `).join('');
+        }
+
+        function updateCashFlowAnalysis(data) {
+            document.getElementById('monthlyIncome').textContent = formatCurrency(data.estimatedRent);
+            document.getElementById('mortgagePayment').textContent = formatCurrency(data.monthlyMortgage);
+            document.getElementById('monthlyTax').textContent = formatCurrency(data.propertyTax / 12);
+            document.getElementById('monthlyInsurance').textContent = formatCurrency(data.insurance / 12);
+            document.getElementById('vacancyAmount').textContent = formatCurrency(data.vacancy);
+            document.getElementById('repairsAmount').textContent = formatCurrency(data.repairs);
+            document.getElementById('capexAmount').textContent = formatCurrency(data.capex);
+            
+            const cashFlowEl = document.getElementById('monthlyCashFlow');
+            cashFlowEl.textContent = formatCurrency(data.monthlyCashFlow);
+            cashFlowEl.className = 'big-result-value ' + (data.monthlyCashFlow > 0 ? 'positive' : 'negative');
+
+            document.getElementById('cashOnCash').textContent = formatPercent(data.cashOnCashROI);
+        }
+
+        function updateTaxSavings(data) {
+            document.getElementById('taxPurchasePrice').textContent = formatCurrency(data.price);
+            document.getElementById('costSegPctDisplay').textContent = data.costSegPct.toFixed(1);
+            document.getElementById('taxRateDisplay').textContent = data.taxRate;
+            document.getElementById('depreciationAmount').textContent = formatCurrency(data.depreciationDeduction);
+            document.getElementById('totalTaxSavings').textContent = formatCurrency(data.taxSavings);
+            document.getElementById('effectiveReturn').textContent = formatPercent(data.effectiveROI);
+        }
+
+        // Allow Enter key to trigger analysis
+        document.getElementById('zillowUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzeProperty();
+            }
+        });
+    </script>
+</body>
+</html>

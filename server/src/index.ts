@@ -10,6 +10,8 @@ import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
 import feedbackRoutes from './routes/feedback.js';
 import portalRoutes from './routes/portal.js';
+import propertyRoutes from './routes/property.js';
+import propertyAnalyzerRoutes from './routes/propertyAnalyzer.js';
 import { initializeScheduledTasks } from './scheduler.js';
 
 dotenv.config();
@@ -24,7 +26,7 @@ const PORT = process.env.PORT || 3002;
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.CLIENT_URL || true
-    : ['http://localhost:5200', 'http://localhost:5201'],
+    : ['http://localhost:5200', 'http://localhost:5201', 'http://localhost:5202'],
   credentials: true,
 }));
 app.use(express.json());
@@ -37,6 +39,8 @@ app.use('/api/daily-challenge', dailyChallengeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/property', propertyRoutes);
+app.use('/api/analyzer', propertyAnalyzerRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -50,6 +54,13 @@ if (process.env.NODE_ENV === 'production') {
   app.use('/deal-or-disaster', express.static(dealAppPath));
   app.get('/deal-or-disaster/*', (req, res) => {
     res.sendFile(path.join(dealAppPath, 'index.html'));
+  });
+
+  // Property Analyzer app — served at /property-analyzer/
+  const analyzerAppPath = path.join(__dirname, '../../apps/property-analyzer/dist');
+  app.use('/property-analyzer', express.static(analyzerAppPath));
+  app.get('/property-analyzer/*', (req, res) => {
+    res.sendFile(path.join(analyzerAppPath, 'index.html'));
   });
 
   // Dashboard app — served at / (catch-all, must be last)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, api } from '@deal-platform/shared-auth';
+import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
 import type { GameInfo, UserStats, LeaderboardEntry, Resource, Announcement } from '@deal-platform/shared-types';
 import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone } from 'lucide-react';
@@ -75,9 +75,7 @@ export default function Home() {
 
   const handleGameClick = (game: GameInfo) => {
     if (game.status !== 'coming-soon') {
-      const isDev = window.location.hostname === 'localhost';
-      const gameUrl = isDev ? `http://localhost:5201${game.path}` : game.path;
-      window.location.href = gameUrl;
+      window.location.href = buildAppUrl(game.path);
     }
   };
 

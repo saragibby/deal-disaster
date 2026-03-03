@@ -175,3 +175,167 @@ export interface Tool {
 }
 
 export type UserRole = 'user' | 'admin';
+
+// ===== Property Analyzer Types =====
+
+export interface PropertyData {
+  zpid: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  price: number;
+  zestimate?: number;
+  rentZestimate?: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  lotSize?: number;
+  yearBuilt: number;
+  propertyType?: string;
+  description?: string;
+  photos?: string[];
+  taxHistory?: Array<{ year: number; amount: number }>;
+  priceHistory?: Array<{ date: string; price: number; event: string }>;
+  homeStatus?: string;
+  latitude?: number;
+  longitude?: number;
+  zillowUrl?: string;
+}
+
+export interface PropertySummary {
+  zpid: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  photo?: string;
+}
+
+export interface RentalComp {
+  address?: string;
+  rent: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  sqft?: number;
+  distance?: number;
+  source: 'api' | 'estimate';
+}
+
+export interface RentalEstimate {
+  low: number;
+  mid: number;
+  high: number;
+  confidence: 'low' | 'medium' | 'high';
+  comps?: RentalComp[];
+}
+
+export interface AnalysisParams {
+  downPaymentPct: number;
+  interestRate: number;
+  loanTermYears: number;
+  vacancyPct: number;
+  repairsPct: number;
+  capexPct: number;
+  managementPct: number;
+  annualPropertyTax: number;
+  annualInsurance: number;
+  costSegPct: number;
+  taxRate: number;
+}
+
+export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
+  downPaymentPct: 20,
+  interestRate: 7.0,
+  loanTermYears: 30,
+  vacancyPct: 8,
+  repairsPct: 10,
+  capexPct: 10,
+  managementPct: 0,
+  annualPropertyTax: 2500,
+  annualInsurance: 1500,
+  costSegPct: 22.5,
+  taxRate: 20,
+};
+
+export interface MortgageBreakdown {
+  monthlyPayment: number;
+  loanAmount: number;
+  downPayment: number;
+  totalInterest: number;
+}
+
+export interface CashFlowBreakdown {
+  monthlyRent: number;
+  monthlyMortgage: number;
+  monthlyTax: number;
+  monthlyInsurance: number;
+  monthlyVacancy: number;
+  monthlyRepairs: number;
+  monthlyCapex: number;
+  monthlyManagement: number;
+  totalMonthlyExpenses: number;
+  monthlyCashFlow: number;
+  annualCashFlow: number;
+}
+
+export interface ROIMetrics {
+  totalCashInvested: number;
+  cashOnCashROI: number;
+  capRate: number;
+  grossRentMultiplier: number;
+}
+
+export interface TaxSavingsBreakdown {
+  purchasePrice: number;
+  depreciationDeduction: number;
+  taxSavings: number;
+  effectiveFirstYearReturn: number;
+}
+
+export interface ComparableProperty {
+  zpid: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  lotSize?: number;
+  homeStatus?: string;
+  homeType?: string;
+  photo?: string;
+  estimatedRent: number;
+  pricePerSqft: number;
+  rentPerSqft: number;
+  latitude?: number;
+  longitude?: number;
+  zillowUrl?: string;
+}
+
+export interface FullAnalysisResult {
+  mortgage: MortgageBreakdown;
+  cashFlow: CashFlowBreakdown;
+  roi: ROIMetrics;
+  taxSavings: TaxSavingsBreakdown;
+  rentalEstimate: RentalEstimate;
+  comparables?: ComparableProperty[];
+}
+
+export interface PropertyAnalysis {
+  id: number;
+  user_id: number;
+  zillow_url: string;
+  zpid?: string;
+  property_data: PropertyData;
+  analysis_params: AnalysisParams;
+  analysis_results: FullAnalysisResult;
+  rental_comps?: RentalComp[];
+  created_at: string;
+}
