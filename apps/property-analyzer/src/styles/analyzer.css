@@ -362,6 +362,264 @@ a:hover { color: var(--primary-dark); }
   white-space: nowrap;
 }
 
+.results__property-price-block {
+  text-align: right;
+  min-width: 220px;
+  position: relative;
+}
+
+.results__offer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 2px;
+}
+
+.results__list-price {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.results__price-delta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.results__price-delta--savings {
+  color: var(--success, #16a34a);
+}
+
+.results__price-delta--over {
+  color: var(--danger, #dc2626);
+}
+
+/* Rent adjustment slider (inline inside big-number box) */
+.results__rent-slider-inline {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  width: 80%;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.results__rent-slider-inline .results__offer-slider-bounds {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.results__rent-reset {
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.results__rent-reset:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+/* Editable value inputs (offer price popover & rent) */
+.results__editable-value {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.results__editable-value--centered {
+  justify-content: center;
+}
+
+.results__editable-value--hero {
+  margin-bottom: 0.25rem;
+}
+
+.results__editable-prefix {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.results__editable-prefix--hero {
+  font-size: 1.5rem;
+  color: var(--success, #16a34a);
+}
+
+.results__editable-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  width: 120px;
+  text-align: right;
+  transition: border-color 0.2s;
+  -moz-appearance: textfield;
+}
+
+.results__editable-input::-webkit-inner-spin-button,
+.results__editable-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.results__editable-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.results__editable-input--rent {
+  width: 100px;
+}
+
+.results__editable-input--hero {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--success, #16a34a);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  width: 130px;
+  text-align: center;
+}
+
+.results__editable-input--hero:focus {
+  border-style: solid;
+}
+
+/* Offer price toggle button (next to price) */
+.results__offer-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  margin-left: 10px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  vertical-align: middle;
+}
+.results__offer-toggle:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.06);
+}
+
+/* Offer price popover */
+.results__offer-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: 280px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  animation: offerPopIn 0.15s ease-out;
+}
+
+@keyframes offerPopIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.results__offer-slider-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.results__offer-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border, #e2e8f0);
+  outline: none;
+  cursor: pointer;
+}
+
+.results__offer-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.results__offer-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.results__offer-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.results__offer-slider-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+.results__offer-reset {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.results__offer-reset:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .results__stats-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -425,6 +683,33 @@ a:hover { color: var(--primary-dark); }
 .results__metric-label { color: var(--text-muted); font-weight: 500; }
 .results__metric-value { font-weight: 700; font-size: 1.125rem; }
 .results__metric-value--positive { color: var(--success); }
+
+/* "Adjust" link next to Mortgage label */
+.results__adjust-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.07);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  vertical-align: middle;
+  line-height: 1.4;
+  font-family: inherit;
+}
+.results__adjust-link:hover {
+  background: rgba(37, 99, 235, 0.14);
+  border-color: var(--primary);
+}
+.results__adjust-link svg {
+  flex-shrink: 0;
+}
 
 .results__metrics-footer {
   margin-top: 1.5rem; padding-top: 1.5rem;
@@ -517,7 +802,7 @@ a:hover { color: var(--primary-dark); }
 /* Slider param grid */
 .loan-calc__params {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }

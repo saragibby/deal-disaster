@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
 import {
   Home, Building2, Calendar,
@@ -38,35 +38,64 @@ export default function AnalysisResults({ analysis }: Props) {
   const originalParams = analysis.analysis_params;
 
   // ── Adjustable parameters ────────────────────────────────────────
-  const [params, setParams] = useState<AnalysisParams>({ ...originalParams });
+  const [params, setParams] = useState<AnalysisParams>({
+    ...originalParams,
+    offerPrice: originalParams.offerPrice || property.price,
+    rentOverride: originalParams.rentOverride || rental.mid,
+  });
   const [showAllParams, setShowAllParams] = useState(false);
+  const [showOfferSlider, setShowOfferSlider] = useState(false);
+  const offerRef = useRef<HTMLDivElement>(null);
+
+  // Close offer popover on outside click
+  useEffect(() => {
+    if (!showOfferSlider) return;
+    function handleClick(e: MouseEvent) {
+      if (offerRef.current && !offerRef.current.contains(e.target as Node)) {
+        setShowOfferSlider(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showOfferSlider]);
 
   const updateParam = useCallback((key: keyof AnalysisParams, value: number) => {
     setParams(prev => ({ ...prev, [key]: value }));
   }, []);
 
   const isAdjusted = useMemo(() => {
-    return (Object.keys(originalParams) as (keyof AnalysisParams)[]).some(
-      k => params[k] !== originalParams[k],
+    const baseline = {
+      ...originalParams,
+      offerPrice: originalParams.offerPrice || property.price,
+      rentOverride: originalParams.rentOverride || rental.mid,
+    };
+    return (Object.keys(baseline) as (keyof AnalysisParams)[]).some(
+      k => params[k] !== baseline[k],
     );
-  }, [params, originalParams]);
+  }, [params, originalParams, property.price, rental.mid]);
 
   const resetParams = useCallback(() => {
-    setParams({ ...originalParams });
-  }, [originalParams]);
+    setParams({ ...originalParams, offerPrice: property.price, rentOverride: rental.mid });
+  }, [originalParams, property.price, rental.mid]);
 
   // ── Live recalculation ───────────────────────────────────────────
+  const effectivePrice = params.offerPrice > 0 ? params.offerPrice : property.price;
+  const priceAdjusted = effectivePrice !== property.price;
+  const priceDelta = effectivePrice - property.price;
+  const priceDeltaPct = ((priceDelta / property.price) * 100).toFixed(1);
+
   const { mortgage, cashFlow, roi, tax } = useMemo(() => {
+    const price = params.offerPrice > 0 ? params.offerPrice : property.price;
     const m = calculateMortgage(
-      property.price,
+      price,
       params.downPaymentPct,
       params.interestRate,
       params.loanTermYears,
     );
-    const cf = calculateCashFlow(rental.mid, m, params);
-    const r = calculateROI(property.price, cf, m);
+    const cf = calculateCashFlow(params.rentOverride || rental.mid, m, params);
+    const r = calculateROI(price, cf, m);
     const t = calculateTaxSavings(
-      property.price,
+      price,
       params.costSegPct,
       params.taxRate,
       r.totalCashInvested,
@@ -74,6 +103,9 @@ export default function AnalysisResults({ analysis }: Props) {
     );
     return { mortgage: m, cashFlow: cf, roi: r, tax: t };
   }, [params, property.price, rental.mid]);
+
+  const effectiveRent = params.rentOverride || rental.mid;
+  const rentAdjusted = effectiveRent !== rental.mid;
 
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
 
@@ -90,7 +122,67 @@ export default function AnalysisResults({ analysis }: Props) {
               {[property.city, property.state, property.zip].filter(Boolean).join(', ')}
             </p>
           </div>
-          <div className="results__property-price">{fmt(property.price)}</div>
+          <div className="results__property-price-block" ref={offerRef}>
+            <div className="results__property-price">
+              {priceAdjusted ? fmt(effectivePrice) : fmt(property.price)}
+              <button
+                type="button"
+                className="results__offer-toggle"
+                onClick={() => setShowOfferSlider(o => !o)}
+                title="Run offer scenarios"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
+            </div>
+            {priceAdjusted && (
+              <div className="results__offer-meta">
+                <span className="results__list-price">List: {fmt(property.price)}</span>
+                <span className={`results__price-delta ${priceDelta < 0 ? 'results__price-delta--savings' : 'results__price-delta--over'}`}>
+                  {priceDelta < 0 ? '−' : '+'}{fmt(Math.abs(priceDelta))} ({priceDelta < 0 ? '' : '+'}{priceDeltaPct}%)
+                </span>
+              </div>
+            )}
+            {showOfferSlider && (
+              <div className="results__offer-popover">
+                <label className="results__offer-slider-label">Offer Price</label>
+                <div className="results__editable-value">
+                  <span className="results__editable-prefix">$</span>
+                  <input
+                    type="number"
+                    className="results__editable-input"
+                    value={params.offerPrice || property.price}
+                    onChange={e => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v > 0) updateParam('offerPrice', v);
+                    }}
+                    step={1000}
+                  />
+                </div>
+                <input
+                  type="range"
+                  className="results__offer-range"
+                  value={params.offerPrice || property.price}
+                  onChange={e => updateParam('offerPrice', parseFloat(e.target.value))}
+                  min={Math.round(property.price * 0.5)}
+                  max={Math.round(property.price * 1.2)}
+                  step={1000}
+                />
+                <div className="results__offer-slider-bounds">
+                  <span>{fmt(Math.round(property.price * 0.5))}</span>
+                  <span>{fmt(Math.round(property.price * 1.2))}</span>
+                </div>
+                {priceAdjusted && (
+                  <button
+                    type="button"
+                    className="results__offer-reset"
+                    onClick={() => updateParam('offerPrice', property.price)}
+                  >
+                    Reset to list price
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="results__stats-row">
@@ -115,11 +207,46 @@ export default function AnalysisResults({ analysis }: Props) {
 
           <div className="results__big-number">
             <div className="results__big-label">Estimated Monthly Rent</div>
-            <div className="results__big-value results__big-value--positive">
-              {fmt(rental.mid)}
+            <div className="results__editable-value results__editable-value--centered results__editable-value--hero">
+              <span className="results__editable-prefix results__editable-prefix--hero">$</span>
+              <input
+                type="number"
+                className="results__editable-input results__editable-input--rent results__editable-input--hero"
+                value={effectiveRent}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) updateParam('rentOverride', v);
+                }}
+                step={25}
+              />
+              {rentAdjusted && (
+                <button
+                  type="button"
+                  className="results__rent-reset"
+                  onClick={() => updateParam('rentOverride', rental.mid)}
+                >
+                  Reset
+                </button>
+              )}
             </div>
             <div className="results__big-caption">
               Confidence: {rental.confidence} &bull; Range: {fmt(rental.low)} – {fmt(rental.high)}
+            </div>
+
+            <div className="results__rent-slider-inline">
+              <input
+                type="range"
+                className="results__offer-range"
+                value={effectiveRent}
+                onChange={e => updateParam('rentOverride', parseFloat(e.target.value))}
+                min={Math.round(rental.low * 0.8)}
+                max={Math.round(rental.high * 1.2)}
+                step={25}
+              />
+              <div className="results__offer-slider-bounds">
+                <span>{fmt(Math.round(rental.low * 0.8))}</span>
+                <span>{fmt(Math.round(rental.high * 1.2))}</span>
+              </div>
             </div>
           </div>
 
@@ -157,7 +284,21 @@ export default function AnalysisResults({ analysis }: Props) {
           </h3>
 
           <MetricRow label="Monthly Rent Income" value={fmt(cashFlow.monthlyRent)} positive />
-          <MetricRow label="Mortgage (P&I)" value={fmt(cashFlow.monthlyMortgage)} />
+          <div className="results__metric-row">
+            <span className="results__metric-label">
+              Mortgage (P&amp;I)
+              <button
+                type="button"
+                className="results__adjust-link"
+                onClick={() => document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                title="Adjust in Loan Calculator below"
+              >
+                <SlidersHorizontal size={13} />
+                Adjust
+              </button>
+            </span>
+            <span className="results__metric-value">{fmt(cashFlow.monthlyMortgage)}</span>
+          </div>
           <MetricRow label="Property Tax" value={fmt(cashFlow.monthlyTax)} />
           <MetricRow label="Insurance" value={fmt(cashFlow.monthlyInsurance)} />
           <MetricRow label="Vacancy Reserve" value={fmt(cashFlow.monthlyVacancy)} />
@@ -233,7 +374,7 @@ export default function AnalysisResults({ analysis }: Props) {
       </div>
 
       {/* Loan Calculator — adjustable */}
-      <div className={`results__card results__mortgage-card ${isAdjusted ? 'results__mortgage-card--adjusted' : ''}`}>
+      <div id="loan-calculator" className={`results__card results__mortgage-card ${isAdjusted ? 'results__mortgage-card--adjusted' : ''}`}>
         <div className="results__loan-header">
           <h3 className="results__card-title" style={{ marginBottom: 0 }}>
             <span className="results__icon results__icon--purple"><PiggyBank size={20} /></span>
@@ -255,7 +396,7 @@ export default function AnalysisResults({ analysis }: Props) {
             onChange={v => updateParam('downPaymentPct', v)}
             min={0} max={100} step={1}
             suffix="%"
-            detail={fmt(property.price * (params.downPaymentPct / 100))}
+            detail={fmt(effectivePrice * (params.downPaymentPct / 100))}
           />
           <SliderInput
             label="Interest Rate"

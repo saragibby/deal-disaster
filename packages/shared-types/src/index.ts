@@ -246,6 +246,8 @@ export interface AnalysisParams {
   annualInsurance: number;
   costSegPct: number;
   taxRate: number;
+  offerPrice: number;
+  rentOverride: number;
 }
 
 export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
@@ -260,6 +262,8 @@ export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
   annualInsurance: 1500,
   costSegPct: 22.5,
   taxRate: 20,
+  offerPrice: 0,
+  rentOverride: 0,
 };
 
 export interface MortgageBreakdown {
