@@ -1317,6 +1317,18 @@ a:hover { color: var(--color-primary-hover); }
 .login-form__error { color: #e74c3c; font-size: 0.9rem; background: rgba(231, 76, 60, 0.1); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
 .login-form__success { color: #2ecc71; font-size: 0.9rem; background: rgba(46, 204, 113, 0.1); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
 
+.login-card__forgot {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: right;
+  padding: 0;
+  margin-top: -0.25rem;
+}
+.login-card__forgot:hover { text-decoration: underline; }
+
 .login-card__footer { text-align: center; margin-top: 1.5rem; }
 
 .login-card__toggle {

@@ -75,6 +75,19 @@ export class ApiService {
     return response.json();
   }
 
+  async forgotPassword(email: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to send reset email');
+    }
+    return response.json();
+  }
+
   async getCurrentUser() {
     const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
       headers: this.getHeaders(true),

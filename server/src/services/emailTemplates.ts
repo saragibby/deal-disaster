@@ -220,7 +220,7 @@ export function createEmailTemplate({
                 <!-- Header -->
                 <tr>
                   <td class="email-header">
-                    <img src="https://deal-or-disaster-e49d81876c17.herokuapp.com/assets/logo-CadPa1ty.png" alt="Deal or Disaster Logo" class="email-logo" />
+                    <div style="font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px;">⚡ Passive Income Club</div>
                     <h1>${heroText}</h1>
                   </td>
                 </tr>
@@ -236,12 +236,12 @@ export function createEmailTemplate({
                 <tr>
                   <td class="email-footer">
                     ${footerText || `
-                      <p>&copy; ${new Date().getFullYear()} Deal or Disaster by Money Man Myers</p>
+                      <p>&copy; ${new Date().getFullYear()} Passive Income Club</p>
                       <p>
-                        <a href="${process.env.CLIENT_URL || 'https://dealdisaster.com'}">Visit our website</a> •
-                        <a href="mailto:${process.env.SMTP_REPLY_TO || 'support@moneymanmyers.com'}">Contact Support</a>
+                        <a href="${process.env.CLIENT_URL || 'https://passiveincomeclub.com'}">Visit our website</a> •
+                        <a href="mailto:${process.env.SMTP_REPLY_TO || 'support@passiveincomeclub.com'}">Contact Support</a>
                       </p>
-                      <p class="text-muted">You're receiving this email because you signed up for Deal or Disaster.</p>
+                      <p class="text-muted">You're receiving this email because you signed up for Passive Income Club.</p>
                     `}
                   </td>
                 </tr>

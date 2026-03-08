@@ -6,6 +6,7 @@ export default function Login() {
   const { isAuthenticated, login } = useAuth();
   const navigate = useNavigate();
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -71,6 +72,23 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const data = await api.forgotPassword(email);
+      setSuccess(data.message || 'If an account exists, a reset link has been sent.');
+      setEmail('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOAuth = (provider: 'google' | 'microsoft') => {
     window.location.href = `${apiUrl}/api/auth/${provider}`;
   };
@@ -115,46 +133,85 @@ export default function Login() {
         </div>
 
         {/* Email Form */}
-        <form onSubmit={handleSubmit} className="login-form">
-          {!isLoginMode && (
+        {showForgotPassword ? (
+          <form onSubmit={handleForgotPassword} className="login-form">
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', textAlign: 'center', margin: '0 0 0.5rem' }}>
+              Enter your email and we'll send you a reset link.
+            </p>
             <input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={e => setName(e.target.value)}
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
               className="login-form__input"
             />
-          )}
-          <input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            className="login-form__input"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            minLength={6}
-            className="login-form__input"
-          />
 
-          {error && <div className="login-form__error">{error}</div>}
-          {success && <div className="login-form__success">{success}</div>}
+            {error && <div className="login-form__error">{error}</div>}
+            {success && <div className="login-form__success">{success}</div>}
 
-          <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
-            {loading ? 'Please wait...' : isLoginMode ? 'Sign In' : 'Create Account'}
-          </button>
-        </form>
+            <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+              {loading ? 'Sending...' : 'Send Reset Link'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="login-form">
+            {!isLoginMode && (
+              <input
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="login-form__input"
+              />
+            )}
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="login-form__input"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="login-form__input"
+            />
+
+            {isLoginMode && (
+              <button
+                type="button"
+                className="login-card__forgot"
+                onClick={() => { setShowForgotPassword(true); setError(''); setSuccess(''); }}
+              >
+                Forgot password?
+              </button>
+            )}
+
+            {error && <div className="login-form__error">{error}</div>}
+            {success && <div className="login-form__success">{success}</div>}
+
+            <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
+              {loading ? 'Please wait...' : isLoginMode ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+        )}
 
         <div className="login-card__footer">
-          <button className="login-card__toggle" onClick={() => { setIsLoginMode(!isLoginMode); setError(''); setSuccess(''); }}>
-            {isLoginMode ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-          </button>
+          {showForgotPassword ? (
+            <button className="login-card__toggle" onClick={() => { setShowForgotPassword(false); setError(''); setSuccess(''); }}>
+              ← Back to sign in
+            </button>
+          ) : (
+            <button className="login-card__toggle" onClick={() => { setIsLoginMode(!isLoginMode); setError(''); setSuccess(''); }}>
+              {isLoginMode ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+            </button>
+          )}
         </div>
       </div>
     </div>

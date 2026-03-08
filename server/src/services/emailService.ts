@@ -37,7 +37,7 @@ export async function sendVerificationEmail(
 
   const bodyHtml = `
     <p>Hi ${name || 'there'},</p>
-    <p>Thank you for signing up for <strong>Deal or Disaster</strong>! Please verify your email address to complete your registration and start playing.</p>
+    <p>Thank you for signing up for <strong>Passive Income Club</strong>! Please verify your email address to complete your registration.</p>
     
     <div class="text-center">
       <a href="${verificationUrl}" class="email-button">✅ Verify Email Address</a>
@@ -49,24 +49,24 @@ export async function sendVerificationEmail(
     </div>
     
     <p class="text-muted">This verification link will expire in 24 hours.</p>
-    <p class="text-muted">If you didn't create an account with Deal or Disaster, you can safely ignore this email.</p>
+    <p class="text-muted">If you didn't create an account with Passive Income Club, you can safely ignore this email.</p>
   `;
 
   const htmlContent = createEmailTemplate({
-    title: 'Verify Your Email - Deal or Disaster',
-    preheader: 'Click to verify your email and start playing!',
-    heroText: '🎉 Welcome to Deal or Disaster!',
+    title: 'Verify Your Email - Passive Income Club',
+    preheader: 'Click to verify your email and get started!',
+    heroText: '🎉 Welcome to Passive Income Club!',  
     bodyHtml
   });
 
   const mailOptions = {
-    from: process.env.SMTP_FROM || 'noreply@dealdisaster.com',
-    replyTo: process.env.SMTP_REPLY_TO || process.env.SMTP_FROM || 'support@moneymanmyers.com',
+    from: process.env.SMTP_FROM || 'noreply@passiveincomeclub.com',
+    replyTo: process.env.SMTP_REPLY_TO || process.env.SMTP_FROM || 'support@passiveincomeclub.com',
     to: email,
-    subject: 'Verify Your Email - Deal or Disaster',
+    subject: 'Verify Your Email - Passive Income Club',
     html: htmlContent,
     text: `
-🎉 Welcome to Deal or Disaster!
+🎉 Welcome to Passive Income Club!
 
 Hi ${name || 'there'},
 
@@ -78,7 +78,7 @@ This link will expire in 24 hours.
 
 If you didn't create an account, you can safely ignore this email.
 
-© ${new Date().getFullYear()} Deal or Disaster by Money Man Myers
+© ${new Date().getFullYear()} Passive Income Club
     `,
   };
 
@@ -110,7 +110,7 @@ export async function sendPasswordResetEmail(
 
   const bodyHtml = `
     <p>Hi ${name || 'there'},</p>
-    <p>We received a request to reset your password for your <strong>Deal or Disaster</strong> account.</p>
+    <p>We received a request to reset your password for your <strong>Passive Income Club</strong> account.</p>
     
     <div class="text-center">
       <a href="${resetUrl}" class="email-button">🔐 Reset Password</a>
@@ -129,24 +129,24 @@ export async function sendPasswordResetEmail(
   `;
 
   const htmlContent = createEmailTemplate({
-    title: 'Password Reset Request - Deal or Disaster',
+    title: 'Password Reset Request - Passive Income Club',
     preheader: 'Reset your password to regain access to your account',
     heroText: '🔐 Password Reset Request',
     bodyHtml
   });
 
   const mailOptions = {
-    from: process.env.SMTP_FROM || 'noreply@dealdisaster.com',
-    replyTo: process.env.SMTP_REPLY_TO || process.env.SMTP_FROM || 'support@moneymanmyers.com',
+    from: process.env.SMTP_FROM || 'noreply@passiveincomeclub.com',
+    replyTo: process.env.SMTP_REPLY_TO || process.env.SMTP_FROM || 'support@passiveincomeclub.com',
     to: email,
-    subject: 'Password Reset Request - Deal or Disaster',
+    subject: 'Password Reset Request - Passive Income Club',
     html: htmlContent,
     text: `
 Password Reset Request
 
 Hi ${name || 'there'},
 
-We received a request to reset your password for your Deal or Disaster account.
+We received a request to reset your password for your Passive Income Club account.
 
 Click the link below to reset your password:
 
@@ -156,7 +156,7 @@ This link will expire in 1 hour.
 
 ⚠️ Security Notice: If you didn't request a password reset, please ignore this email and your password will remain unchanged.
 
-© ${new Date().getFullYear()} Deal or Disaster by Money Man Myers
+© ${new Date().getFullYear()} Passive Income Club
     `,
   };
 
