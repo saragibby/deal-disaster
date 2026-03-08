@@ -1,7 +1,7 @@
 import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
 import { AskWill } from '@deal-platform/shared-ui';
 import { LogOut, User } from 'lucide-react';
-import Footer from './components/Footer';
+import { Footer } from '@deal-platform/shared-ui';
 import PropertyAnalyzer from './components/PropertyAnalyzer';
 import LoginGate from './components/LoginGate';
 

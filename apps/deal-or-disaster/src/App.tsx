@@ -5,7 +5,7 @@ import DecisionButtons from './components/DecisionButtons';
 import ScoreDisplay from './components/ScoreDisplay';
 import ResultModal from './components/ResultModal';
 import AuthForm from './components/AuthForm';
-import Footer from './components/Footer';
+import { Footer } from '@deal-platform/shared-ui';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
 import DailyChallenge from './components/DailyChallenge';
@@ -14,6 +14,8 @@ import { AskWill } from '@deal-platform/shared-ui';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { api } from './services/api';
+import { buildAppUrl } from '@deal-platform/shared-auth';
+import { LogOut, User } from 'lucide-react';
 import logo from './assets/logo.png';
 import './App.css';
 
@@ -614,6 +616,14 @@ function App() {
   if (initializing) {
     return (
       <div className="app-container">
+        <header className="platform-header">
+          <a href={buildAppUrl('/')} className="platform-header__logo">⚡ Passive Income Club</a>
+          <nav className="platform-header__nav">
+            <a href={buildAppUrl('/')} className="platform-header__link">Home</a>
+            <a href={buildAppUrl('/games')} className="platform-header__link">Games</a>
+            <a href={buildAppUrl('/tools')} className="platform-header__link">Tools</a>
+          </nav>
+        </header>
         <div className="loading-screen">
           <div className="spinner"></div>
           <p>Loading...</p>
@@ -626,6 +636,14 @@ function App() {
   if (!isAuthenticated) {
     return (
       <div className="app-container">
+        <header className="platform-header">
+          <a href={buildAppUrl('/')} className="platform-header__logo">⚡ Passive Income Club</a>
+          <nav className="platform-header__nav">
+            <a href={buildAppUrl('/')} className="platform-header__link">Home</a>
+            <a href={buildAppUrl('/games')} className="platform-header__link">Games</a>
+            <a href={buildAppUrl('/tools')} className="platform-header__link">Tools</a>
+          </nav>
+        </header>
         <div className="homepage">
         <div className="homepage-left">
           <img 
@@ -689,6 +707,20 @@ function App() {
   if (!gameStarted) {
     return (
       <div className="app-container">
+        <header className="platform-header">
+          <a href={buildAppUrl('/')} className="platform-header__logo">⚡ Passive Income Club</a>
+          <nav className="platform-header__nav">
+            <a href={buildAppUrl('/')} className="platform-header__link">Home</a>
+            <a href={buildAppUrl('/games')} className="platform-header__link">Games</a>
+            <a href={buildAppUrl('/tools')} className="platform-header__link">Tools</a>
+            <a href={buildAppUrl('/profile')} className="platform-header__user">
+              <User size={16} /> {user?.name || user?.email}
+            </a>
+            <button className="platform-header__logout" onClick={handleLogout} title="Sign out">
+              <LogOut size={14} />
+            </button>
+          </nav>
+        </header>
         <div className="welcome-page">
           <div className="welcome-left">
             <div className="welcome-header-horizontal">
@@ -862,6 +894,20 @@ function App() {
   // Show game interface when authenticated and game started
   return (
     <div className="app-container">
+    <header className="platform-header">
+      <a href={buildAppUrl('/')} className="platform-header__logo">⚡ Passive Income Club</a>
+      <nav className="platform-header__nav">
+        <a href={buildAppUrl('/')} className="platform-header__link">Home</a>
+        <a href={buildAppUrl('/games')} className="platform-header__link">Games</a>
+        <a href={buildAppUrl('/tools')} className="platform-header__link">Tools</a>
+        <a href={buildAppUrl('/profile')} className="platform-header__user">
+          <User size={16} /> {user?.name || user?.email}
+        </a>
+        <button className="platform-header__logout" onClick={handleLogout} title="Sign out">
+          <LogOut size={14} />
+        </button>
+      </nav>
+    </header>
     <div className="app">
       <header className="app-header">
         <div className="header-left">

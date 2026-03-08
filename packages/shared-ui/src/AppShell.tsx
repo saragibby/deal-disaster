@@ -1,4 +1,5 @@
-import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
+import { Link, NavLink } from 'react-router-dom';
+import { useAuth } from '@deal-platform/shared-auth';
 import { User, LogOut, Shield } from 'lucide-react';
 
 interface AppShellProps {
@@ -17,40 +18,40 @@ export function AppShell({ children, footer, title = 'Passive Income Club', logo
       {showNav && (
         <header className="app-shell__header">
           <div className="app-shell__header-left">
-            <a href={buildAppUrl('/')} className="app-shell__logo">
+            <Link to="/" className="app-shell__logo">
               {logoSrc ? (
                 <img src={logoSrc} alt={title} className="app-shell__logo-img" />
               ) : (
                 <span className="app-shell__logo-icon">💰</span>
               )}
               <span className="app-shell__logo-text">{title}</span>
-            </a>
+            </Link>
           </div>
           <nav className="app-shell__nav">
-            <a href={buildAppUrl('/')} className="app-shell__nav-link">Home</a>
-            <a href={buildAppUrl('/games')} className="app-shell__nav-link">Games</a>
-            <a href={buildAppUrl('/resources')} className="app-shell__nav-link">Resources</a>
-            <a href={buildAppUrl('/tools')} className="app-shell__nav-link">Tools</a>
-            <a href={buildAppUrl('/leaderboard')} className="app-shell__nav-link">Leaderboard</a>
+            <NavLink to="/" end className={({ isActive }) => `app-shell__nav-link${isActive ? ' app-shell__nav-link--active' : ''}`}>Home</NavLink>
+            <NavLink to="/games" className={({ isActive }) => `app-shell__nav-link${isActive ? ' app-shell__nav-link--active' : ''}`}>Games</NavLink>
+            <NavLink to="/resources" className={({ isActive }) => `app-shell__nav-link${isActive ? ' app-shell__nav-link--active' : ''}`}>Resources</NavLink>
+            <NavLink to="/tools" className={({ isActive }) => `app-shell__nav-link${isActive ? ' app-shell__nav-link--active' : ''}`}>Tools</NavLink>
+            <NavLink to="/leaderboard" className={({ isActive }) => `app-shell__nav-link${isActive ? ' app-shell__nav-link--active' : ''}`}>Leaderboard</NavLink>
           </nav>
           <div className="app-shell__header-right">
             {isAuthenticated && user ? (
               <div className="app-shell__user-menu">
                 {user.is_admin && (
-                  <a href={buildAppUrl('/admin')} className="app-shell__admin-link" title="Admin">
+                  <Link to="/admin" className="app-shell__admin-link" title="Admin">
                     <Shield size={18} />
-                  </a>
+                  </Link>
                 )}
-                <a href={buildAppUrl('/profile')} className="app-shell__user-info">
+                <Link to="/profile" className="app-shell__user-info">
                   <User size={18} />
                   <span>{user.name || user.email}</span>
-                </a>
+                </Link>
                 <button onClick={logout} className="app-shell__logout-btn" title="Sign out">
                   <LogOut size={18} />
                 </button>
               </div>
             ) : (
-              <a href={buildAppUrl('/login')} className="app-shell__login-btn">Sign In</a>
+              <Link to="/login" className="app-shell__login-btn">Sign In</Link>
             )}
           </div>
         </header>

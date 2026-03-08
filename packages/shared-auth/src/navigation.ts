@@ -37,7 +37,9 @@ export function buildAppUrl(appPath: string): string {
   let url: string;
 
   if (isDev) {
-    const port = DEV_APP_PORTS[appPath] || DASHBOARD_PORT;
+    // Find the matching app by prefix (e.g. '/property-analyzer/analysis/5' → '/property-analyzer/')
+    const matchedApp = Object.keys(DEV_APP_PORTS).find(prefix => appPath.startsWith(prefix));
+    const port = matchedApp ? DEV_APP_PORTS[matchedApp] : DASHBOARD_PORT;
     url = `http://localhost:${port}${appPath}`;
 
     // Different ports → different origins → separate localStorage.

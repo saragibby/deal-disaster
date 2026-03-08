@@ -4,9 +4,10 @@ interface GameCardProps {
   game: GameInfo;
   onClick?: () => void;
   hideDescription?: boolean;
+  iconImage?: string;
 }
 
-export function GameCard({ game, onClick, hideDescription }: GameCardProps) {
+export function GameCard({ game, onClick, hideDescription, iconImage }: GameCardProps) {
   const statusBadge = {
     'live': { label: 'Live', className: 'game-card__badge--live' },
     'beta': { label: 'Beta', className: 'game-card__badge--beta' },
@@ -24,11 +25,13 @@ export function GameCard({ game, onClick, hideDescription }: GameCardProps) {
       tabIndex={game.status !== 'coming-soon' ? 0 : undefined}
     >
       {game.is_featured && (
-        <div className="game-card__featured-badge">⭐ Featured</div>
+        <div className="game-card__featured-badge">⭐</div>
       )}
-      <div className="game-card__icon">{game.icon}</div>
       <div className="game-card__content">
         <div className="game-card__header">
+          <span className="game-card__icon">
+            {iconImage ? <img src={iconImage} alt={game.name} className="game-card__icon-img" /> : game.icon}
+          </span>
           <h3 className="game-card__title">{game.name}</h3>
           <span className={`game-card__badge ${badge.className}`}>
             {badge.label}

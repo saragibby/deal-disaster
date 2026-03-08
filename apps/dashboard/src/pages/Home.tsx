@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
 import type { GameInfo, UserStats, LeaderboardEntry, Resource, Tool, Announcement } from '@deal-platform/shared-types';
-import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone, Wrench } from 'lucide-react';
+import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone, Wrench, Home as HomeIcon } from 'lucide-react';
 import LandingPage from './LandingPage';
+import dodFavicon from '../assets/deal-or-disaster-favicon.png';
 
 const GAMES: GameInfo[] = [
   {
@@ -50,6 +51,7 @@ export default function Home() {
   const [featuredResources, setFeaturedResources] = useState<Resource[]>([]);
   const [featuredTools, setFeaturedTools] = useState<Tool[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [recentAnalyses, setRecentAnalyses] = useState<any[]>([]);
 
   useEffect(() => {
     // Fetch featured resources for all visitors
@@ -76,6 +78,9 @@ export default function Home() {
       api.getUserStats().then(setStats).catch(console.error);
       api.getCrossLeaderboard()
         .then((data) => setTopPlayers(data.leaderboard?.slice(0, 5) || []))
+        .catch(console.error);
+      api.getAnalysisHistory(1, 2)
+        .then((data) => setRecentAnalyses(data.analyses || []))
         .catch(console.error);
     }
   }, [isAuthenticated]);
@@ -148,6 +153,52 @@ export default function Home() {
         </section>
       )}
 
+      {/* Recent Property Analyses */}
+      {recentAnalyses.length > 0 && (
+        <section className="home__recent-analyses">
+          <div className="section-header">
+            <h2 className="section-title"><HomeIcon size={20} /> Recent Analyses</h2>
+            <a href={buildAppUrl('/property-analyzer/')} className="section-link">Property Analyzer →</a>
+          </div>
+          <div className="recent-analyses-grid">
+            {recentAnalyses.map((a: any) => {
+              const prop = a.property_data;
+              const results = a.analysis_results;
+              const photo = prop?.photos?.[0];
+              return (
+                <a
+                  key={a.id}
+                  href={buildAppUrl(`/property-analyzer/analysis/${a.id}`)}
+                  className="recent-analysis-card"
+                >
+                  {photo && (
+                    <div className="recent-analysis-card__img">
+                      <img src={photo} alt={prop?.address} />
+                    </div>
+                  )}
+                  <div className="recent-analysis-card__body">
+                    <div className="recent-analysis-card__top">
+                      <h3 className="recent-analysis-card__address">{prop?.address}</h3>
+                      <span className="recent-analysis-card__location">{prop?.city}, {prop?.state} {prop?.zip}</span>
+                    </div>
+                    <div className="recent-analysis-card__bottom">
+                      <span className="recent-analysis-card__price">${prop?.price?.toLocaleString()}</span>
+                      <span className="recent-analysis-card__detail">{prop?.bedrooms}bd / {prop?.bathrooms}ba</span>
+                      {prop?.sqft && <span className="recent-analysis-card__detail">{prop.sqft.toLocaleString()} sqft</span>}
+                      {results?.cashFlow?.monthlyCashFlow != null && (
+                        <span className={`recent-analysis-card__cashflow ${results.cashFlow.monthlyCashFlow >= 0 ? 'positive' : 'negative'}`}>
+                          ${Math.round(results.cashFlow.monthlyCashFlow).toLocaleString()}/mo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* All Games */}
       <section className="home__games">
         <div className="section-header">
@@ -156,7 +207,12 @@ export default function Home() {
         </div>
         <div className="game-grid">
           {GAMES.map(game => (
-            <GameCard key={game.id} game={game} onClick={() => handleGameClick(game)} />
+            <GameCard
+              key={game.id}
+              game={game}
+              onClick={() => handleGameClick(game)}
+              iconImage={game.id === 'deal-or-disaster' ? dodFavicon : undefined}
+            />
           ))}
         </div>
       </section>
@@ -180,9 +236,7 @@ export default function Home() {
                 rel={!isInternal && tool.url ? 'noopener noreferrer' : undefined}
                 className="featured-resource-card"
               >
-                <div className="featured-resource-card__badge">
-                  <Star size={14} /> Featured
-                </div>
+                <span className="featured-resource-card__badge">⭐</span>
                 <h3 className="featured-resource-card__title">{tool.icon} {tool.name}</h3>
                 <p className="featured-resource-card__desc">{tool.description}</p>
                 <span className="featured-resource-card__cta">
@@ -211,9 +265,7 @@ export default function Home() {
                 rel={resource.url ? 'noopener noreferrer' : undefined}
                 className="featured-resource-card"
               >
-                <div className="featured-resource-card__badge">
-                  <Star size={14} /> Featured
-                </div>
+                <span className="featured-resource-card__badge">⭐</span>
                 <h3 className="featured-resource-card__title">{resource.title}</h3>
                 <p className="featured-resource-card__desc">{resource.description}</p>
                 <span className="featured-resource-card__cta">

@@ -23,6 +23,74 @@
   min-height: 100vh;
 }
 
+/* Platform Header */
+.platform-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.platform-header__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: white;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.1rem;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+.platform-header__logo:hover { opacity: 1; color: white; }
+
+.platform-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.platform-header__link {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-decoration: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.platform-header__link:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.platform-header__user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.platform-header__user:hover { color: white; }
+
+.platform-header__logout {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.platform-header__logout:hover { background: rgba(255, 255, 255, 0.25); }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -2233,6 +2301,9 @@ body {
 }
 
 @media (max-width: 768px) {
+  .platform-header { padding: 1rem; }
+  .platform-header__nav { display: none; }
+
   .decision-buttons {
     grid-template-columns: 1fr;
   }

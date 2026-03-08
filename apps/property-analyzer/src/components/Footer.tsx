@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '@deal-platform/shared-auth';
+import moneyManLogo from '../assets/money_man_white.png';
 
 export default function Footer() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -30,6 +31,10 @@ export default function Footer() {
     <>
       <footer className="site-footer">
         <div className="footer-content">
+          <div className="footer-logo">
+            <img src={moneyManLogo} alt="Money Man Will Myers" />
+          </div>
+
           <div className="footer-info">
             <p className="footer-copyright">
               &copy; {new Date().getFullYear()} Passive Income Club. All rights reserved.

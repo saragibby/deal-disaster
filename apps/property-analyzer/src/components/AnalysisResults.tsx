@@ -4,7 +4,7 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  ImageIcon, ExternalLink,
+  Coins,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -114,25 +114,9 @@ export default function AnalysisResults({ analysis }: Props) {
 
   return (
     <div className="results">
-      {/* Property Info Card — with photo */}
+      {/* Property Info Card */}
       <div className="results__card results__property">
         <div className="results__property-top">
-          {/* Photo */}
-          {property.photos && property.photos.length > 0 ? (
-            <div className="results__photo">
-              <img src={property.photos[0]} alt={property.address || 'Property'} />
-            </div>
-          ) : (
-            <div className="results__photo results__photo--empty">
-              <ImageIcon size={36} strokeWidth={1.5} />
-              {property.zillowUrl && (
-                <a href={property.zillowUrl} target="_blank" rel="noopener noreferrer" className="results__photo-link">
-                  View on Zillow <ExternalLink size={12} />
-                </a>
-              )}
-            </div>
-          )}
-
           {/* Info */}
           <div className="results__property-info">
             <div className="results__property-header">
@@ -357,24 +341,32 @@ export default function AnalysisResults({ analysis }: Props) {
             <MetricRow label="Total Cash Invested" value={fmt(roi.totalCashInvested)} />
           </div>
 
-          {/* Tax Savings — inlined */}
+          {/* Tax Savings — two-panel layout */}
           <div className="results__tax-inline">
             <h4 className="results__tax-inline-title">
-              <span className="results__icon results__icon--green-sm">💰</span>
-              Cost Segregation Tax Savings
+              <Coins size={15} /> Cost Segregation Tax Savings
             </h4>
-            <div className="results__tax-inline-grid">
-              <div className="results__tax-inline-item">
-                <span className="results__tax-inline-label">Accelerated Depreciation</span>
-                <span className="results__tax-inline-value">{fmt(tax.depreciationDeduction)}</span>
+            <div className="results__tax-panels">
+              {/* Left panel — 3 data rows */}
+              <div className="results__tax-panel results__tax-panel--left">
+                <div className="results__tax-row">
+                  <span className="results__tax-row-label">Purchase Price</span>
+                  <span className="results__tax-row-value">{fmt(tax.purchasePrice)}</span>
+                </div>
+                <div className="results__tax-row">
+                  <span className="results__tax-row-label">Accelerated Depreciation</span>
+                  <span className="results__tax-row-value">{fmt(tax.depreciationDeduction)}</span>
+                </div>
+                <div className="results__tax-row">
+                  <span className="results__tax-row-label">Tax Savings (Yr 1)</span>
+                  <span className="results__tax-row-value results__tax-row-value--green">{fmt(tax.taxSavings)}</span>
+                </div>
               </div>
-              <div className="results__tax-inline-item">
-                <span className="results__tax-inline-label">Tax Savings (Yr 1)</span>
-                <span className="results__tax-inline-value results__tax-inline-value--highlight">{fmt(tax.taxSavings)}</span>
-              </div>
-              <div className="results__tax-inline-item">
-                <span className="results__tax-inline-label">Effective First-Year Return</span>
-                <span className="results__tax-inline-value results__tax-inline-value--highlight">{pct(tax.effectiveFirstYearReturn)}</span>
+              {/* Right panel — hero percentage */}
+              <div className="results__tax-panel results__tax-panel--right">
+                <span className="results__tax-hero-label">Effective First-Year Return</span>
+                <span className="results__tax-hero-value">{pct(tax.effectiveFirstYearReturn)}</span>
+                <span className="results__tax-hero-caption">Cash flow + tax savings</span>
               </div>
             </div>
           </div>

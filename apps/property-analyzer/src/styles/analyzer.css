@@ -349,37 +349,6 @@ a:hover { color: var(--primary-dark); }
   align-items: stretch;
 }
 
-.results__photo {
-  flex: 0 0 280px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--bg);
-  min-height: 200px;
-}
-.results__photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.results__photo--empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  color: var(--text-muted);
-  border: 2px dashed var(--border);
-}
-.results__photo-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--primary);
-}
-
 .results__property-info {
   flex: 1;
   min-width: 0;
@@ -1107,45 +1076,109 @@ a:hover { color: var(--primary-dark); }
 
 /* ===== Tax Savings — Inlined in Cash Flow Card ===== */
 .results__tax-inline {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
   border-top: 1px solid var(--border);
 }
 .results__tax-inline-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
+  gap: 0.4rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  margin-bottom: 0.75rem;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem 0;
+  padding-left: 0;
 }
-.results__icon--green-sm {
-  font-size: 1rem;
-}
-.results__tax-inline-grid {
+/* Two-panel layout */
+.results__tax-panels {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr auto;
   gap: 1rem;
+  align-items: center;
 }
-.results__tax-inline-item {
-  text-align: center;
-  padding: 0.75rem;
-  background: var(--bg);
+
+/* Left panel — data rows */
+.results__tax-panel--left {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: transparent;
   border-radius: var(--radius-xs);
+  overflow: hidden;
 }
-.results__tax-inline-label {
-  display: block;
-  font-size: 0.75rem;
+.results__tax-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.results__tax-row:last-child {
+  border-bottom: none;
+}
+.results__tax-row--highlight {
+  background: transparent;
+}
+.results__tax-row-label {
+  font-size: 0.82rem;
   color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  font-weight: 500;
 }
-.results__tax-inline-value {
-  display: block;
-  font-size: 1.1rem;
+.results__tax-row--highlight .results__tax-row-label {
+  color: var(--text);
+  font-weight: 600;
+}
+.results__tax-row-value {
+  font-size: 0.95rem;
   font-weight: 700;
+  color: var(--text);
 }
-.results__tax-inline-value--highlight {
+.results__tax-row-value--green {
   color: var(--success);
+}
+
+/* Right panel — hero percentage */
+.results__tax-panel--right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 160px;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.10) 0%, rgba(5, 150, 105, 0.16) 100%);
+  border: 1.5px solid rgba(16, 185, 129, 0.30);
+  border-radius: var(--radius-sm);
+}
+.results__tax-hero-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--success-dark);
+  margin-bottom: 0.4rem;
+}
+.results__tax-hero-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--success);
+  line-height: 1.1;
+  text-shadow: 0 0 14px rgba(16, 185, 129, 0.2);
+}
+.results__tax-hero-caption {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+/* Responsive: stack on small screens */
+@media (max-width: 520px) {
+  .results__tax-panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== Bottom Grid — Foreclosures + Loan Calculator ===== */
@@ -1166,13 +1199,6 @@ a:hover { color: var(--primary-dark); }
 .results__tax-breakdown {
   background: rgba(255, 255, 255, 0.15); border-radius: var(--radius-sm);
   padding: 1.5rem; margin-bottom: 1.5rem;
-}
-.results__tax-row {
-  display: flex; justify-content: space-between; padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-.results__tax-row:last-child {
-  border-bottom: none; font-weight: 700; font-size: 1.125rem; padding-top: 1rem;
 }
 
 /* ===== Loan Calculator Card ===== */
@@ -2080,7 +2106,6 @@ a:hover { color: var(--primary-dark); }
 
   .results__card { padding: 2rem 1.5rem; }
   .results__property-top { flex-direction: column; }
-  .results__photo { flex: none; width: 100%; max-height: 220px; min-height: 160px; }
   .results__property-header { flex-direction: column; }
   .results__property-price { font-size: 2rem; }
   .results__grid { grid-template-columns: 1fr; }
