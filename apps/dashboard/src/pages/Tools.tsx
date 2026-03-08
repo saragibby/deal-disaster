@@ -51,7 +51,7 @@ export default function Tools() {
     setForm({
       name: t.name, description: t.description, content: t.content || '',
       type: t.type, url: t.url || '', category: t.category,
-      icon: t.icon, is_premium: t.is_premium, sort_order: t.sort_order,
+      icon: t.icon, is_premium: t.is_premium, is_featured: t.is_featured, sort_order: t.sort_order,
     });
     setError('');
   }
