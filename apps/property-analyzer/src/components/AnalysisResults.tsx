@@ -6,6 +6,7 @@ import {
   SlidersHorizontal, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
+import ForeclosureCard from './ForeclosureCard';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import {
   calculateMortgage,
@@ -335,6 +336,15 @@ export default function AnalysisResults({ analysis }: Props) {
           subjectRent={rental.mid}
         />
       )}
+
+      {/* Nearby Foreclosures */}
+      <ForeclosureCard
+        zip={property.zip}
+        city={property.city}
+        state={property.state}
+        latitude={property.latitude}
+        longitude={property.longitude}
+      />
 
       {/* Tax Savings Card - Full Width */}
       <div className="results__card results__tax-card">

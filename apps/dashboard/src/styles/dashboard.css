@@ -1262,11 +1262,18 @@ a:hover { color: var(--color-primary-hover); }
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
+  position: relative;
 }
 
 .footer-logo img { height: 45px; width: auto; object-fit: contain; }
 
-.footer-info { flex: 1; text-align: center; min-width: 200px; }
+.footer-info {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  min-width: 200px;
+}
 .footer-copyright { font-size: 0.8rem; color: #cbd5e1; margin: 0 0 3px 0; }
 .footer-tagline { font-size: 0.75rem; color: #94a3b8; margin: 0; font-style: italic; }
 .footer-tagline a { color: #e0e7ff; text-decoration: none; transition: color 0.2s; }

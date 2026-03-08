@@ -137,6 +137,14 @@ export class ApiService {
 
   // ===== Portal endpoints =====
 
+  async getLandingData() {
+    const response = await fetch(`${API_BASE_URL}/api/portal/landing`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to get landing data');
+    return response.json();
+  }
+
   async getGames() {
     const response = await fetch(`${API_BASE_URL}/api/portal/games`, {
       headers: this.getHeaders(),
@@ -476,6 +484,20 @@ export class ApiService {
       auth: true,
       body: JSON.stringify({ params }),
     });
+  }
+
+  // ===== Xome Foreclosure/Auction endpoints =====
+
+  async searchForeclosures(params: { locations: string; radiusLat?: number; radiusLong?: number; limit?: number; offSet?: number }) {
+    return this.fetchJson<any>('/api/xome/search', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify(params),
+    });
+  }
+
+  async getMarketTrends(postalCode: string) {
+    return this.fetchJson<any>(`/api/xome/market-trends?postalCode=${encodeURIComponent(postalCode)}`, { auth: true });
   }
 }
 

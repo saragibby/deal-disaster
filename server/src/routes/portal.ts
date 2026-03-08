@@ -50,6 +50,85 @@ router.get('/games', (_req, res) => {
   res.json({ games });
 });
 
+// GET /api/portal/landing — aggregated data for public landing page
+router.get('/landing', async (_req, res) => {
+  try {
+    const games = [
+      {
+        id: 'deal-or-disaster',
+        name: 'Deal or Disaster',
+        description: 'Master foreclosure investing by analyzing real estate auction properties. Spot red flags, calculate true costs, and decide: is it a deal or a disaster?',
+        shortDescription: 'Master foreclosure investing with real auction scenarios',
+        path: '/deal-or-disaster/',
+        icon: '🏠',
+        status: 'live',
+        category: 'Real Estate',
+        color: '#e74c3c',
+        is_featured: true,
+      },
+      {
+        id: 'flip-or-flop',
+        name: 'Flip or Flop',
+        description: 'Buy properties, manage renovation budgets, and sell for profit.',
+        shortDescription: 'Renovate and flip properties for maximum profit',
+        path: '/flip-or-flop/',
+        icon: '🔨',
+        status: 'coming-soon',
+        category: 'Real Estate',
+        color: '#f39c12',
+      },
+      {
+        id: 'landlord-tycoon',
+        name: 'Landlord Tycoon',
+        description: 'Build a rental empire. Screen tenants, manage properties, and grow your portfolio.',
+        shortDescription: 'Build and manage a rental property empire',
+        path: '/landlord-tycoon/',
+        icon: '🏢',
+        status: 'coming-soon',
+        category: 'Real Estate',
+        color: '#3498db',
+      },
+      {
+        id: 'market-mayhem',
+        name: 'Market Mayhem',
+        description: 'Navigate real estate market cycles. Time your buys and sells, manage a portfolio through booms and busts.',
+        shortDescription: 'Time the market through real estate cycles',
+        path: '/market-mayhem/',
+        icon: '📈',
+        status: 'coming-soon',
+        category: 'Finance',
+        color: '#2ecc71',
+      },
+    ];
+
+    // Fetch featured resources (public preview)
+    const resourcesResult = await pool.query(
+      `SELECT id, title, description, type, url, category, is_premium, is_featured, sort_order
+       FROM resources
+       WHERE is_featured = TRUE
+       ORDER BY sort_order ASC, created_at DESC
+       LIMIT 6`
+    );
+
+    // Fetch tools (public preview)
+    const toolsResult = await pool.query(
+      `SELECT id, name, description, type, url, category, icon, is_premium, sort_order
+       FROM tools
+       ORDER BY sort_order ASC, created_at DESC
+       LIMIT 6`
+    );
+
+    res.json({
+      games,
+      resources: resourcesResult.rows,
+      tools: toolsResult.rows,
+    });
+  } catch (error) {
+    console.error('Error fetching landing page data:', error);
+    res.json({ games: [], resources: [], tools: [] });
+  }
+});
+
 // GET /api/portal/announcements — active news and updates from DB
 router.get('/announcements', async (_req, res) => {
   try {

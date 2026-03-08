@@ -4,6 +4,7 @@ import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
 import type { GameInfo, UserStats, LeaderboardEntry, Resource, Announcement } from '@deal-platform/shared-types';
 import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone } from 'lucide-react';
+import LandingPage from './LandingPage';
 
 const GAMES: GameInfo[] = [
   {
@@ -79,24 +80,18 @@ export default function Home() {
     }
   };
 
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+
   return (
     <div className="home">
       {/* Hero Section */}
       <section className="home__hero">
         <div className="home__hero-content">
           <h1 className="home__title">
-            {isAuthenticated ? `Welcome back, ${user?.name || 'Investor'}!` : 'Master Real Estate Investing'}
+            {`Welcome back, ${user?.name || 'Investor'}!`}
           </h1>
-          {!isAuthenticated && (
-            <div className="home__cta">
-              <button className="btn btn--primary btn--lg" onClick={() => navigate('/login')}>
-                Get Started Free
-              </button>
-              <button className="btn btn--outline btn--lg" onClick={() => navigate('/games')}>
-                Browse Games
-              </button>
-            </div>
-          )}
         </div>
       </section>
 
