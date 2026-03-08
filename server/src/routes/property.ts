@@ -13,9 +13,9 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticateToken, authenticateOptional, AuthRequest } from '../middleware/auth.js';
-import * as propertyDataService from '../services/propertyDataService';
-import * as rentalEstimationService from '../services/rentalEstimationService';
-import * as investmentAnalysisService from '../services/investmentAnalysisService';
+import * as propertyDataService from '../services/propertyDataService.js';
+import * as rentalEstimationService from '../services/rentalEstimationService.js';
+import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import type { AnalysisParams, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 

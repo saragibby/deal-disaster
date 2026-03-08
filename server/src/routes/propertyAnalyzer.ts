@@ -14,10 +14,10 @@
 import { Router, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
-import * as propertyDataService from '../services/propertyDataService';
-import * as rentalEstimationService from '../services/rentalEstimationService';
-import * as investmentAnalysisService from '../services/investmentAnalysisService';
-import * as geocodingService from '../services/geocodingService';
+import * as propertyDataService from '../services/propertyDataService.js';
+import * as rentalEstimationService from '../services/rentalEstimationService.js';
+import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
+import * as geocodingService from '../services/geocodingService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 
