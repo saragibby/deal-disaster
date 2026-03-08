@@ -53,11 +53,17 @@ export default function ForeclosureCard({ zip, city, state, latitude, longitude 
     let cancelled = false;
 
     async function fetchForeclosures() {
+      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+        setError('Location coordinates not available');
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
         const data = await api.searchForeclosures({
-          locations: zip || `${city}, ${state}`,
+          latitude,
+          longitude,
           limit: 50,
         });
 

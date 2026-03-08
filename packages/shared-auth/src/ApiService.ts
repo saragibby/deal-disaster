@@ -488,7 +488,7 @@ export class ApiService {
 
   // ===== Xome Foreclosure/Auction endpoints =====
 
-  async searchForeclosures(params: { locations: string; radiusLat?: number; radiusLong?: number; limit?: number; offSet?: number }) {
+  async searchForeclosures(params: { latitude: number; longitude: number; radius?: number; limit?: number }) {
     return this.fetchJson<any>('/api/xome/search', {
       method: 'POST',
       auth: true,
