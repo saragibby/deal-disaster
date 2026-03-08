@@ -262,7 +262,7 @@ router.post('/re-analyze/:id', authenticateToken, async (req: AuthRequest, res: 
     results.comparables = row.analysis_results?.comparables || [];
 
     // Geocode if coordinates are missing (backfill for older analyses)
-    const needsGeocode = !property.latitude || !results.comparables.some((c: ComparableProperty) => c.latitude);
+    const needsGeocode = !property.latitude || !results.comparables?.some((c: ComparableProperty) => c.latitude);
     if (needsGeocode) {
       try {
         const comparables = results.comparables || [];

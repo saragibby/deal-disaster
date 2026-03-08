@@ -50,7 +50,7 @@ async function fetchAllListings(): Promise<any[]> {
     throw new Error(`Xome API ${response.status}: ${text.slice(0, 200)}`);
   }
 
-  const json = await response.json();
+  const json: any = await response.json();
   return json?.data?.listings ?? [];
 }
 
