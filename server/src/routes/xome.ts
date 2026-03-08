@@ -177,4 +177,13 @@ router.get('/market-trends', authenticateToken, async (req: AuthRequest, res: Re
   }
 });
 
+/* ------------------------------------------------------------------ */
+/*  Pre-warm listing cache on import so the first user request is fast  */
+/* ------------------------------------------------------------------ */
+if (XOME_API_KEY()) {
+  getCachedListings().catch((err) =>
+    console.warn('[xome] Cache pre-warm failed:', err.message),
+  );
+}
+
 export default router;
