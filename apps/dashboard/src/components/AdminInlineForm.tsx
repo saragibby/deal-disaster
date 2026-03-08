@@ -23,6 +23,7 @@ export interface ToolFormData {
   category: string;
   icon: string;
   is_premium: boolean;
+  is_featured: boolean;
   sort_order: number;
 }
 
@@ -40,7 +41,7 @@ export const EMPTY_RESOURCE: ResourceFormData = {
 
 export const EMPTY_TOOL: ToolFormData = {
   name: '', description: '', content: '', type: 'calculator',
-  url: '', category: 'Analysis', icon: '🔧', is_premium: false, sort_order: 0,
+  url: '', category: 'Analysis', icon: '🔧', is_premium: false, is_featured: false, sort_order: 0,
 };
 
 export const EMPTY_ANNOUNCEMENT: AnnouncementFormData = {
@@ -149,10 +150,16 @@ export function ToolFormFields({ form, setForm }: { form: ToolFormData; setForm:
           Sort Order
           <input type="number" value={form.sort_order} onChange={e => setForm({ ...form, sort_order: Number(e.target.value) })} />
         </label>
-        <label className="admin-form__checkbox">
-          <input type="checkbox" checked={form.is_premium} onChange={e => setForm({ ...form, is_premium: e.target.checked })} />
-          Premium (requires sign-in)
-        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <label className="admin-form__checkbox">
+            <input type="checkbox" checked={form.is_premium} onChange={e => setForm({ ...form, is_premium: e.target.checked })} />
+            Premium (requires sign-in)
+          </label>
+          <label className="admin-form__checkbox">
+            <input type="checkbox" checked={form.is_featured} onChange={e => setForm({ ...form, is_featured: e.target.checked })} />
+            Featured
+          </label>
+        </div>
       </div>
     </div>
   );

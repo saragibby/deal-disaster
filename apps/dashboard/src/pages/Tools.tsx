@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Wrench, ExternalLink, Lock, Calculator, CheckSquare, FileSpreadsheet, Layout, Plus, Pencil, Trash2, BarChart3 } from 'lucide-react';
+import { Wrench, ExternalLink, Lock, Calculator, CheckSquare, FileSpreadsheet, Layout, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import type { Tool } from '@deal-platform/shared-types';
 import {
@@ -126,38 +126,6 @@ export default function Tools() {
       )}
 
       <div className="tools-grid">
-        {/* Property Analyzer – featured tool */}
-        <div className="tool-card tool-card--featured" onClick={() => { window.location.href = buildAppUrl('/property-analyzer/'); }} style={{ cursor: 'pointer' }}>
-          <div className="tool-card__header">
-            <span className="tool-card__icon-badge">📊</span>
-            <div className="tool-card__meta">
-              <span className="tool-card__category">Real Estate</span>
-              <span className="tool-card__badge-live" style={{ background: '#3498db', color: 'white', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>LIVE</span>
-            </div>
-          </div>
-          <div className="tool-card__body">
-            <h3 className="tool-card__name">Property Analyzer</h3>
-            {isAuthenticated ? (
-              <p className="tool-card__description">Paste any Zillow link and get a full investment breakdown — rental estimates, cash flow, ROI, mortgage details, and tax savings.</p>
-            ) : (
-              <div className="content-gate">
-                <Lock size={20} />
-                <p>Sign in to see details and access this tool</p>
-                <a href="/login" className="btn btn--primary btn--sm">Create Free Account</a>
-              </div>
-            )}
-          </div>
-          <div className="tool-card__footer">
-            <div className="tool-card__type">
-              <BarChart3 size={14} />
-              <span>analyzer</span>
-            </div>
-            <span className="tool-card__link">
-              Open Tool <ExternalLink size={14} />
-            </span>
-          </div>
-        </div>
-
         {tools.map(tool => {
           const Icon = TYPE_ICONS[tool.type] || Wrench;
           const isLocked = !tool.content && tool.is_premium;
@@ -203,7 +171,7 @@ export default function Tools() {
                   <span>{tool.type}</span>
                 </div>
                 {tool.url && !isLocked ? (
-                  <a href={tool.url} target="_blank" rel="noopener noreferrer" className="tool-card__link">
+                  <a href={tool.url.startsWith('/') ? buildAppUrl(tool.url) : tool.url} target={tool.url.startsWith('/') ? undefined : '_blank'} rel={tool.url.startsWith('/') ? undefined : 'noopener noreferrer'} className="tool-card__link">
                     Open Tool <ExternalLink size={14} />
                   </a>
                 ) : !isLocked ? (

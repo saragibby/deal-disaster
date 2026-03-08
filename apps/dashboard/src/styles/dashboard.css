@@ -426,8 +426,11 @@ a:hover { color: var(--color-primary-hover); }
 .mini-leaderboard__name { flex: 1; font-weight: 500; }
 .mini-leaderboard__points { color: var(--color-text-secondary); font-weight: 600; }
 
-/* Featured Resources on Home */
-.home__featured-resources { margin-bottom: 2rem; }
+/* Featured Tools & Resources on Home */
+.home__featured-tools,
+.home__featured-resources { margin-bottom: 3rem; }
+.home__featured-tools .section-header,
+.home__featured-resources .section-header { margin-bottom: 0.5rem; }
 .featured-resources-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

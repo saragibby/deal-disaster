@@ -287,6 +287,7 @@ router.get('/tools', authenticateOptional, async (req: AuthRequest, res: Respons
         category: row.category,
         icon: row.icon,
         is_premium: row.is_premium,
+        is_featured: row.is_featured || false,
         sort_order: row.sort_order,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -426,15 +427,15 @@ router.delete('/admin/resources/:id', authenticateToken, requireAdmin, async (re
 // POST /api/portal/admin/tools — create tool
 router.post('/admin/tools', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, description, content, type, url, category, icon, is_premium, sort_order } = req.body;
+    const { name, description, content, type, url, category, icon, is_premium, is_featured, sort_order } = req.body;
     if (!name || !description) {
       return res.status(400).json({ error: 'Name and description are required' });
     }
 
     const result = await pool.query(
-      `INSERT INTO tools (name, description, content, type, url, category, icon, is_premium, sort_order, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [name, description, content || null, type || 'calculator', url || null, category || 'General', icon || '🔧', is_premium || false, sort_order || 0, req.userId]
+      `INSERT INTO tools (name, description, content, type, url, category, icon, is_premium, is_featured, sort_order, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [name, description, content || null, type || 'calculator', url || null, category || 'General', icon || '🔧', is_premium || false, is_featured || false, sort_order || 0, req.userId]
     );
 
     res.status(201).json({ tool: result.rows[0] });
@@ -447,7 +448,7 @@ router.post('/admin/tools', authenticateToken, requireAdmin, async (req: AuthReq
 // PUT /api/portal/admin/tools/:id — update tool
 router.put('/admin/tools/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, description, content, type, url, category, icon, is_premium, sort_order } = req.body;
+    const { name, description, content, type, url, category, icon, is_premium, is_featured, sort_order } = req.body;
 
     const result = await pool.query(
       `UPDATE tools SET 
@@ -459,10 +460,11 @@ router.put('/admin/tools/:id', authenticateToken, requireAdmin, async (req: Auth
         category = COALESCE($6, category),
         icon = COALESCE($7, icon),
         is_premium = COALESCE($8, is_premium),
-        sort_order = COALESCE($9, sort_order),
+        is_featured = COALESCE($9, is_featured),
+        sort_order = COALESCE($10, sort_order),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10 RETURNING *`,
-      [name, description, content, type, url, category, icon, is_premium, sort_order, req.params.id]
+       WHERE id = $11 RETURNING *`,
+      [name, description, content, type, url, category, icon, is_premium, is_featured, sort_order, req.params.id]
     );
 
     if (result.rows.length === 0) {

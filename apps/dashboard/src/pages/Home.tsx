@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
-import type { GameInfo, UserStats, LeaderboardEntry, Resource, Announcement } from '@deal-platform/shared-types';
-import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone } from 'lucide-react';
+import type { GameInfo, UserStats, LeaderboardEntry, Resource, Tool, Announcement } from '@deal-platform/shared-types';
+import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone, Wrench } from 'lucide-react';
 import LandingPage from './LandingPage';
 
 const GAMES: GameInfo[] = [
@@ -48,6 +48,7 @@ export default function Home() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([]);
   const [featuredResources, setFeaturedResources] = useState<Resource[]>([]);
+  const [featuredTools, setFeaturedTools] = useState<Tool[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   useEffect(() => {
@@ -55,6 +56,12 @@ export default function Home() {
     api.getResources()
       .then((data: { resources: Resource[] }) =>
         setFeaturedResources(data.resources.filter(r => r.is_featured))
+      )
+      .catch(console.error);
+
+    api.getTools()
+      .then((data: { tools: Tool[] }) =>
+        setFeaturedTools(data.tools.filter(t => t.is_featured))
       )
       .catch(console.error);
 
@@ -153,6 +160,40 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Featured Tools */}
+      {featuredTools.length > 0 && (
+        <section className="home__featured-tools">
+          <div className="section-header">
+            <h2 className="section-title"><Wrench size={20} /> Featured Tools</h2>
+            <a href="/tools" className="section-link">All Tools →</a>
+          </div>
+          <div className="featured-resources-grid">
+            {featuredTools.map(tool => {
+              const isInternal = tool.url?.startsWith('/');
+              const href = isInternal ? buildAppUrl(tool.url!) : (tool.url || `/tools/${tool.id}`);
+              return (
+              <a
+                key={tool.id}
+                href={href}
+                target={!isInternal && tool.url ? '_blank' : undefined}
+                rel={!isInternal && tool.url ? 'noopener noreferrer' : undefined}
+                className="featured-resource-card"
+              >
+                <div className="featured-resource-card__badge">
+                  <Star size={14} /> Featured
+                </div>
+                <h3 className="featured-resource-card__title">{tool.icon} {tool.name}</h3>
+                <p className="featured-resource-card__desc">{tool.description}</p>
+                <span className="featured-resource-card__cta">
+                  Open <ExternalLink size={14} />
+                </span>
+              </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Featured Resources */}
       {featuredResources.length > 0 && (

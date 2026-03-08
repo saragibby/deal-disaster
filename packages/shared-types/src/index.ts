@@ -168,6 +168,7 @@ export interface Tool {
   category: string;
   icon: string;
   is_premium: boolean;
+  is_featured: boolean;      // if true, highlighted on dashboard home
   sort_order: number;
   created_by?: number;
   created_at: string;
