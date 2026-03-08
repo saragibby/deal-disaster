@@ -73,6 +73,9 @@ export default function LandingPage() {
             Member Login
           </button>
         </div>
+        <div className="landing__scroll-hint" onClick={() => document.querySelector('.landing__ticker')?.scrollIntoView({ behavior: 'smooth' })}>
+          <span className="landing__scroll-chevron">&#8964;</span>
+        </div>
       </section>
 
       {/* ---- TICKER ---- */}
