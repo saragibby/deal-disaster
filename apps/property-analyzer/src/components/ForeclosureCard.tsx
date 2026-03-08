@@ -57,9 +57,7 @@ export default function ForeclosureCard({ zip, city, state, latitude, longitude 
       setError(null);
       try {
         const data = await api.searchForeclosures({
-          latitude: latitude,
-          longitude: longitude,
-          radius: 50,
+          locations: zip || `${city}, ${state}`,
           limit: 50,
         });
 

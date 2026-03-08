@@ -25,7 +25,7 @@ export default function ComparableProperties({ comparables, subject, subjectRent
   if (!comparables || comparables.length === 0) return null;
 
   // Check if any properties have coordinates for the map
-  const hasCoordinates = subject.latitude || comparables.some(c => c.latitude && c.longitude);
+  const _hasCoordinates = subject.latitude || comparables.some(c => c.latitude && c.longitude);
 
   // ── Market position calculations ──────────────────────────────────────
   const avgPrice = comparables.reduce((s, c) => s + c.price, 0) / comparables.length;
