@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, buildAppUrl } from '@deal-platform/shared-auth';
+import { api } from '@deal-platform/shared-auth';
 import type { GameInfo, Resource, Tool } from '@deal-platform/shared-types';
 import '../styles/landing.css';
 

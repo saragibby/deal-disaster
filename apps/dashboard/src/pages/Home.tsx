@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
 import type { GameInfo, UserStats, LeaderboardEntry, Resource, Announcement } from '@deal-platform/shared-types';
@@ -45,7 +45,6 @@ const GAMES: GameInfo[] = [
 
 export default function Home() {
   const { isAuthenticated, user } = useAuth();
-  const navigate = useNavigate();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([]);
   const [featuredResources, setFeaturedResources] = useState<Resource[]>([]);
