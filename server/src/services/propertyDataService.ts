@@ -37,7 +37,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — property data rarely changes
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -272,6 +272,25 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
   const addr = raw.PropertyAddress || {};
   const resolvedZpid = zpid || String(raw.PropertyZPID || '');
 
+  // Extract photos from all known response fields
+  const photos: string[] = [];
+  if (raw.imgSrc) photos.push(raw.imgSrc);
+  if (raw.hiResImageLink) photos.push(raw.hiResImageLink);
+  if (raw.image) photos.push(raw.image);
+  if (Array.isArray(raw.miniCardPhotos)) {
+    for (const p of raw.miniCardPhotos) {
+      if (p?.url) photos.push(p.url);
+    }
+  }
+  if (Array.isArray(raw.photos)) {
+    for (const p of raw.photos) {
+      const url = typeof p === 'string' ? p : p?.url || p?.href;
+      if (url) photos.push(url);
+    }
+  }
+  // Deduplicate
+  const uniquePhotos = [...new Set(photos)];
+
   return {
     zpid: resolvedZpid,
     address: addr.streetAddress || '',
@@ -288,7 +307,7 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
     yearBuilt: Number(raw.yearBuilt) || 0,
     propertyType: undefined, // Not available from this provider
     description: undefined,
-    photos: [],
+    photos: uniquePhotos,
     taxHistory: undefined,
     priceHistory: undefined,
     homeStatus: raw.daysOnZillow != null ? `${raw.daysOnZillow} days on Zillow` : undefined,

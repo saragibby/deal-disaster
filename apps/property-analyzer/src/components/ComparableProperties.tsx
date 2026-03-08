@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { ComparableProperty, PropertyData } from '@deal-platform/shared-types';
-import { TrendingUp, TrendingDown, Minus, MapPin, Map as MapIcon, Table2, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, MapPin, Map as MapIcon, Table2, ExternalLink, ChevronUp, ChevronDown, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
+} from 'recharts';
 import MapView from './MapView';
 import { buildPropertyLayers } from './mapLayers/propertyMapLayer';
 
@@ -9,6 +12,11 @@ interface Props {
   subject: PropertyData;
   subjectRent: number;
 }
+
+type SortKey = 'price' | 'bedrooms' | 'bathrooms' | 'sqft' | 'pricePerSqft' | 'estimatedRent';
+type SortDir = 'asc' | 'desc';
+
+const PAGE_SIZE = 8;
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -21,6 +29,34 @@ function fmt(n: number): string {
 
 export default function ComparableProperties({ comparables, subject, subjectRent }: Props) {
   const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(1);
+  const [selectedZpid, setSelectedZpid] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  // ── Sorting ───────────────────────────────────────────────────────────
+  const sorted = useMemo(() => {
+    if (!sortKey) return comparables;
+    return [...comparables].sort((a, b) => {
+      const av = (a[sortKey] as number) || 0;
+      const bv = (b[sortKey] as number) || 0;
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+  }, [comparables, sortKey, sortDir]);
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+    setPage(1);
+  }
 
   if (!comparables || comparables.length === 0) return null;
 
@@ -37,13 +73,42 @@ export default function ComparableProperties({ comparables, subject, subjectRent
   const sqftDiffPct =
     avgPricePerSqft > 0 ? ((subjectPricePerSqft - avgPricePerSqft) / avgPricePerSqft) * 100 : 0;
 
-  // ── Rent bar chart: top 10 comps + subject ────────────────────────────
-  const chartComps = comparables
-    .filter(c => c.estimatedRent > 0)
-    .sort((a, b) => b.estimatedRent - a.estimatedRent)
-    .slice(0, 10);
+  // ── Rent chart data: subject + top 10 comps, sorted descending ──────
+  const chartData = useMemo(() => {
+    const comps = comparables
+      .filter(c => c.estimatedRent > 0)
+      .sort((a, b) => b.estimatedRent - a.estimatedRent)
+      .slice(0, 10)
+      .map(c => ({
+        zpid: c.zpid,
+        name: c.address
+          ? c.address.length > 20 ? c.address.slice(0, 20) + '…' : c.address
+          : 'Comp',
+        rent: c.estimatedRent,
+        isSubject: false,
+      }));
 
-  const maxRent = Math.max(subjectRent, ...chartComps.map(c => c.estimatedRent));
+    const subjectEntry = {
+      zpid: '__subject__',
+      name: '★ Your Property',
+      rent: subjectRent,
+      isSubject: true,
+    };
+
+    // Insert subject in sorted position
+    const all = [...comps, subjectEntry].sort((a, b) => b.rent - a.rent);
+    return all;
+  }, [comparables, subjectRent]);
+
+  // When a comp is selected, jump to the page that contains it (table view)
+  useEffect(() => {
+    if (!selectedZpid || selectedZpid === '__subject__') return;
+    const idx = sorted.findIndex(c => c.zpid === selectedZpid);
+    if (idx >= 0) {
+      const targetPage = Math.floor(idx / PAGE_SIZE) + 1;
+      setPage(targetPage);
+    }
+  }, [selectedZpid, sorted]);
 
   return (
     <div className="results__card comps">
@@ -52,22 +117,6 @@ export default function ComparableProperties({ comparables, subject, subjectRent
         Comparable Properties
         <span className="comps__count">{comparables.length} found</span>
       </h3>
-
-      {/* View Mode Toggle */}
-      <div className="comps__view-toggle">
-        <button
-          className={`comps__view-btn ${viewMode === 'table' ? 'comps__view-btn--active' : ''}`}
-          onClick={() => setViewMode('table')}
-        >
-          <Table2 size={16} /> Table
-        </button>
-        <button
-          className={`comps__view-btn ${viewMode === 'map' ? 'comps__view-btn--active' : ''}`}
-          onClick={() => setViewMode('map')}
-        >
-          <MapIcon size={16} /> Map
-        </button>
-      </div>
 
       {/* Market Position Cards */}
       <div className="comps__position-grid">
@@ -93,74 +142,123 @@ export default function ComparableProperties({ comparables, subject, subjectRent
         />
       </div>
 
+      {/* Rent Comparison Chart — always visible */}
+      {chartData.length > 0 && (
+        <div className="comps__chart">
+          <h4 className="comps__chart-title">Estimated Rent Comparison</h4>
+          <div className="comps__chart-wrap">
+            <ResponsiveContainer width="100%" height={chartData.length * 38 + 32}>
+              <BarChart
+                data={chartData}
+                layout="vertical"
+                margin={{ top: 4, right: 12, left: 0, bottom: 4 }}
+                barCategoryGap="20%"
+              >
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={v => `$${(v / 1000).toFixed(0)}k`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tick={({ x, y, payload }: any) => (
+                    <text x={x - 4} y={y} textAnchor="end" fill="var(--text-muted)" fontSize={11} dominantBaseline="central">
+                      {payload.value}
+                    </text>
+                  )}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  formatter={(v: any) => [fmt(Number(v)), 'Est. Rent']}
+                  contentStyle={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    fontSize: 13,
+                  }}
+                />
+                <ReferenceLine x={subjectRent} stroke="#6366f1" strokeDasharray="3 3" strokeWidth={1.5} />
+                <Bar
+                  dataKey="rent"
+                  radius={[0, 6, 6, 0]}
+                  cursor="pointer"
+                  onClick={(_data: any, index: number) => {
+                    const entry = chartData[index];
+                    if (!entry || entry.isSubject) return;
+                    setSelectedZpid(prev => prev === entry.zpid ? null : entry.zpid);
+                  }}
+                >
+                  {chartData.map((entry) => {
+                    const isSelected = selectedZpid === entry.zpid;
+                    let fill = '#94a3b8';
+                    let opacity = 0.7;
+                    if (entry.isSubject) { fill = '#6366f1'; opacity = 1; }
+                    else if (isSelected) { fill = '#f59e0b'; opacity = 1; }
+                    return (
+                      <Cell
+                        key={entry.zpid}
+                        fill={fill}
+                        fillOpacity={opacity}
+                      />
+                    );
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* View Mode Toggle */}
+      <div className="comps__view-toggle">
+        <button
+          className={`comps__view-btn ${viewMode === 'table' ? 'comps__view-btn--active' : ''}`}
+          onClick={() => setViewMode('table')}
+        >
+          <Table2 size={16} /> Table
+        </button>
+        <button
+          className={`comps__view-btn ${viewMode === 'map' ? 'comps__view-btn--active' : ''}`}
+          onClick={() => setViewMode('map')}
+        >
+          <MapIcon size={16} /> Map
+        </button>
+      </div>
+
       {/* Map View */}
       {viewMode === 'map' && (
         <MapView
-          layers={buildPropertyLayers(subject, comparables, subjectRent)}
+          layers={buildPropertyLayers(subject, comparables, subjectRent, selectedZpid)}
           height={480}
         />
       )}
 
-      {/* Table View: Rent Comparison Bar Chart */}
-      {viewMode === 'table' && chartComps.length > 0 && (
-        <div className="comps__chart">
-          <h4 className="comps__chart-title">Estimated Rent Comparison</h4>
-
-          {/* Subject property bar */}
-          <div className="comps__bar-row comps__bar-row--subject">
-            <div className="comps__bar-label">
-              <strong>Your Property</strong>
-            </div>
-            <div className="comps__bar-track">
-              <div
-                className="comps__bar-fill comps__bar-fill--subject"
-                style={{ width: `${(subjectRent / maxRent) * 100}%` }}
-              />
-            </div>
-            <div className="comps__bar-value">{fmt(subjectRent)}</div>
-          </div>
-
-          {/* Comp bars */}
-          {chartComps.map((comp, i) => (
-            <div className="comps__bar-row" key={comp.zpid || i}>
-              <div className="comps__bar-label" title={`${comp.address}, ${comp.city}`}>
-                {comp.address
-                  ? comp.address.length > 22
-                    ? comp.address.slice(0, 22) + '…'
-                    : comp.address
-                  : `Comp ${i + 1}`}
-              </div>
-              <div className="comps__bar-track">
-                <div
-                  className="comps__bar-fill"
-                  style={{ width: `${(comp.estimatedRent / maxRent) * 100}%` }}
-                />
-              </div>
-              <div className="comps__bar-value">{fmt(comp.estimatedRent)}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Detailed Comps Table */}
       {viewMode === 'table' && (
-      <div className="comps__table-wrap">
+      <div className="comps__table-wrap" ref={tableRef}>
         <table className="comps__table">
           <thead>
             <tr>
               <th></th>
               <th>Address</th>
-              <th>Price</th>
-              <th>Beds</th>
-              <th>Baths</th>
-              <th>Sq Ft</th>
-              <th>$/Sq Ft</th>
-              <th>Est. Rent</th>
+              <SortTh label="Price" sortKey="price" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Beds" sortKey="bedrooms" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Baths" sortKey="bathrooms" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Sq Ft" sortKey="sqft" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="$/Sq Ft" sortKey="pricePerSqft" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Est. Rent" sortKey="estimatedRent" currentKey={sortKey} dir={sortDir} onSort={handleSort} />
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {/* Subject property row — highlighted */}
+            {/* Subject property row — highlighted (always on page 1) */}
+            {page === 1 && (
             <tr className="comps__row--subject">
               <td>
                 <MapPin size={14} />
@@ -175,10 +273,16 @@ export default function ComparableProperties({ comparables, subject, subjectRent
               <td>{subjectPricePerSqft > 0 ? fmt(Math.round(subjectPricePerSqft)) : '—'}</td>
               <td><strong>{fmt(subjectRent)}</strong></td>
               <td><span className="comps__status comps__status--subject">Subject</span></td>
+              <td></td>
             </tr>
+            )}
 
-            {comparables.map((comp, i) => (
-              <tr key={comp.zpid || i}>
+            {paginated.map((comp, i) => (
+              <tr
+                key={comp.zpid || i}
+                className={selectedZpid === comp.zpid ? 'comps__row--selected' : ''}
+                onClick={() => setSelectedZpid(prev => prev === comp.zpid ? null : comp.zpid)}
+              >
                 <td>
                   {comp.photo ? (
                     <img
@@ -192,22 +296,8 @@ export default function ComparableProperties({ comparables, subject, subjectRent
                   )}
                 </td>
                 <td>
-                  {comp.zillowUrl ? (
-                    <a
-                      href={comp.zillowUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="comps__zillow-link"
-                    >
-                      <div className="comps__address">{comp.address || '—'} <ExternalLink size={11} /></div>
-                      <div className="comps__city">{[comp.city, comp.state].filter(Boolean).join(', ')}</div>
-                    </a>
-                  ) : (
-                    <>
-                      <div className="comps__address">{comp.address || '—'}</div>
-                      <div className="comps__city">{[comp.city, comp.state].filter(Boolean).join(', ')}</div>
-                    </>
-                  )}
+                  <div className="comps__address">{comp.address || '—'}</div>
+                  <div className="comps__city">{[comp.city, comp.state].filter(Boolean).join(', ')}</div>
                 </td>
                 <td>{fmt(comp.price)}</td>
                 <td>{comp.bedrooms || '—'}</td>
@@ -218,10 +308,62 @@ export default function ComparableProperties({ comparables, subject, subjectRent
                 <td>
                   <StatusBadge status={comp.homeStatus} />
                 </td>
+                <td>
+                  {comp.zillowUrl && (
+                    <a
+                      href={comp.zillowUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="comps__row-link"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="comps__pagination">
+            <button
+              className="comps__page-btn"
+              disabled={page === 1}
+              onClick={() => setPage(1)}
+              title="First page"
+            >
+              <ChevronsLeft size={14} />
+            </button>
+            <button
+              className="comps__page-btn"
+              disabled={page === 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              Prev
+            </button>
+            <span className="comps__page-info">
+              {page} of {totalPages}
+            </span>
+            <button
+              className="comps__page-btn"
+              disabled={page === totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              Next
+            </button>
+            <button
+              className="comps__page-btn"
+              disabled={page === totalPages}
+              onClick={() => setPage(totalPages)}
+              title="Last page"
+            >
+              <ChevronsRight size={14} />
+            </button>
+          </div>
+        )}
       </div>
       )}
     </div>
@@ -286,4 +428,28 @@ function StatusBadge({ status }: { status?: string }) {
     cls = 'comps__status--pending';
 
   return <span className={`comps__status ${cls}`}>{normalized}</span>;
+}
+
+function SortTh({
+  label,
+  sortKey: key,
+  currentKey,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  currentKey: SortKey | null;
+  dir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  const active = currentKey === key;
+  return (
+    <th className="comps__sortable-th" onClick={() => onSort(key)}>
+      {label}
+      <span className={`comps__sort-icon ${active ? 'comps__sort-icon--active' : ''}`}>
+        {active ? (dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronDown size={12} />}
+      </span>
+    </th>
+  );
 }

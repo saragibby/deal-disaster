@@ -97,21 +97,25 @@ export function buildPropertyLayers(
   subject: PropertyData,
   comparables: ComparableProperty[],
   subjectRent: number = 0,
+  selectedZpid: string | null = null,
 ): MapLayer[] {
   const layers: MapLayer[] = [];
 
   // Comparable properties layer (rendered first → behind the subject)
   const compMarkers: MapMarker[] = comparables
     .filter(c => c.latitude && c.longitude)
-    .map(comp => ({
-      lat: comp.latitude!,
-      lng: comp.longitude!,
-      color: '#7c3aed',   // vivid purple
-      size: 'md' as const,
-      shape: 'circle' as const,
-      label: comp.address,
-      popupContent: <CompPopup comp={comp} /> as ReactNode,
-    }));
+    .map(comp => {
+      const isSelected = comp.zpid === selectedZpid;
+      return {
+        lat: comp.latitude!,
+        lng: comp.longitude!,
+        color: isSelected ? '#f59e0b' : '#7c3aed',   // amber if selected, vivid purple otherwise
+        size: (isSelected ? 'lg' : 'md') as 'sm' | 'md' | 'lg',
+        shape: 'circle' as const,
+        label: comp.address,
+        popupContent: <CompPopup comp={comp} /> as ReactNode,
+      };
+    });
 
   if (compMarkers.length > 0) {
     layers.push({

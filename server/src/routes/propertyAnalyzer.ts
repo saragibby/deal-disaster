@@ -16,8 +16,11 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
 import * as propertyDataService from '../services/propertyDataService.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
+import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
+import * as rentCastService from '../services/rentCastService.js';
+import * as airDnaService from '../services/airDnaService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 
@@ -71,13 +74,39 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       params.annualPropertyTax = property.taxHistory[0].amount || params.annualPropertyTax;
     }
 
-    // Rental estimation (API + algorithmic blend)
-    const apiComps = await propertyDataService.getRentalComps(zpid);
+    // Rental estimation — prefer RentCast real comps, fall back to Zillow similar/algorithmic
+    let apiComps = await rentCastService.getRentalComps(property);
+    if (apiComps.length === 0) {
+      apiComps = await propertyDataService.getRentalComps(zpid);
+    }
     const algorithmic = rentalEstimationService.estimateRent(property);
     const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
 
+    // Also try RentCast's AVM rent estimate as a cross-check
+    const rentCastEstimate = await rentCastService.getRentEstimate(property);
+    if (rentCastEstimate && apiComps.length === 0) {
+      // If we got an AVM estimate but no comps, blend it in
+      rentalEstimate.mid = Math.round((rentalEstimate.mid + rentCastEstimate.mid) / 2);
+      rentalEstimate.low = Math.round((rentalEstimate.low + rentCastEstimate.low) / 2);
+      rentalEstimate.high = Math.round((rentalEstimate.high + rentCastEstimate.high) / 2);
+      if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
+    }
+
+    // Short-term rental — prefer AirDNA real data, fall back to algorithmic
+    let strEstimate = await airDnaService.getSTREstimate(property);
+    if (!strEstimate) {
+      strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
+    }
+
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
+
+    // Attach STR estimate and data source tracking
+    results.strEstimate = strEstimate;
+    results.dataSources = {
+      rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
+      str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
+    };
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
     let comparables: ComparableProperty[] = [];

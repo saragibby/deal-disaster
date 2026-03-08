@@ -8,6 +8,7 @@ import './styles/analyzer.css';
 
 const router = createBrowserRouter([
   { path: '/', element: <App /> },
+  { path: '/analysis/:id', element: <App /> },
   { path: '/*', element: <App /> },
 ], {
   basename: '/property-analyzer',

@@ -37,6 +37,80 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
       'A metric used to evaluate a property\'s return based on its net income.',
     formula: 'Cap Rate = Net Operating Income (NOI) ÷ Property Value',
   },
+  'nightly rate': {
+    term: 'Nightly Rate',
+    definition:
+      'The estimated average nightly price your property could command as a short-term rental on platforms like Airbnb or VRBO.',
+    formula: 'Based on comparable listings in the area, adjusted for bedrooms, location, and amenities.',
+  },
+  occupancy: {
+    term: 'Occupancy Rate',
+    definition:
+      'The percentage of nights per month the property is expected to be booked. Higher occupancy means more consistent income, but very high rates may signal the nightly price is too low.',
+    formula: 'Occupied Nights ÷ Available Nights × 100',
+  },
+  'gross / mo': {
+    term: 'Gross Monthly Revenue',
+    definition:
+      'Total income before any expenses are deducted — this is the nightly rate multiplied by the number of booked nights per month.',
+    formula: 'Nightly Rate × Occupancy Rate × 30',
+  },
+  'net / mo': {
+    term: 'Net Monthly Revenue',
+    definition:
+      'Your take-home short-term rental income after subtracting cleaning costs and platform fees. This is the number to compare against long-term rent.',
+    formula: 'Gross Revenue − Cleaning Costs − Platform Fees',
+  },
+  'median sold price': {
+    term: 'Median Sold Price',
+    definition:
+      'The middle sale price of recently sold homes in the zip code. An upward trend signals appreciation; a downward trend may indicate softening demand.',
+  },
+  'median list price': {
+    term: 'Median List Price',
+    definition:
+      'The middle asking price of homes currently on the market in this zip code. Compare to median sold price to gauge how aggressive sellers are pricing.',
+  },
+  'days on market': {
+    term: 'Days on Market (DOM)',
+    definition:
+      'The average number of days homes sit listed before going under contract. Lower DOM means a faster, more competitive market — which can support stronger rents.',
+  },
+  'sales-list price': {
+    term: 'Sales-to-List Price Ratio',
+    definition:
+      'The percentage of the asking price that homes actually sell for. Above 100% means bidding wars; below 100% means buyers have negotiating power.',
+    formula: 'Median Sale Price ÷ Median List Price × 100',
+  },
+  'price-to-rent': {
+    term: 'Price-to-Rent Ratio',
+    definition:
+      'How many years of rent it would take to equal the purchase price. Lower ratios (under 15) favor buying to rent; higher ratios (over 20) suggest renting is cheaper for tenants, making it harder to find quality tenants willing to pay premium rent.',
+    formula: 'Purchase Price ÷ Annual Rent',
+  },
+  'gross yield': {
+    term: 'Gross Yield',
+    definition:
+      'Annual rental income as a percentage of the property price — a quick snapshot of return before expenses. Yields above 8% are generally considered strong for residential rentals.',
+    formula: '(Annual Rent ÷ Purchase Price) × 100',
+  },
+  'rent vs area': {
+    term: 'Rent vs Area Average',
+    definition:
+      'How your estimated rent compares to the average rent of comparable properties nearby. Positive means you can charge above market; negative means you may need to price competitively.',
+    formula: '(Your Rent − Average Comp Rent) ÷ Average Comp Rent × 100',
+  },
+  'rent / sq ft': {
+    term: 'Rent per Square Foot',
+    definition:
+      'Monthly rent divided by livable square footage. This normalizes rent across different-sized properties and is a key metric landlords and appraisers use to compare rental value.',
+    formula: 'Monthly Rent ÷ Square Footage',
+  },
+  'comps nearby': {
+    term: 'Comparable Properties Nearby',
+    definition:
+      'The number of similar properties found near the subject property used to estimate rent and value. More comps (10+) means higher confidence in the estimates; fewer means limited data and wider uncertainty.',
+  },
 };
 
 /**

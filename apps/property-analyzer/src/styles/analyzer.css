@@ -318,7 +318,7 @@ a:hover { color: var(--primary-dark); }
 .results__card-title {
   display: flex; align-items: center; gap: 1rem;
   font-family: 'Poppins', sans-serif;
-  font-size: 1.5rem; font-weight: 700; margin-bottom: 2rem;
+  font-size: 1.5rem; font-weight: 700; margin-bottom: 1.25rem;
   color: var(--text);
 }
 .results__card-title--white { color: white; }
@@ -343,6 +343,48 @@ a:hover { color: var(--primary-dark); }
 .results__icon--white { background: rgba(255, 255, 255, 0.2); }
 
 /* Property Card */
+.results__property-top {
+  display: flex;
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.results__photo {
+  flex: 0 0 280px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+  min-height: 200px;
+}
+.results__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.results__photo--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  border: 2px dashed var(--border);
+}
+.results__photo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.results__property-info {
+  flex: 1;
+  min-width: 0;
+}
+
 .results__property-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   gap: 2rem; margin-bottom: 2rem;
@@ -645,14 +687,15 @@ a:hover { color: var(--primary-dark); }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 2rem; margin-bottom: 2rem;
+  align-items: stretch;
 }
-.results__grid > .results__card { margin-bottom: 0; }
+.results__grid > .results__card { margin-bottom: 0; display: flex; flex-direction: column; }
 
 /* Big number blocks */
 .results__big-number {
-  text-align: center; padding: 2rem;
+  text-align: center; padding: 1.25rem;
   background: var(--bg); border-radius: 16px;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 .results__big-number--glass {
   background: rgba(255, 255, 255, 0.1);
@@ -677,7 +720,7 @@ a:hover { color: var(--primary-dark); }
 /* Metric rows */
 .results__metric-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 1rem 0; border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0; border-bottom: 1px solid var(--border);
 }
 .results__metric-row:last-child { border-bottom: none; }
 .results__metric-label { color: var(--text-muted); font-weight: 500; }
@@ -712,7 +755,7 @@ a:hover { color: var(--primary-dark); }
 }
 
 .results__metrics-footer {
-  margin-top: 1.5rem; padding-top: 1.5rem;
+  margin-top: 1rem; padding-top: 1rem;
   border-top: 2px solid var(--border);
 }
 
@@ -730,12 +773,395 @@ a:hover { color: var(--primary-dark); }
 }
 .results__comps-table tr:hover { background: var(--bg); }
 
-/* Tax Savings Card */
+/* ===== Rental Insights (inside Rental Estimate card) ===== */
+.rental-insights {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+}
+
+.rental-insights__section {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.rental-insights__section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+}
+
+.rental-insights__section--chart {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+}
+
+.rental-insights__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem 0;
+}
+
+.rental-insights__badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.5rem;
+}
+.rental-insights__badge--purple {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+/* STR metrics grid */
+.rental-insights__str-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.rental-insights__str-stat {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  text-align: center;
+}
+
+.rental-insights__str-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.rental-insights__str-value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.rental-insights__str-value--highlight {
+  color: var(--success);
+}
+
+/* STR costs line */
+.rental-insights__str-costs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  justify-content: center;
+}
+.rental-insights__dot {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* LTR vs STR comparison bars */
+.rental-insights__compare {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rental-insights__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rental-insights__bar-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  width: 72px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.rental-insights__bar-track {
+  flex: 1;
+  height: 18px;
+  background: var(--bg);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.rental-insights__bar {
+  height: 100%;
+  border-radius: 9px;
+  min-width: 4px;
+  transition: width 0.4s ease;
+}
+.rental-insights__bar--ltr {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+.rental-insights__bar--str {
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.rental-insights__bar-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  min-width: 90px;
+}
+
+.rental-insights__delta {
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 0.3rem;
+}
+.rental-insights__delta--up { color: var(--success); }
+.rental-insights__delta--down { color: var(--danger); }
+
+/* Market trend chart */
+.rental-insights__chart-wrap {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 0.75rem 0.5rem 0.25rem;
+}
+
+.rental-insights__chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  background: var(--bg);
+  border-radius: 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Market snapshot stat cards */
+.rental-insights__market-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rental-insights__market-stat {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+}
+
+.rental-insights__market-stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rental-insights__market-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.rental-insights__market-stat-trend {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+}
+
+.rental-insights__market-stat-trend--up {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.rental-insights__market-stat-trend--down {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.rental-insights__market-stat-trend--flat {
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+/* Demand indicators */
+.rental-insights__indicators {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.rental-insights__indicator {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.rental-insights__indicator--green { border-left-color: var(--success); }
+.rental-insights__indicator--yellow { border-left-color: #eab308; }
+.rental-insights__indicator--red { border-left-color: var(--danger); }
+
+.rental-insights__indicator-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.rental-insights__indicator-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.rental-insights__signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 99px;
+}
+.rental-insights__signal--good {
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
+}
+.rental-insights__signal--neutral {
+  color: #a16207;
+  background: rgba(234, 179, 8, 0.12);
+}
+.rental-insights__signal--poor {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.rental-insights__indicator-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.rental-insights__indicator-detail {
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.15rem;
+}
+
+/* Disclaimer */
+.rental-insights__disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding: 0.75rem;
+  background: rgba(234, 179, 8, 0.06);
+  border: 1px solid rgba(234, 179, 8, 0.15);
+  border-radius: 8px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.rental-insights__disclaimer svg {
+  flex-shrink: 0;
+  color: #eab308;
+  margin-top: 1px;
+}
+
+/* ===== Tax Savings Card (standalone — kept for reference) ===== */
 .results__tax-card {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white; border: none;
   box-shadow: 0 20px 60px rgba(16, 185, 129, 0.3);
 }
+
+/* ===== Tax Savings — Inlined in Cash Flow Card ===== */
+.results__tax-inline {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.results__tax-inline-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+.results__icon--green-sm {
+  font-size: 1rem;
+}
+.results__tax-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.results__tax-inline-item {
+  text-align: center;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-xs);
+}
+.results__tax-inline-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+.results__tax-inline-value {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.results__tax-inline-value--highlight {
+  color: var(--success);
+}
+
+/* ===== Bottom Grid — Foreclosures + Loan Calculator ===== */
+.results__bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  align-items: stretch;
+}
+.results__bottom-grid > .results__card,
+.results__bottom-grid > .foreclosure-card {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .results__tax-intro { opacity: 0.9; margin-bottom: 1.5rem; font-size: 1.05rem; }
 .results__tax-breakdown {
   background: rgba(255, 255, 255, 0.15); border-radius: var(--radius-sm);
@@ -761,7 +1187,7 @@ a:hover { color: var(--primary-dark); }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
   flex-wrap: wrap;
   gap: 0.75rem;
 }
@@ -802,18 +1228,18 @@ a:hover { color: var(--primary-dark); }
 /* Slider param grid */
 .loan-calc__params {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 .loan-calc__params--secondary {
-  padding-top: 1.5rem;
+  padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
 
 /* Individual slider input */
 .slider-input {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   background: var(--bg);
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
@@ -915,9 +1341,9 @@ a:hover { color: var(--primary-dark); }
 .loan-calc__outputs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1.25rem;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
   background: linear-gradient(135deg, #f5f3ff, #ede9fe);
   border-radius: var(--radius-sm);
 }
@@ -1051,7 +1477,7 @@ a:hover { color: var(--primary-dark); }
 .comps__position--negative .comps__position-diff { color: var(--danger); }
 .comps__position--neutral .comps__position-diff { color: var(--text-muted); }
 
-/* Bar Chart */
+/* Rent Comparison Chart */
 .comps__chart {
   background: var(--bg);
   border-radius: var(--radius-sm);
@@ -1063,60 +1489,11 @@ a:hover { color: var(--primary-dark); }
   font-size: 1rem;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
-.comps__bar-row {
-  display: grid;
-  grid-template-columns: 160px 1fr 80px;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.4rem 0;
-}
-
-.comps__bar-row--subject {
-  background: #eff6ff;
-  border-radius: var(--radius-xs);
-  padding: 0.6rem 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.comps__bar-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.comps__bar-row--subject .comps__bar-label {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.comps__bar-track {
-  height: 20px;
-  background: #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.comps__bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #94a3b8, #64748b);
-  border-radius: 10px;
-  min-width: 4px;
-  transition: width 0.6s ease;
-}
-
-.comps__bar-fill--subject {
-  background: linear-gradient(90deg, var(--primary), var(--primary-dark));
-}
-
-.comps__bar-value {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text);
-  text-align: right;
+.comps__chart-wrap {
+  margin: 0 -0.5rem;
 }
 
 /* Detailed Table */
@@ -1158,6 +1535,26 @@ a:hover { color: var(--primary-dark); }
 .comps__row--subject {
   background: #eff6ff !important;
   border-left: 3px solid var(--primary);
+}
+
+.comps__row--selected {
+  background: #fffbeb !important;
+  border-left: 3px solid #f59e0b;
+  animation: comps-highlight-flash 0.4s ease;
+}
+
+.comps__table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.comps__table tbody tr:hover:not(.comps__row--subject) {
+  background: var(--bg);
+}
+
+@keyframes comps-highlight-flash {
+  0% { background: #fef3c7; }
+  100% { background: #fffbeb; }
 }
 
 .comps__address {
@@ -1215,6 +1612,174 @@ a:hover { color: var(--primary-dark); }
 .comps__status--pending {
   background: #fef3c7;
   color: #92400e;
+}
+
+/* Sortable Headers */
+.comps__sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.comps__sortable-th:hover {
+  color: var(--primary);
+}
+.comps__sort-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 2px;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+.comps__sort-icon--active {
+  opacity: 1;
+  color: var(--primary);
+}
+
+/* Pagination */
+.comps__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.comps__page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--primary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.comps__page-btn:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--primary);
+}
+.comps__page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.comps__page-info {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 0.5rem;
+}
+
+/* ===== Compact Foreclosure List ===== */
+.foreclosure-card--compact {
+  padding-bottom: 1.5rem;
+}
+.foreclosure-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.foreclosure-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.foreclosure-row:last-child {
+  border-bottom: none;
+}
+.foreclosure-row:hover {
+  background: var(--bg);
+}
+.foreclosure-row--selected {
+  background: #fffbeb !important;
+  border-left: 3px solid #f59e0b;
+  animation: foreclosure-flash 0.4s ease;
+}
+@keyframes foreclosure-flash {
+  0% { background: #fef3c7; }
+  100% { background: #fffbeb; }
+}
+.foreclosure-row__main {
+  flex: 1;
+  min-width: 0;
+}
+.foreclosure-row__address {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.foreclosure-row__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.foreclosure-row__specs {
+  color: var(--text);
+  font-weight: 500;
+}
+.foreclosure-row__dist {
+  opacity: 0.7;
+}
+.foreclosure-row__right {
+  text-align: right;
+  flex-shrink: 0;
+}
+.foreclosure-row__bid {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.foreclosure-row__type {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.foreclosure-row__arrow {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.foreclosure-row:hover .foreclosure-row__arrow {
+  opacity: 1;
+  color: var(--primary);
+}
+.foreclosure-row__link {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+}
+.foreclosure-row:hover .foreclosure-row__link {
+  opacity: 1;
+  color: var(--primary);
 }
 
 /* ===== History ===== */
@@ -1514,14 +2079,17 @@ a:hover { color: var(--primary-dark); }
   .analyzer__tab { justify-content: center; }
 
   .results__card { padding: 2rem 1.5rem; }
+  .results__property-top { flex-direction: column; }
+  .results__photo { flex: none; width: 100%; max-height: 220px; min-height: 160px; }
   .results__property-header { flex-direction: column; }
   .results__property-price { font-size: 2rem; }
   .results__grid { grid-template-columns: 1fr; }
+  .results__bottom-grid { grid-template-columns: 1fr; }
+  .results__tax-inline-grid { grid-template-columns: 1fr; }
   .results__stats-row { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
   .results__big-value { font-size: 2rem; }
 
   .comps__position-grid { grid-template-columns: 1fr; }
-  .comps__bar-row { grid-template-columns: 100px 1fr 70px; gap: 0.5rem; }
   .comps__table { font-size: 0.8rem; }
   .comps__table th, .comps__table td { padding: 0.5rem 0.35rem; }
 
@@ -1743,6 +2311,27 @@ a:hover { color: var(--primary-dark); }
 .comps__zillow-link:hover .comps__address svg {
   opacity: 1;
   color: var(--primary);
+}
+
+/* External link icon in comps table rows */
+.comps__row-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+  text-decoration: none;
+}
+
+.comps__row-link:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 /* ── Term Explainer Tooltip ────────────────────────────────────────── */

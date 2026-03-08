@@ -224,7 +224,7 @@ export interface RentalComp {
   bathrooms?: number;
   sqft?: number;
   distance?: number;
-  source: 'api' | 'estimate';
+  source: 'api' | 'estimate' | 'rentcast';
 }
 
 export interface RentalEstimate {
@@ -324,13 +324,29 @@ export interface ComparableProperty {
   zillowUrl?: string;
 }
 
+export interface STREstimate {
+  nightlyRate: number;
+  occupancyRate: number;          // 0-1
+  grossMonthlyRevenue: number;
+  cleaningCosts: number;
+  platformFees: number;
+  netMonthlyRevenue: number;
+  confidence: 'low' | 'medium' | 'high';
+  source: 'algorithm' | 'airdna' | 'mashvisor';
+}
+
 export interface FullAnalysisResult {
   mortgage: MortgageBreakdown;
   cashFlow: CashFlowBreakdown;
   roi: ROIMetrics;
   taxSavings: TaxSavingsBreakdown;
   rentalEstimate: RentalEstimate;
+  strEstimate?: STREstimate;
   comparables?: ComparableProperty[];
+  dataSources?: {
+    rental: 'algorithm' | 'rentcast' | 'blended';
+    str: 'algorithm' | 'airdna';
+  };
 }
 
 export interface PropertyAnalysis {

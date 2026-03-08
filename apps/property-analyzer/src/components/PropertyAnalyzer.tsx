@@ -1,30 +1,51 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@deal-platform/shared-auth';
 import type {
   PropertyAnalysis,
   AnalysisParams,
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
-import { Search, Settings, ChevronDown, ChevronUp } from 'lucide-react';
-import TermExplainer, { findExplainer } from './TermExplainer';
+import { Search } from 'lucide-react';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisHistory from './AnalysisHistory.js';
 
 export default function PropertyAnalyzer() {
+  const { id: analysisId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PropertyAnalysis | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState<'analyze' | 'history'>('analyze');
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
-  // Advanced params — start with defaults
-  const [params, setParams] = useState<AnalysisParams>({ ...DEFAULT_ANALYSIS_PARAMS });
+  // Analysis params — use defaults (adjustable in Loan Calculator after results)
+  const [params] = useState<AnalysisParams>({ ...DEFAULT_ANALYSIS_PARAMS });
 
-  const updateParam = (key: keyof AnalysisParams, value: number) => {
-    setParams(prev => ({ ...prev, [key]: value }));
-  };
+  // Auto-load analysis from URL param
+  useEffect(() => {
+    if (!analysisId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setActiveTab('analyze');
+
+    api.getAnalysis(Number(analysisId))
+      .then((resp: any) => {
+        if (!cancelled) {
+          setResult(resp.analysis || resp);
+        }
+      })
+      .catch((err: any) => {
+        if (!cancelled) setError(err.message || 'Failed to load analysis.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [analysisId]);
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) {
@@ -40,6 +61,10 @@ export default function PropertyAnalyzer() {
       const response = await api.runAndSaveAnalysis(url.trim(), params);
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
+      // Navigate to the analysis URL so it's shareable
+      if (response.id) {
+        navigate(`/analysis/${response.id}`, { replace: true });
+      }
     } catch (err: any) {
       setError(err.message || 'Analysis failed. Please check the URL and try again.');
     } finally {
@@ -48,10 +73,8 @@ export default function PropertyAnalyzer() {
   }, [url, params]);
 
   const handleViewHistoryItem = useCallback((analysis: PropertyAnalysis) => {
-    setResult(analysis);
-    setActiveTab('analyze');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+    navigate(`/analysis/${analysis.id}`);
+  }, [navigate]);
 
   return (
     <div className="analyzer">
@@ -110,33 +133,6 @@ export default function PropertyAnalyzer() {
               </button>
             </div>
 
-            {/* Advanced Options Toggle */}
-            <button
-              className="analyzer__advanced-toggle"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <Settings size={14} />
-              Advanced Options
-              {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-
-            {showAdvanced && (
-              <div className="analyzer__advanced">
-                <div className="analyzer__params-grid">
-                  <ParamInput label="Down Payment %" value={params.downPaymentPct} onChange={v => updateParam('downPaymentPct', v)} min={0} max={100} step={1} />
-                  <ParamInput label="Interest Rate %" value={params.interestRate} onChange={v => updateParam('interestRate', v)} min={0} max={15} step={0.1} />
-                  <ParamInput label="Loan Term (yrs)" value={params.loanTermYears} onChange={v => updateParam('loanTermYears', v)} min={1} max={40} step={1} />
-                  <ParamInput label="Vacancy %" value={params.vacancyPct} onChange={v => updateParam('vacancyPct', v)} min={0} max={25} step={1} />
-                  <ParamInput label="Repairs %" value={params.repairsPct} onChange={v => updateParam('repairsPct', v)} min={0} max={25} step={1} />
-                  <ParamInput label="CapEx %" value={params.capexPct} onChange={v => updateParam('capexPct', v)} min={0} max={25} step={1} />
-                  <ParamInput label="Mgmt %" value={params.managementPct} onChange={v => updateParam('managementPct', v)} min={0} max={15} step={1} />
-                  <ParamInput label="Property Tax $/yr" value={params.annualPropertyTax} onChange={v => updateParam('annualPropertyTax', v)} min={0} max={50000} step={100} />
-                  <ParamInput label="Insurance $/yr" value={params.annualInsurance} onChange={v => updateParam('annualInsurance', v)} min={0} max={20000} step={100} />
-                  <ParamInput label="Cost Seg %" value={params.costSegPct} onChange={v => updateParam('costSegPct', v)} min={10} max={35} step={0.5} />
-                  <ParamInput label="Tax Rate %" value={params.taxRate} onChange={v => updateParam('taxRate', v)} min={0} max={50} step={1} />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Error */}
@@ -171,39 +167,4 @@ export default function PropertyAnalyzer() {
   );
 }
 
-// ── Reusable parameter input ────────────────────────────────────────────
 
-function ParamInput({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
-  step: number;
-}) {
-  const explainer = findExplainer(label);
-  return (
-    <div className="param-input">
-      <label className="param-input__label">
-        {label}
-        {explainer && <TermExplainer info={explainer} />}
-      </label>
-      <input
-        type="number"
-        className="param-input__field"
-        value={value}
-        onChange={e => onChange(parseFloat(e.target.value) || 0)}
-        min={min}
-        max={max}
-        step={step}
-      />
-    </div>
-  );
-}

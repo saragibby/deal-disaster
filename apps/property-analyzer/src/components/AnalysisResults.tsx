@@ -4,9 +4,11 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
+  ImageIcon, ExternalLink,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
+import RentalInsights from './RentalInsights';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import {
   calculateMortgage,
@@ -112,88 +114,109 @@ export default function AnalysisResults({ analysis }: Props) {
 
   return (
     <div className="results">
-      {/* Property Info Card */}
+      {/* Property Info Card — with photo */}
       <div className="results__card results__property">
-        <div className="results__property-header">
-          <div>
-            <h2 className="results__property-address">
-              <Home size={20} /> {property.address || 'Property'}
-            </h2>
-            <p className="results__property-location">
-              {[property.city, property.state, property.zip].filter(Boolean).join(', ')}
-            </p>
-          </div>
-          <div className="results__property-price-block" ref={offerRef}>
-            <div className="results__property-price">
-              {priceAdjusted ? fmt(effectivePrice) : fmt(property.price)}
-              <button
-                type="button"
-                className="results__offer-toggle"
-                onClick={() => setShowOfferSlider(o => !o)}
-                title="Run offer scenarios"
-              >
-                <SlidersHorizontal size={16} />
-              </button>
+        <div className="results__property-top">
+          {/* Photo */}
+          {property.photos && property.photos.length > 0 ? (
+            <div className="results__photo">
+              <img src={property.photos[0]} alt={property.address || 'Property'} />
             </div>
-            {priceAdjusted && (
-              <div className="results__offer-meta">
-                <span className="results__list-price">List: {fmt(property.price)}</span>
-                <span className={`results__price-delta ${priceDelta < 0 ? 'results__price-delta--savings' : 'results__price-delta--over'}`}>
-                  {priceDelta < 0 ? '−' : '+'}{fmt(Math.abs(priceDelta))} ({priceDelta < 0 ? '' : '+'}{priceDeltaPct}%)
-                </span>
+          ) : (
+            <div className="results__photo results__photo--empty">
+              <ImageIcon size={36} strokeWidth={1.5} />
+              {property.zillowUrl && (
+                <a href={property.zillowUrl} target="_blank" rel="noopener noreferrer" className="results__photo-link">
+                  View on Zillow <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="results__property-info">
+            <div className="results__property-header">
+              <div>
+                <h2 className="results__property-address">
+                  <Home size={20} /> {property.address || 'Property'}
+                </h2>
+                <p className="results__property-location">
+                  {[property.city, property.state, property.zip].filter(Boolean).join(', ')}
+                </p>
               </div>
-            )}
-            {showOfferSlider && (
-              <div className="results__offer-popover">
-                <label className="results__offer-slider-label">Offer Price</label>
-                <div className="results__editable-value">
-                  <span className="results__editable-prefix">$</span>
-                  <input
-                    type="number"
-                    className="results__editable-input"
-                    value={params.offerPrice || property.price}
-                    onChange={e => {
-                      const v = parseFloat(e.target.value);
-                      if (!isNaN(v) && v > 0) updateParam('offerPrice', v);
-                    }}
-                    step={1000}
-                  />
-                </div>
-                <input
-                  type="range"
-                  className="results__offer-range"
-                  value={params.offerPrice || property.price}
-                  onChange={e => updateParam('offerPrice', parseFloat(e.target.value))}
-                  min={Math.round(property.price * 0.5)}
-                  max={Math.round(property.price * 1.2)}
-                  step={1000}
-                />
-                <div className="results__offer-slider-bounds">
-                  <span>{fmt(Math.round(property.price * 0.5))}</span>
-                  <span>{fmt(Math.round(property.price * 1.2))}</span>
-                </div>
-                {priceAdjusted && (
+              <div className="results__property-price-block" ref={offerRef}>
+                <div className="results__property-price">
+                  {priceAdjusted ? fmt(effectivePrice) : fmt(property.price)}
                   <button
                     type="button"
-                    className="results__offer-reset"
-                    onClick={() => updateParam('offerPrice', property.price)}
+                    className="results__offer-toggle"
+                    onClick={() => setShowOfferSlider(o => !o)}
+                    title="Run offer scenarios"
                   >
-                    Reset to list price
+                    <SlidersHorizontal size={16} />
                   </button>
+                </div>
+                {priceAdjusted && (
+                  <div className="results__offer-meta">
+                    <span className="results__list-price">List: {fmt(property.price)}</span>
+                    <span className={`results__price-delta ${priceDelta < 0 ? 'results__price-delta--savings' : 'results__price-delta--over'}`}>
+                      {priceDelta < 0 ? '−' : '+'}{fmt(Math.abs(priceDelta))} ({priceDelta < 0 ? '' : '+'}{priceDeltaPct}%)
+                    </span>
+                  </div>
+                )}
+                {showOfferSlider && (
+                  <div className="results__offer-popover">
+                    <label className="results__offer-slider-label">Offer Price</label>
+                    <div className="results__editable-value">
+                      <span className="results__editable-prefix">$</span>
+                      <input
+                        type="number"
+                        className="results__editable-input"
+                        value={params.offerPrice || property.price}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value);
+                          if (!isNaN(v) && v > 0) updateParam('offerPrice', v);
+                        }}
+                        step={1000}
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      className="results__offer-range"
+                      value={params.offerPrice || property.price}
+                      onChange={e => updateParam('offerPrice', parseFloat(e.target.value))}
+                      min={Math.round(property.price * 0.5)}
+                      max={Math.round(property.price * 1.2)}
+                      step={1000}
+                    />
+                    <div className="results__offer-slider-bounds">
+                      <span>{fmt(Math.round(property.price * 0.5))}</span>
+                      <span>{fmt(Math.round(property.price * 1.2))}</span>
+                    </div>
+                    {priceAdjusted && (
+                      <button
+                        type="button"
+                        className="results__offer-reset"
+                        onClick={() => updateParam('offerPrice', property.price)}
+                      >
+                        Reset to list price
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <div className="results__stats-row">
-          <Stat icon={<BedDouble size={16} />} value={String(property.bedrooms)} label="Beds" />
-          <Stat icon={<Bath size={16} />} value={String(property.bathrooms)} label="Baths" />
-          <Stat icon={<Ruler size={16} />} value={property.sqft?.toLocaleString() || '—'} label="Sq Ft" />
-          <Stat icon={<Calendar size={16} />} value={String(property.yearBuilt || '—')} label="Built" />
-          {property.propertyType && (
-            <Stat icon={<Building2 size={16} />} value={property.propertyType} label="Type" />
-          )}
+            <div className="results__stats-row">
+              <Stat icon={<BedDouble size={16} />} value={String(property.bedrooms)} label="Beds" />
+              <Stat icon={<Bath size={16} />} value={String(property.bathrooms)} label="Baths" />
+              <Stat icon={<Ruler size={16} />} value={property.sqft?.toLocaleString() || '—'} label="Sq Ft" />
+              <Stat icon={<Calendar size={16} />} value={String(property.yearBuilt || '—')} label="Built" />
+              {property.propertyType && (
+                <Stat icon={<Building2 size={16} />} value={property.propertyType} label="Type" />
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -275,6 +298,14 @@ export default function AnalysisResults({ analysis }: Props) {
               </table>
             </div>
           )}
+
+          <RentalInsights
+            property={property}
+            rental={rental}
+            strEstimate={results.strEstimate}
+            comparables={results.comparables}
+            effectiveRent={effectiveRent}
+          />
         </div>
 
         {/* Cash Flow Card */}
@@ -309,7 +340,7 @@ export default function AnalysisResults({ analysis }: Props) {
             <MetricRow label="Management" value={fmt(cashFlow.monthlyManagement)} />
           )}
 
-          <div className="results__big-number" style={{ marginTop: '1.5rem' }}>
+          <div className="results__big-number" style={{ marginTop: '0.75rem' }}>
             <div className="results__big-label">Monthly Cash Flow</div>
             <div className={`results__big-value ${cashFlowPositive ? 'results__big-value--positive' : 'results__big-value--negative'}`}>
               {fmt(cashFlow.monthlyCashFlow)}
@@ -325,6 +356,28 @@ export default function AnalysisResults({ analysis }: Props) {
             <MetricRow label="Gross Rent Multiplier" value={roi.grossRentMultiplier.toFixed(1) + 'x'} />
             <MetricRow label="Total Cash Invested" value={fmt(roi.totalCashInvested)} />
           </div>
+
+          {/* Tax Savings — inlined */}
+          <div className="results__tax-inline">
+            <h4 className="results__tax-inline-title">
+              <span className="results__icon results__icon--green-sm">💰</span>
+              Cost Segregation Tax Savings
+            </h4>
+            <div className="results__tax-inline-grid">
+              <div className="results__tax-inline-item">
+                <span className="results__tax-inline-label">Accelerated Depreciation</span>
+                <span className="results__tax-inline-value">{fmt(tax.depreciationDeduction)}</span>
+              </div>
+              <div className="results__tax-inline-item">
+                <span className="results__tax-inline-label">Tax Savings (Yr 1)</span>
+                <span className="results__tax-inline-value results__tax-inline-value--highlight">{fmt(tax.taxSavings)}</span>
+              </div>
+              <div className="results__tax-inline-item">
+                <span className="results__tax-inline-label">Effective First-Year Return</span>
+                <span className="results__tax-inline-value results__tax-inline-value--highlight">{pct(tax.effectiveFirstYearReturn)}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -337,54 +390,19 @@ export default function AnalysisResults({ analysis }: Props) {
         />
       )}
 
-      {/* Nearby Foreclosures */}
-      <ForeclosureCard
-        zip={property.zip}
-        city={property.city}
-        state={property.state}
-        latitude={property.latitude}
-        longitude={property.longitude}
-      />
+      {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
+      <div className="results__bottom-grid">
+        {/* Nearby Foreclosures */}
+        <ForeclosureCard
+          zip={property.zip}
+          city={property.city}
+          state={property.state}
+          latitude={property.latitude}
+          longitude={property.longitude}
+        />
 
-      {/* Tax Savings Card - Full Width */}
-      <div className="results__card results__tax-card">
-        <h3 className="results__card-title results__card-title--white">
-          <span className="results__icon results__icon--white">💰</span>
-          Cost Segregation Tax Savings
-        </h3>
-        <p className="results__tax-intro">
-          Cost segregation accelerates depreciation deductions by reclassifying property
-          components, providing immediate tax benefits.
-        </p>
-
-        <div className="results__tax-breakdown">
-          <div className="results__tax-row">
-            <span>Purchase Price</span>
-            <span>{fmt(tax.purchasePrice)}</span>
-          </div>
-          <div className="results__tax-row">
-            <span>Accelerated Depreciation</span>
-            <span>{fmt(tax.depreciationDeduction)}</span>
-          </div>
-          <div className="results__tax-row">
-            <span>Tax Savings (Year 1)</span>
-            <span>{fmt(tax.taxSavings)}</span>
-          </div>
-        </div>
-
-        <div className="results__big-number results__big-number--glass">
-          <div className="results__big-label results__big-label--light">Effective First-Year Return</div>
-          <div className="results__big-value results__big-value--white">
-            {pct(tax.effectiveFirstYearReturn)}
-          </div>
-          <div className="results__big-caption results__big-caption--light">
-            Including rental income + tax savings
-          </div>
-        </div>
-      </div>
-
-      {/* Loan Calculator — adjustable */}
-      <div id="loan-calculator" className={`results__card results__mortgage-card ${isAdjusted ? 'results__mortgage-card--adjusted' : ''}`}>
+        {/* Loan Calculator — adjustable */}
+        <div id="loan-calculator" className={`results__card results__mortgage-card ${isAdjusted ? 'results__mortgage-card--adjusted' : ''}`}>
         <div className="results__loan-header">
           <h3 className="results__card-title" style={{ marginBottom: 0 }}>
             <span className="results__icon results__icon--purple"><PiggyBank size={20} /></span>
@@ -467,6 +485,7 @@ export default function AnalysisResults({ analysis }: Props) {
           </div>
         )}
       </div>
+      </div>{/* end results__bottom-grid */}
     </div>
   );
 }

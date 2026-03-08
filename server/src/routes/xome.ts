@@ -21,7 +21,11 @@ const XOME_API_URL = () =>
 /* ------------------------------------------------------------------ */
 /*  In-memory Xome listing cache                                       */
 /* ------------------------------------------------------------------ */
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/* Market trends cache – keyed by zip, data changes monthly at most */
+const TRENDS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const trendsCache = new Map<string, { data: any; expiresAt: number }>();
 
 interface CachedData {
   listings: any[];
@@ -153,6 +157,14 @@ router.get('/market-trends', authenticateToken, async (req: AuthRequest, res: Re
 
   const url = `https://apis.xome.com/auctions/listing/v1/MarketTrends?postalCode=${postalCode}`;
 
+  // Check cache first
+  const cached = trendsCache.get(postalCode);
+  if (cached && Date.now() < cached.expiresAt) {
+    console.log(`[xome/market-trends] Cache hit for ${postalCode}`);
+    res.json(cached.data);
+    return;
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -169,6 +181,8 @@ router.get('/market-trends', authenticateToken, async (req: AuthRequest, res: Re
     }
 
     const data = await response.json();
+    trendsCache.set(postalCode, { data, expiresAt: Date.now() + TRENDS_CACHE_TTL_MS });
+    console.log(`[xome/market-trends] Cached response for ${postalCode} (7d TTL)`);
     res.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

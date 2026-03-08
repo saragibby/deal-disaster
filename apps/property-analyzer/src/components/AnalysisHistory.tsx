@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { Trash2, Eye, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
 
 interface Props {
   onView: (analysis: PropertyAnalysis) => void;
@@ -84,7 +84,7 @@ export default function AnalysisHistory({ onView }: Props) {
           const positive = cashFlow?.monthlyCashFlow >= 0;
 
           return (
-            <div key={a.id} className="history__item">
+            <div key={a.id} className="history__item" onClick={() => onView(a)} role="button" tabIndex={0} style={{ cursor: 'pointer' }}>
               <div className="history__item-main">
                 <div className="history__item-address">
                   <strong>{prop.address || 'Unknown Address'}</strong>
@@ -112,15 +112,8 @@ export default function AnalysisHistory({ onView }: Props) {
                 </span>
                 <div className="history__actions">
                   <button
-                    className="history__action-btn"
-                    onClick={() => onView(a)}
-                    title="View analysis"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  <button
                     className="history__action-btn history__action-btn--danger"
-                    onClick={() => handleDelete(a.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}
                     title="Delete"
                   >
                     <Trash2 size={16} />
