@@ -88,6 +88,19 @@ export class ApiService {
     return response.json();
   }
 
+  async resetPassword(token: string, password: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ token, password }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to reset password');
+    }
+    return response.json();
+  }
+
   async getCurrentUser() {
     const response = await fetch(`${API_BASE_URL}/api/auth/user`, {
       headers: this.getHeaders(true),

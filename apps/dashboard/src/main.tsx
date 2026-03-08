@@ -13,6 +13,7 @@ import News from './pages/News';
 import Profile from './pages/Profile';
 import AdminManage from './pages/AdminManage';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import './styles/dashboard.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/admin" element={<AdminManage />} />
           </Route>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
