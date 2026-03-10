@@ -14,6 +14,24 @@ interface DailyChallengeContext {
   difficulty: string;
 }
 
+interface PropertyAnalysisContext {
+  address: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  yearBuilt: number;
+  propertyType?: string;
+  zestimate?: number;
+  rentEstimate?: number;
+  monthlyCashFlow?: number;
+  cashOnCashROI?: number;
+  capRate?: number;
+  monthlyMortgage?: number;
+  taxSavings?: number;
+  strNetMonthly?: number;
+}
+
 type StreamCallback = (chunk: string) => void;
 
 export class ChatService {
@@ -71,6 +89,36 @@ export class ChatService {
     return message;
   }
 
+  private buildPropertyAnalysisContextMessage(context: PropertyAnalysisContext): string {
+    let message = `IMPORTANT CONTEXT: The user is using the Property Analyzer tool and is looking at a specific property. Here are the details:\n\n`;
+    message += `Property Address: ${context.address}\n`;
+    message += `List Price: $${context.price.toLocaleString()}\n`;
+    message += `Bedrooms/Bathrooms: ${context.bedrooms}/${context.bathrooms}\n`;
+    message += `Square Feet: ${context.sqft.toLocaleString()}\n`;
+    message += `Year Built: ${context.yearBuilt}\n`;
+    if (context.propertyType) message += `Property Type: ${context.propertyType}\n`;
+    if (context.zestimate) message += `Zestimate: $${context.zestimate.toLocaleString()}\n`;
+    if (context.rentEstimate) message += `Estimated Monthly Rent: $${context.rentEstimate.toLocaleString()}\n`;
+    if (context.monthlyMortgage) message += `Monthly Mortgage Payment: $${context.monthlyMortgage.toLocaleString()}\n`;
+    if (context.monthlyCashFlow != null) message += `Monthly Cash Flow: $${context.monthlyCashFlow.toLocaleString()}\n`;
+    if (context.cashOnCashROI != null) message += `Cash-on-Cash ROI: ${context.cashOnCashROI.toFixed(2)}%\n`;
+    if (context.capRate != null) message += `Cap Rate: ${context.capRate.toFixed(2)}%\n`;
+    if (context.taxSavings) message += `First-Year Tax Savings: $${context.taxSavings.toLocaleString()}\n`;
+    if (context.strNetMonthly) message += `Short-Term Rental Net Monthly: $${context.strNetMonthly.toLocaleString()}\n`;
+
+    message += `\nYOUR ROLE: Help the user understand this investment property analysis. You can:\n`;
+    message += `- Explain what the financial metrics mean (cash flow, cap rate, cash-on-cash ROI, etc.)\n`;
+    message += `- Help them understand if the numbers look strong or weak for their market\n`;
+    message += `- Discuss rental income potential and expense assumptions\n`;
+    message += `- Explain tax benefits and depreciation strategies\n`;
+    message += `- Compare long-term rental vs short-term rental strategies\n`;
+    message += `- Suggest what to look for in due diligence\n`;
+    message += `- Provide general real estate investment education\n\n`;
+    message += `Be specific to THIS property when answering questions. Reference the actual numbers from the analysis.\n`;
+
+    return message;
+  }
+
   constructor() {
     // Initialize Azure AI Agent client with Azure AD authentication
     const endpoint = process.env.AZURE_AI_AGENT_ENDPOINT;
@@ -95,7 +143,7 @@ export class ChatService {
     return new AgentsClient(this.endpoint, new DefaultAzureCredential());
   }
 
-  async chat(userMessage: string, conversationHistory: Message[] = [], dailyChallengeContext: DailyChallengeContext | null = null): Promise<string> {
+  async chat(userMessage: string, conversationHistory: Message[] = [], dailyChallengeContext: DailyChallengeContext | null = null, propertyAnalysisContext: PropertyAnalysisContext | null = null): Promise<string> {
     try {
       // Create a new thread for this conversation
       const thread = await this.agentsClient.threads.create();
@@ -103,6 +151,12 @@ export class ChatService {
       // If daily challenge context is provided, add it as system context
       if (dailyChallengeContext) {
         const contextMessage = this.buildDailyChallengeContextMessage(dailyChallengeContext);
+        await this.agentsClient.messages.create(thread.id, 'user', contextMessage);
+      }
+
+      // If property analysis context is provided, add it as system context
+      if (propertyAnalysisContext) {
+        const contextMessage = this.buildPropertyAnalysisContextMessage(propertyAnalysisContext);
         await this.agentsClient.messages.create(thread.id, 'user', contextMessage);
       }
 
@@ -167,7 +221,8 @@ export class ChatService {
     userMessage: string,
     onChunk: StreamCallback,
     conversationHistory: Message[] = [],
-    dailyChallengeContext: DailyChallengeContext | null = null
+    dailyChallengeContext: DailyChallengeContext | null = null,
+    propertyAnalysisContext: PropertyAnalysisContext | null = null
   ): Promise<string> {
     try {
       // Use a fresh client for streaming — the singleton client's HTTP pipeline
@@ -180,6 +235,12 @@ export class ChatService {
       // If daily challenge context is provided, add it as system context
       if (dailyChallengeContext) {
         const contextMessage = this.buildDailyChallengeContextMessage(dailyChallengeContext);
+        await client.messages.create(thread.id, 'user', contextMessage);
+      }
+
+      // If property analysis context is provided, add it as system context
+      if (propertyAnalysisContext) {
+        const contextMessage = this.buildPropertyAnalysisContextMessage(propertyAnalysisContext);
         await client.messages.create(thread.id, 'user', contextMessage);
       }
 

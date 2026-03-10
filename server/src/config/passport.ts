@@ -41,34 +41,29 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
 
           let user;
           if (result.rows.length === 0) {
-            // Check if email is already used by another provider
+            // Check if email is already used by another account
             const email = profile.emails?.[0]?.value || `${profile.id}@google.oauth`;
             const emailCheck = await pool.query(
-              'SELECT oauth_provider FROM users WHERE email = $1',
+              'SELECT * FROM users WHERE email = $1',
               [email]
             );
 
             if (emailCheck.rows.length > 0) {
-              const existingProvider = emailCheck.rows[0].oauth_provider;
-              if (existingProvider) {
-                const providerName = existingProvider.charAt(0).toUpperCase() + existingProvider.slice(1);
-                return done(new Error(`This email is already registered with ${providerName}. Please sign in with ${providerName} instead.`), undefined);
-              } else {
-                return done(new Error(`This email is already registered with email/password. Please sign in with your email instead.`), undefined);
-              }
+              // Link accounts: sign in as existing user (email verified by both providers)
+              user = emailCheck.rows[0];
+            } else {
+              // Create new user
+              const name = profile.displayName;
+              const avatar = profile.photos?.[0]?.value;
+
+              result = await pool.query(
+                `INSERT INTO users (email, name, avatar, oauth_provider, oauth_id, email_verified) 
+                 VALUES ($1, $2, $3, $4, $5, true) 
+                 RETURNING *`,
+                [email, name, avatar, 'google', profile.id]
+              );
+              user = result.rows[0];
             }
-
-            // Create new user
-            const name = profile.displayName;
-            const avatar = profile.photos?.[0]?.value;
-
-            result = await pool.query(
-              `INSERT INTO users (email, name, avatar, oauth_provider, oauth_id, email_verified) 
-               VALUES ($1, $2, $3, $4, $5, true) 
-               RETURNING *`,
-              [email, name, avatar, 'google', profile.id]
-            );
-            user = result.rows[0];
           } else {
             // Update existing user
             user = result.rows[0];
@@ -114,29 +109,24 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
 
           let user;
           if (result.rows.length === 0) {
-            // Check if email is already used by another provider
+            // Check if email is already used by another account
             const emailCheck = await pool.query(
-              'SELECT oauth_provider FROM users WHERE email = $1',
+              'SELECT * FROM users WHERE email = $1',
               [email]
             );
 
             if (emailCheck.rows.length > 0) {
-              const existingProvider = emailCheck.rows[0].oauth_provider;
-              if (existingProvider) {
-                const providerName = existingProvider.charAt(0).toUpperCase() + existingProvider.slice(1);
-                return done(new Error(`This email is already registered with ${providerName}. Please sign in with ${providerName} instead.`), undefined);
-              } else {
-                return done(new Error(`This email is already registered with email/password. Please sign in with your email instead.`), undefined);
-              }
+              // Link accounts: sign in as existing user (email verified by both providers)
+              user = emailCheck.rows[0];
+            } else {
+              result = await pool.query(
+                `INSERT INTO users (email, name, oauth_provider, oauth_id, email_verified) 
+                 VALUES ($1, $2, $3, $4, true) 
+                 RETURNING *`,
+                [email, name, 'microsoft', microsoftId]
+              );
+              user = result.rows[0];
             }
-
-            result = await pool.query(
-              `INSERT INTO users (email, name, oauth_provider, oauth_id, email_verified) 
-               VALUES ($1, $2, $3, $4, true) 
-               RETURNING *`,
-              [email, name, 'microsoft', microsoftId]
-            );
-            user = result.rows[0];
           } else {
             user = result.rows[0];
           }

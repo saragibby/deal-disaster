@@ -336,6 +336,7 @@ export class ApiService {
     message: string,
     conversationHistory: Array<{ role: string; content: string }> = [],
     includeDailyChallenge: boolean = true,
+    propertyAnalysisContext: Record<string, unknown> | null | undefined,
     onChunk: (chunk: string) => void,
     onDone: () => void,
     onError: (error: Error) => void
@@ -345,7 +346,7 @@ export class ApiService {
     fetch(`${API_BASE_URL}/api/chat/stream`, {
       method: 'POST',
       headers: this.getHeaders(true),
-      body: JSON.stringify({ message, conversationHistory, includeDailyChallenge }),
+      body: JSON.stringify({ message, conversationHistory, includeDailyChallenge, propertyAnalysisContext: propertyAnalysisContext || undefined }),
       signal: abortController.signal,
     })
       .then(async (response) => {

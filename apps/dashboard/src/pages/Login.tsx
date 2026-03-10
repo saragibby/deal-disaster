@@ -90,7 +90,8 @@ export default function Login() {
   };
 
   const handleOAuth = (provider: 'google' | 'microsoft') => {
-    window.location.href = `${apiUrl}/api/auth/${provider}`;
+    const redirect = encodeURIComponent(window.location.origin + '/login');
+    window.location.href = `${apiUrl}/api/auth/${provider}?redirect=${redirect}`;
   };
 
   return (

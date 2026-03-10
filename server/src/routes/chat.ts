@@ -8,18 +8,37 @@ import { getTodayInTimezone } from '../utils/dateUtils.js';
 const router = Router();
 const chatService = new ChatService();
 
+interface PropertyAnalysisContext {
+  address: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  yearBuilt: number;
+  propertyType?: string;
+  zestimate?: number;
+  rentEstimate?: number;
+  monthlyCashFlow?: number;
+  cashOnCashROI?: number;
+  capRate?: number;
+  monthlyMortgage?: number;
+  taxSavings?: number;
+  strNetMonthly?: number;
+}
+
 interface ChatRequest extends AuthRequest {
   body: {
     message: string;
     conversationHistory?: Array<{ role: string; content: string }>;
     includeDailyChallenge?: boolean;
+    propertyAnalysisContext?: PropertyAnalysisContext;
   };
 }
 
 // Chat endpoint
 router.post('/', authenticateToken, async (req: ChatRequest, res: Response) => {
   try {
-    const { message, conversationHistory = [], includeDailyChallenge = true } = req.body;
+    const { message, conversationHistory = [], includeDailyChallenge = true, propertyAnalysisContext } = req.body;
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required' });
@@ -60,7 +79,7 @@ router.post('/', authenticateToken, async (req: ChatRequest, res: Response) => {
       }
     }
 
-    const response = await chatService.chat(message, conversationHistory, dailyChallengeContext);
+    const response = await chatService.chat(message, conversationHistory, dailyChallengeContext, propertyAnalysisContext || null);
     
     // Save the question for analytics
     try {
@@ -97,7 +116,7 @@ router.post('/stream', authenticateToken, async (req: ChatRequest, res: Response
   });
 
   try {
-    const { message, conversationHistory = [], includeDailyChallenge = true } = req.body;
+    const { message, conversationHistory = [], includeDailyChallenge = true, propertyAnalysisContext } = req.body;
 
     if (!message || typeof message !== 'string') {
       res.write(`data: ${JSON.stringify({ error: 'Message is required' })}\n\n`);
@@ -146,7 +165,8 @@ router.post('/stream', authenticateToken, async (req: ChatRequest, res: Response
         }
       },
       conversationHistory,
-      dailyChallengeContext
+      dailyChallengeContext,
+      propertyAnalysisContext || null
     );
 
     if (!aborted) {

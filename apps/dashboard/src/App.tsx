@@ -13,19 +13,9 @@ export default function App() {
     return null;
   }
 
-  // Landing page takes over the full viewport for unauthenticated users on "/"
-  if (!isAuthenticated && location.pathname === '/') {
-    return (
-      <>
-        <Outlet />
-        <Footer />
-      </>
-    );
-  }
-
-  // Redirect unauthenticated users to home page for all other routes
-  if (!isAuthenticated && location.pathname !== '/') {
-    return <Navigate to="/" replace />;
+  // Redirect unauthenticated users to login page
+  if (!isAuthenticated && location.pathname !== '/login' && location.pathname !== '/reset-password') {
+    return <Navigate to="/login" replace />;
   }
 
   return (

@@ -7,10 +7,15 @@ import type {
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { Search } from 'lucide-react';
+import type { AskWillProps } from '@deal-platform/shared-ui';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisHistory from './AnalysisHistory.js';
 
-export default function PropertyAnalyzer() {
+interface PropertyAnalyzerProps {
+  onAnalysisComplete?: (context: AskWillProps['propertyAnalysis']) => void;
+}
+
+export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyzerProps = {}) {
   const { id: analysisId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [url, setUrl] = useState('');
@@ -22,6 +27,30 @@ export default function PropertyAnalyzer() {
 
   // Analysis params — use defaults (adjustable in Loan Calculator after results)
   const [params] = useState<AnalysisParams>({ ...DEFAULT_ANALYSIS_PARAMS });
+
+  // Notify parent when analysis result changes (for Ask Will context)
+  useEffect(() => {
+    if (!result || !onAnalysisComplete) return;
+    const p = result.property_data;
+    const r = result.analysis_results;
+    onAnalysisComplete({
+      address: p.address,
+      price: p.price,
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      sqft: p.sqft,
+      yearBuilt: p.yearBuilt,
+      propertyType: p.propertyType,
+      zestimate: p.zestimate,
+      rentEstimate: r.rentalEstimate?.mid,
+      monthlyCashFlow: r.cashFlow?.monthlyCashFlow,
+      cashOnCashROI: r.roi?.cashOnCashROI,
+      capRate: r.roi?.capRate,
+      monthlyMortgage: r.mortgage?.monthlyPayment,
+      taxSavings: r.taxSavings?.taxSavings,
+      strNetMonthly: r.strEstimate?.netMonthlyRevenue,
+    });
+  }, [result, onAnalysisComplete]);
 
   // Auto-load analysis from URL param
   useEffect(() => {

@@ -10,6 +10,27 @@ interface Message {
   timestamp: Date;
 }
 
+export interface AskWillProps {
+  /** Property analysis context to send to the AI agent */
+  propertyAnalysis?: {
+    address: string;
+    price: number;
+    bedrooms: number;
+    bathrooms: number;
+    sqft: number;
+    yearBuilt: number;
+    propertyType?: string;
+    zestimate?: number;
+    rentEstimate?: number;
+    monthlyCashFlow?: number;
+    cashOnCashROI?: number;
+    capRate?: number;
+    monthlyMortgage?: number;
+    taxSavings?: number;
+    strNetMonthly?: number;
+  };
+}
+
 // Configure marked to open links in new tabs
 const renderer = new marked.Renderer();
 const originalLinkRenderer = renderer.link.bind(renderer);
@@ -24,13 +45,17 @@ marked.setOptions({
   renderer: renderer,
 });
 
-export default function AskWill() {
+export default function AskWill({ propertyAnalysis }: AskWillProps = {}) {
+  const defaultGreeting = propertyAnalysis
+    ? `Hey! Will here! I can see you're analyzing a property at **${propertyAnalysis.address}**. Ask me anything about this deal — cash flow, rental potential, ROI, tax savings, or whether the numbers make sense!`
+    : "Hey! Will here! Ready to crush some foreclosure deals? I've got all the insider tips to help you spot winners and avoid the duds. Ask me about today's daily challenge, or anything else about real estate investing!";
+
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hey! Will here! Ready to crush some foreclosure deals? I've got all the insider tips to help you spot winners and avoid the duds. Ask me about today's daily challenge, or anything else about real estate investing!",
+      content: defaultGreeting,
       timestamp: new Date()
     }
   ]);
@@ -43,6 +68,14 @@ export default function AskWill() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Reset greeting when property analysis context changes
+  useEffect(() => {
+    const greeting = propertyAnalysis
+      ? `Hey! Will here! I can see you're analyzing a property at **${propertyAnalysis.address}**. Ask me anything about this deal — cash flow, rental potential, ROI, tax savings, or whether the numbers make sense!`
+      : "Hey! Will here! Ready to crush some foreclosure deals? I've got all the insider tips to help you spot winners and avoid the duds. Ask me about today's daily challenge, or anything else about real estate investing!";
+    setMessages([{ role: 'assistant', content: greeting, timestamp: new Date() }]);
+  }, [propertyAnalysis?.address]);
 
   useEffect(() => {
     scrollToBottom();
@@ -93,7 +126,8 @@ export default function AskWill() {
       abortControllerRef.current = await api.chatStream(
         userInput,
         conversationHistory,
-        true,
+        !propertyAnalysis,
+        propertyAnalysis,
         // onChunk: append text to the last (assistant) message
         (chunk: string) => {
           setMessages(prev => {

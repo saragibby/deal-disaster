@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
 import { AskWill } from '@deal-platform/shared-ui';
+import type { AskWillProps } from '@deal-platform/shared-ui';
 import { LogOut, User } from 'lucide-react';
 import { Footer } from '@deal-platform/shared-ui';
 import PropertyAnalyzer from './components/PropertyAnalyzer';
@@ -7,6 +9,7 @@ import LoginGate from './components/LoginGate';
 
 export default function App() {
   const { isAuthenticated, loading, user, logout } = useAuth();
+  const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
 
   return (
     <div className="analyzer-app">
@@ -44,11 +47,11 @@ export default function App() {
         ) : !isAuthenticated ? (
           <LoginGate />
         ) : (
-          <PropertyAnalyzer />
+          <PropertyAnalyzer onAnalysisComplete={setPropertyAnalysis} />
         )}
       </main>
 
-      {isAuthenticated && <AskWill />}
+      {isAuthenticated && <AskWill propertyAnalysis={propertyAnalysis} />}
       <Footer />
     </div>
   );

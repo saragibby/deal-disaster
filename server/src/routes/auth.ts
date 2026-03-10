@@ -331,21 +331,46 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   }
 });
 
+// Allowed OAuth redirect origins (add all app URLs here)
+const ALLOWED_REDIRECT_ORIGINS = [
+  process.env.CLIENT_URL,
+  process.env.DASHBOARD_URL,
+  'http://localhost:5200',
+  'http://localhost:5201',
+].filter(Boolean) as string[];
+
+function getOAuthRedirectUrl(stateParam: string | undefined): string {
+  const defaultUrl = process.env.CLIENT_URL || 'http://localhost:5200';
+  if (!stateParam) return defaultUrl;
+  try {
+    const state = JSON.parse(stateParam);
+    const redirect = state.redirect;
+    if (redirect && ALLOWED_REDIRECT_ORIGINS.some(origin => redirect.startsWith(origin))) {
+      return redirect;
+    }
+  } catch {}
+  return defaultUrl;
+}
+
 // Google OAuth routes
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google', (req: Request, res: Response, next) => {
+  const redirect = req.query.redirect as string | undefined;
+  const state = redirect ? JSON.stringify({ redirect }) : undefined;
+  passport.authenticate('google', { scope: ['profile', 'email'], state })(req, res, next);
+});
 
 router.get(
   '/google/callback',
   (req: Request, res: Response, next) => {
     passport.authenticate('google', { session: false }, (err, user) => {
+      const redirectUrl = getOAuthRedirectUrl(req.query.state as string);
       if (err) {
-        // Extract error message for user
         const errorMessage = err.message || 'Authentication failed';
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=${encodeURIComponent(errorMessage)}`);
+        return res.redirect(`${redirectUrl}?error=${encodeURIComponent(errorMessage)}`);
       }
       
       if (!user) {
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=authentication_failed`);
+        return res.redirect(`${redirectUrl}?error=authentication_failed`);
       }
 
       const token = jwt.sign(
@@ -354,28 +379,30 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
+      res.redirect(`${redirectUrl}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
     })(req, res, next);
   }
 );
 
 // Microsoft OAuth routes
-router.get('/microsoft', passport.authenticate('azure_ad_oauth2', { 
-  scope: ['openid', 'profile', 'email'] 
-}));
+router.get('/microsoft', (req: Request, res: Response, next) => {
+  const redirect = req.query.redirect as string | undefined;
+  const state = redirect ? JSON.stringify({ redirect }) : undefined;
+  passport.authenticate('azure_ad_oauth2', { scope: ['openid', 'profile', 'email'], state })(req, res, next);
+});
 
 router.get(
   '/microsoft/callback',
   (req: Request, res: Response, next) => {
     passport.authenticate('azure_ad_oauth2', { session: false }, (err: any, user: any) => {
+      const redirectUrl = getOAuthRedirectUrl(req.query.state as string);
       if (err) {
-        // Extract error message for user
         const errorMessage = err.message || 'Authentication failed';
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=${encodeURIComponent(errorMessage)}`);
+        return res.redirect(`${redirectUrl}?error=${encodeURIComponent(errorMessage)}`);
       }
       
       if (!user) {
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?error=authentication_failed`);
+        return res.redirect(`${redirectUrl}?error=authentication_failed`);
       }
 
       const token = jwt.sign(
@@ -384,7 +411,7 @@ router.get(
         { expiresIn: '7d' }
       );
       
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5200'}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
+      res.redirect(`${redirectUrl}?token=${token}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, avatar: user.avatar, username: user.username, onboarding_completed: user.onboarding_completed, is_admin: user.is_admin || false }))}`);
     })(req, res, next);
   }
 );
