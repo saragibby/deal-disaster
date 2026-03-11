@@ -4,10 +4,7 @@ import { AskWill } from '@deal-platform/shared-ui';
 import type { AskWillProps } from '@deal-platform/shared-ui';
 import { LogOut, User } from 'lucide-react';
 import { Footer } from '@deal-platform/shared-ui';
-import PropertyAnalyzer from './components/PropertyAnalyzer';
-import LoginGate from './components/LoginGate';
-
-export default function App() {
+import PropertyAnalyzer from './components/PropertyAnalyzer';\n\nexport default function App() {
   const { isAuthenticated, loading, user } = useAuth();
   const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
 
