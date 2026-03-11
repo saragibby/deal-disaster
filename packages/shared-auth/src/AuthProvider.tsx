@@ -35,7 +35,7 @@ function getInitialAuthState(): { authState: AuthState; loading: boolean } {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const initial = getInitialAuthState();
   const [authState, setAuthState] = useState<AuthState>(initial.authState);
-  const [loading, setLoading] = useState(initial.loading);
+  const [loading] = useState(initial.loading);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
