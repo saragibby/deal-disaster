@@ -4,7 +4,6 @@ import CaseDisplay from './components/CaseDisplay';
 import DecisionButtons from './components/DecisionButtons';
 import ScoreDisplay from './components/ScoreDisplay';
 import ResultModal from './components/ResultModal';
-import AuthForm from './components/AuthForm';
 import { Footer } from '@deal-platform/shared-ui';
 import Profile from './components/Profile';
 import Onboarding from './components/Onboarding';
@@ -324,15 +323,6 @@ function App() {
     
     // Update URL to deal ID
     navigate(`/deal/${newCase.id}`);
-  };
-
-  const handleAuthSuccess = (_token: string, userData: any) => {
-    setIsAuthenticated(true);
-    setUser(userData);
-    // Show onboarding if user hasn't completed it
-    if (!userData.onboarding_completed) {
-      setShowOnboarding(true);
-    }
   };
 
   const handleOnboardingComplete = async (data: any) => {
