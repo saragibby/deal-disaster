@@ -17,10 +17,10 @@ export default function Login() {
   // In production, use same origin. In dev, use localhost:3002
   const apiUrl = api.getBaseUrl();
 
-  // If already authenticated redirect to home
+  // If already authenticated redirect to home (SPA — no page reload)
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -41,13 +41,12 @@ export default function Login() {
       try {
         const user = JSON.parse(decodeURIComponent(userStr));
         login(token, user);
-        navigate('/');
       } catch {
         setError('Failed to complete authentication');
       }
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [login, navigate]);
+  }, [login]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -59,7 +58,6 @@ export default function Login() {
       if (isLoginMode) {
         const data = await api.login(email, password);
         login(data.token, data.user);
-        navigate('/');
       } else {
         const data = await api.register(email, password, name || undefined);
         setSuccess(data.message || 'Registration successful! Check your email.');
@@ -93,6 +91,11 @@ export default function Login() {
     const redirect = encodeURIComponent(window.location.origin + '/login');
     window.location.href = `${apiUrl}/api/auth/${provider}?redirect=${redirect}`;
   };
+
+  // Hide login form immediately when authenticated (navigate runs after paint)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="login-page">

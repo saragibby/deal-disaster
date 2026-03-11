@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
 import { AskWill } from '@deal-platform/shared-ui';
 import type { AskWillProps } from '@deal-platform/shared-ui';
@@ -8,8 +8,19 @@ import PropertyAnalyzer from './components/PropertyAnalyzer';
 import LoginGate from './components/LoginGate';
 
 export default function App() {
-  const { isAuthenticated, loading, user, logout } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  }, []);
+
+  if (!loading && !isAuthenticated) {
+    window.location.href = '/login';
+    return null;
+  }
 
   return (
     <div className="analyzer-app">
@@ -29,7 +40,7 @@ export default function App() {
               <a href={buildAppUrl('/profile')} className="analyzer-app__user">
                 <User size={16} /> {user.name || user.email}
               </a>
-              <button className="analyzer-app__logout" onClick={() => logout()} title="Sign out">
+              <button className="analyzer-app__logout" onClick={handleLogout} title="Sign out">
                 <LogOut size={14} />
               </button>
             </>
@@ -39,16 +50,7 @@ export default function App() {
 
       {/* Main content */}
       <main className="analyzer-app__content">
-        {loading ? (
-          <div className="analyzer-loading">
-            <div className="analyzer-spinner" />
-            <p>Loading...</p>
-          </div>
-        ) : !isAuthenticated ? (
-          <LoginGate />
-        ) : (
-          <PropertyAnalyzer onAnalysisComplete={setPropertyAnalysis} />
-        )}
+        <PropertyAnalyzer onAnalysisComplete={setPropertyAnalysis} />
       </main>
 
       {isAuthenticated && <AskWill propertyAnalysis={propertyAnalysis} />}

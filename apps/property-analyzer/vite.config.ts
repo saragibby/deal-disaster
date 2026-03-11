@@ -8,6 +8,11 @@ export default defineConfig({
   server: {
     port: 5202,
     strictPort: true,
+    hmr: {
+      // When accessed through the dashboard proxy (port 5200), HMR
+      // still connects directly to this server's port.
+      port: 5202,
+    },
     watch: {
       // Watch shared packages for HMR
       ignored: ['!**/node_modules/@deal-platform/**'],

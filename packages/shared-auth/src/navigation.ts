@@ -1,14 +1,13 @@
 /**
  * Cross-app navigation utility for the platform.
  *
- * In production all apps share the same origin so localStorage (and thus
- * auth tokens) are automatically available everywhere.
+ * All sub-apps are proxied through the dashboard (port 5200) in development,
+ * mirroring the production Express setup.  Because every app shares the same
+ * origin, localStorage (and thus auth state) is unified across apps — no
+ * cross-origin SSO tokens are needed.
  *
- * In development each app runs on its own port, which means different
- * origins and separate localStorage stores.  To provide seamless SSO we
- * append the current auth token and user data as URL query-params when
- * navigating between apps in dev mode.  The target app picks them up on
- * mount, stores them in its own localStorage, and clears the URL.
+ * If a sub-app is accessed directly on its own port (e.g. localhost:5201),
+ * SSO params are still appended as a fallback.
  */
 
 /** Map app base-paths to their dev-server ports. */
@@ -25,36 +24,40 @@ const DASHBOARD_PORT = 5200;
  *
  * @param appPath  The production base-path of the target app, e.g.
  *                 `'/deal-or-disaster/'`
- * @returns        A URL string.  In dev mode it will point at the correct
- *                 localhost port and include `?token=...&user=...` when the
- *                 current user is authenticated.
+ * @returns        A URL string.  In dev mode, returns a same-origin path
+ *                 when accessed through the proxy (port 5200).  Falls back
+ *                 to cross-port SSO URLs for direct sub-app access.
  */
 export function buildAppUrl(appPath: string): string {
   const isDev =
     typeof window !== 'undefined' &&
     window.location.hostname === 'localhost';
 
-  let url: string;
+  if (!isDev) {
+    // Same origin in production – just return the path.
+    return appPath;
+  }
 
-  if (isDev) {
-    // Find the matching app by prefix (e.g. '/property-analyzer/analysis/5' → '/property-analyzer/')
-    const matchedApp = Object.keys(DEV_APP_PORTS).find(prefix => appPath.startsWith(prefix));
-    const port = matchedApp ? DEV_APP_PORTS[matchedApp] : DASHBOARD_PORT;
-    url = `http://localhost:${port}${appPath}`;
+  const currentPort = window.location.port;
 
-    // Different ports → different origins → separate localStorage.
-    // Pass auth tokens via URL so the target app can establish its session.
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    if (token && user) {
-      const params = new URLSearchParams();
-      params.set('token', token);
-      params.set('user', encodeURIComponent(user));
-      url += `?${params.toString()}`;
-    }
-  } else {
-    // Same origin in production – localStorage is shared.
-    url = appPath;
+  // When accessed through the dashboard proxy (port 5200), all apps share
+  // the same origin so localStorage is already shared — simple path works.
+  if (currentPort === String(DASHBOARD_PORT)) {
+    return appPath;
+  }
+
+  // Fallback: direct sub-app access on its own port — pass SSO params.
+  const matchedApp = Object.keys(DEV_APP_PORTS).find(prefix => appPath.startsWith(prefix));
+  const port = matchedApp ? DEV_APP_PORTS[matchedApp] : DASHBOARD_PORT;
+  let url = `http://localhost:${port}${appPath}`;
+
+  const token = localStorage.getItem('token');
+  const user = localStorage.getItem('user');
+  if (token && user) {
+    const params = new URLSearchParams();
+    params.set('token', token);
+    params.set('user', encodeURIComponent(user));
+    url += `?${params.toString()}`;
   }
 
   return url;

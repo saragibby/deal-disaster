@@ -23,9 +23,20 @@
     "build:apps": "cd apps/dashboard && npm run build && cd ../deal-or-disaster && npm run build && cd ../property-analyzer && npm run build",
     "build:server": "cd server && npm run build",
     "setup": "cd server && npm run db:setup",
-    "heroku-postbuild": "npm run build:packages && npm run build:apps && cd server && npm install && npm run build"
+    "heroku-postbuild": "npm run build:packages && npm run build:apps && cd server && npm install && npm run build",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:seed": "npx tsx e2e/seed-test-user.ts"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@playwright/test": "^1.58.2",
+    "@types/bcrypt": "^6.0.0",
+    "@types/pg": "^8.18.0",
+    "bcrypt": "^6.0.0",
+    "concurrently": "^8.2.2",
+    "dotenv": "^17.3.1",
+    "pg": "^8.20.0",
+    "tsx": "^4.21.0"
   }
 }

@@ -21,12 +21,24 @@ import './App.css';
 
 const CASE_TIME_LIMIT = 300; // 5 minutes in seconds
 
+function getInitialAuth() {
+  try {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (token && savedUser) {
+      return { isAuthenticated: true, user: JSON.parse(savedUser) };
+    }
+  } catch { /* ignore */ }
+  return { isAuthenticated: false, user: null };
+}
+
 function App() {
   const { date, dealId } = useParams();
   const navigate = useNavigate();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const initialAuth = getInitialAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth.isAuthenticated);
+  const [initializing, setInitializing] = useState(initialAuth.isAuthenticated);
+  const [user, setUser] = useState<any>(initialAuth.user);
   const [showProfile, setShowProfile] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
@@ -60,22 +72,14 @@ function App() {
   // Set up unauthorized handler to auto-logout on token expiration
   useEffect(() => {
     api.setUnauthorizedHandler(() => {
-      // Clear auth state when token expires
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      setIsAuthenticated(false);
-      setUser(null);
-      setGameStarted(false);
-      setShowProfile(false);
-      setShowOnboarding(false);
-      setShowDailyChallenge(false);
+      window.location.href = '/login';
     });
   }, []);
 
-  // Check for existing auth on mount — first look for SSO params passed
-  // from the main dashboard (cross-origin in dev), then fall back to localStorage.
+  // Handle SSO params passed via URL (fallback for direct sub-app access)
   useEffect(() => {
-    // SSO: check for token + user in URL query params
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
     const urlUserStr = params.get('user');
@@ -87,23 +91,10 @@ function App() {
         localStorage.setItem('user', JSON.stringify(urlUser));
         setIsAuthenticated(true);
         setUser(urlUser);
-        // Strip SSO params from the address bar
         window.history.replaceState({}, '', window.location.pathname);
-        return; // done — skip localStorage fallback
       } catch (err) {
         console.error('Failed to parse SSO params:', err);
       }
-    }
-
-    // Fallback: check localStorage
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      setIsAuthenticated(true);
-      setUser(JSON.parse(savedUser));
-    } else {
-      setInitializing(false);
     }
   }, []);
 
@@ -388,19 +379,7 @@ function App() {
 
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setIsAuthenticated(false);
-    setUser(null);
-    setGameStarted(false);
-    setScore({
-      points: 0,
-      casesSolved: 0,
-      goodDeals: 0,
-      badDealsAvoided: 0,
-      mistakes: 0,
-      redFlagsFound: 0,
-      redFlagCorrect: 0,
-      redFlagMistakes: 0,
-    });
+    window.location.href = '/login';
   };
 
   const handleBackToHome = async () => {
@@ -632,77 +611,11 @@ function App() {
     );
   }
 
-  // Show auth form if not authenticated
+  // Redirect to dashboard login if not authenticated
   if (!isAuthenticated) {
-    return (
-      <div className="app-container">
-        <header className="platform-header">
-          <a href={buildAppUrl('/')} className="platform-header__logo">⚡ Passive Income Club</a>
-          <nav className="platform-header__nav">
-            <a href={buildAppUrl('/')} className="platform-header__link">Home</a>
-            <a href={buildAppUrl('/games')} className="platform-header__link">Games</a>
-            <a href={buildAppUrl('/tools')} className="platform-header__link">Tools</a>
-          </nav>
-        </header>
-        <div className="homepage">
-        <div className="homepage-left">
-          <img 
-            src={logo} 
-            alt="Deal or Disaster Logo" 
-            className="homepage-logo"
-          />
-          <h1 className="homepage-title">Welcome to the Foreclosure Jungle!</h1>
-          <p className="homepage-tagline">
-            Where one person's financial disaster is your treasure hunt... if you can spot the traps. 🎯
-          </p>
-          
-          <div className="homepage-features">
-            <div className="feature">
-              <span className="feature-icon">📅</span>
-              <div>
-                <h3>Daily Challenges</h3>
-                <p>Fresh foreclosure nightmares every day. Will you strike gold or get buried in hidden costs?</p>
-              </div>
-            </div>
-            
-            <div className="feature">
-              <span className="feature-icon">🏆</span>
-              <div>
-                <h3>Leaderboard Glory</h3>
-                <p>Climb the ranks and prove you're not just another rookie who buys a house with a surprise sinkhole.</p>
-              </div>
-            </div>
-            
-            <div className="feature">
-              <span className="feature-icon">🎖️</span>
-              <div>
-                <h3>Earn Badges</h3>
-                <p>From "Red Flag Hunter" to "Deal Sniper" - collect achievements that actually mean something (unlike that time you bought a fixer-upper with no foundation).</p>
-              </div>
-            </div>
-            
-            <div className="feature">
-              <span className="feature-icon">🎓</span>
-              <div>
-                <h3>Master the Game</h3>
-                <p>Learn to spot title issues, calculate real costs, and avoid properties that'll drain your bank account faster than your ex. We'll teach you the fundamentals of foreclosure investing without the $5,000 guru course.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="homepage-warning">
-            <p>⚠️ <strong>Warning:</strong> 90% of beginners fail this simulation. Are you part of the 10% who can actually make money in foreclosure auctions?</p>
-          </div>
-        </div>
-
-        <div className="homepage-right">
-          <AuthForm onSuccess={handleAuthSuccess} />
-        </div>
-      </div>
-      <Footer />
-    </div>
-  );
-}
+    window.location.href = '/login';
+    return null;
+  }
 
   if (!gameStarted) {
     return (

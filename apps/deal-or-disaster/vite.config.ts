@@ -7,6 +7,11 @@ export default defineConfig({
   base: '/deal-or-disaster/',
   server: {
     port: 5201,
+    hmr: {
+      // When accessed through the dashboard proxy (port 5200), HMR
+      // still connects directly to this server's port.
+      port: 5201,
+    },
     watch: {
       // Watch shared packages for HMR
       ignored: ['!**/node_modules/@deal-platform/**'],

@@ -11,13 +11,31 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function getInitialAuthState(): { authState: AuthState; loading: boolean } {
+  try {
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (token && savedUser) {
+      const user = JSON.parse(savedUser);
+      return {
+        authState: { isAuthenticated: true, user, token },
+        loading: false,
+      };
+    }
+  } catch {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+  return {
+    authState: { isAuthenticated: false, user: null, token: null },
+    loading: false,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    token: null,
-  });
-  const [loading, setLoading] = useState(true);
+  const initial = getInitialAuthState();
+  const [authState, setAuthState] = useState<AuthState>(initial.authState);
+  const [loading, setLoading] = useState(initial.loading);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
@@ -32,30 +50,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [logout]);
 
-  // Check for existing auth on mount and refresh user profile from server
+  // Refresh user profile from server on mount (initial state already set synchronously)
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
-    if (token && savedUser) {
-      try {
-        const user = JSON.parse(savedUser);
-        setAuthState({ isAuthenticated: true, user, token });
-
-        // Refresh user profile from server to pick up changes (e.g. admin status)
-        api.getCurrentUser().then((data: { user: User }) => {
-          const freshUser = data.user;
-          localStorage.setItem('user', JSON.stringify(freshUser));
-          setAuthState(prev => ({ ...prev, user: freshUser }));
-        }).catch(() => {
-          // If refresh fails (e.g. expired token), keep cached user
-        });
-      } catch {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+    if (authState.isAuthenticated) {
+      api.getCurrentUser().then((data: { user: User }) => {
+        const freshUser = data.user;
+        localStorage.setItem('user', JSON.stringify(freshUser));
+        setAuthState(prev => ({ ...prev, user: freshUser }));
+      }).catch(() => {
+        // If refresh fails (e.g. expired token), keep cached user
+      });
     }
-    setLoading(false);
   }, []);
 
   // Handle OAuth callback tokens in URL

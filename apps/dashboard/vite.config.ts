@@ -7,6 +7,19 @@ export default defineConfig({
   base: '/',
   server: {
     port: 5200,
+    proxy: {
+      // Proxy sub-apps through the dashboard so all apps share the same
+      // origin (localhost:5200) in dev, mirroring the production setup.
+      // This keeps localStorage (and thus auth state) unified.
+      '/deal-or-disaster': {
+        target: 'http://localhost:5201',
+        changeOrigin: true,
+      },
+      '/property-analyzer': {
+        target: 'http://localhost:5202',
+        changeOrigin: true,
+      },
+    },
     watch: {
       // Watch shared packages for HMR
       ignored: ['!**/node_modules/@deal-platform/**'],
