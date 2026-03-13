@@ -9,13 +9,17 @@
  *   GET /byaddress?propertyaddress=<full address string>
  *   GET /similar?byzpid=<zpid>   — returns ~20 similar properties
  *   GET /nearby?byzpid=<zpid>    — returns ~8 nearby properties
+ *   GET /pricehistory?byzpid=<zpid> — returns price history events
+ *   GET /taxinfo?byzpid=<zpid>      — returns tax assessment history
+ *   GET /rental_market?search_query=<city+state> — returns rental market trends
+ *   GET /housing_market?search_query=<city+state> — returns housing market overview + ZHVI
  *
  * This provider does NOT have a rental-comps endpoint, so getRentalComps
  * always returns [] and callers should rely on the algorithmic estimator
  * or derive comps from the /similar endpoint.
  */
 
-import type { PropertyData, PropertySummary, RentalComp, ComparableProperty } from '@deal-platform/shared-types';
+import type { PropertyData, PropertySummary, RentalComp, ComparableProperty, RentalMarketTrends, HousingMarket } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
 
@@ -105,8 +109,187 @@ export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
     throw new Error('Property not found. Please check the Zillow URL and try again.');
   }
 
+  // Enrich with price history from dedicated endpoint (if not already present)
+  if (!property.priceHistory) {
+    property.priceHistory = await fetchPriceHistory(zpid);
+  }
+
+  // Enrich with rental market trends (non-blocking)
+  if (!property.rentalMarketTrends && property.city && property.state) {
+    property.rentalMarketTrends = await fetchRentalMarketTrends(property.city, property.state);
+  }
+
+  // Enrich with housing market data (non-blocking)
+  if (!property.housingMarket && property.city && property.state) {
+    property.housingMarket = await fetchHousingMarket(property.city, property.state);
+  }
+
   setCache(cacheKey, property);
   return property;
+}
+
+/**
+ * Fetch price history for a property via the dedicated /pricehistory endpoint.
+ * Uses: GET /pricehistory?byzpid=<zpid>
+ *
+ * Returns null if the endpoint fails or no data is available (non-blocking).
+ */
+async function fetchPriceHistory(zpid: string): Promise<Array<{ date: string; price: number; event: string }> | undefined> {
+  try {
+    const host = RAPIDAPI_HOST();
+    const url = `https://${host}/pricehistory?byzpid=${encodeURIComponent(zpid)}`;
+    const res = await fetch(url, { headers: rapidHeaders() });
+
+    if (!res.ok) return undefined;
+
+    const data = await res.json() as any;
+    const hist = data.priceHistory;
+
+    if (!Array.isArray(hist) || hist.length === 0) return undefined;
+
+    const parsed = hist
+      .filter((h: any) => h.price != null && h.price > 0)
+      .map((h: any) => ({
+        date: String(h.date || ''),
+        price: Number(h.price),
+        event: String(h.event || 'Unknown'),
+      }))
+      .filter((h: { date: string; price: number }) => h.date && h.price > 0);
+
+    if (parsed.length === 0) return undefined;
+
+    // Remove outliers: entries with prices below 10% of the median are likely
+    // administrative/non-sale events (tax entries, placeholder prices, etc.)
+    const prices = parsed.map((h: { price: number }) => h.price).sort((a: number, b: number) => a - b);
+    const median = prices[Math.floor(prices.length / 2)];
+    const threshold = median * 0.1;
+    const filtered = parsed.filter((h: { price: number }) => h.price >= threshold);
+
+    return filtered.length > 0 ? filtered : undefined;
+  } catch (err) {
+    console.warn(`[propertyDataService] Failed to fetch price history for zpid ${zpid}:`, (err as Error).message);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch rental market trends for the property's city/state.
+ * Uses: GET /rental_market?search_query=<city+state>
+ *
+ * Returns undefined if the endpoint fails or no data is available (non-blocking).
+ */
+async function fetchRentalMarketTrends(city: string, state: string): Promise<RentalMarketTrends | undefined> {
+  const searchQuery = `${city} ${state}`;
+  const cacheKey = `rental_market:${searchQuery}`;
+  const cached = getCached<RentalMarketTrends>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const host = RAPIDAPI_HOST();
+    const url = `https://${host}/rental_market?search_query=${encodeURIComponent(searchQuery)}`;
+    const res = await fetch(url, { headers: rapidHeaders() });
+
+    if (!res.ok) return undefined;
+
+    const data = await res.json() as any;
+    const trends = data.rental_market_trends;
+
+    if (!trends?.summary) return undefined;
+
+    const result: RentalMarketTrends = {
+      areaName: trends.areaName || searchQuery,
+      medianRent: Number(trends.summary.medianRent) || 0,
+      monthlyChange: Number(trends.summary.monthlyChange) || 0,
+      yearlyChange: Number(trends.summary.yearlyChange) || 0,
+      availableRentals: Number(trends.summary.availableRentals) || 0,
+      marketTemperature: trends.marketTemperature?.temperature || 'UNKNOWN',
+      rentHistogram: Array.isArray(trends.rentHistogram?.priceAndCount)
+        ? trends.rentHistogram.priceAndCount
+            .filter((h: any) => h.price > 0 && h.count > 0)
+            .map((h: any) => ({ price: Number(h.price), count: Number(h.count) }))
+        : undefined,
+      medianRentOverTime: trends.medianRentPriceOverTime ? {
+        currentYear: (trends.medianRentPriceOverTime.currentYear || []).map((m: any) => ({
+          month: String(m.month), year: String(m.year), price: Number(m.price) || 0,
+        })),
+        prevYear: (trends.medianRentPriceOverTime.prevYear || []).map((m: any) => ({
+          month: String(m.month), year: String(m.year), price: Number(m.price) || 0,
+        })),
+      } : undefined,
+      nationalMedianRent: trends.rentCompare?.medianRent ? Number(trends.rentCompare.medianRent) : undefined,
+    };
+
+    if (result.medianRent > 0) {
+      setCache(cacheKey, result);
+      return result;
+    }
+    return undefined;
+  } catch (err) {
+    console.warn(`[propertyDataService] Failed to fetch rental market trends for ${searchQuery}:`, (err as Error).message);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch housing market overview + ZHVI time series for a city.
+ * Uses: GET /housing_market?search_query=<city+state>
+ */
+async function fetchHousingMarket(city: string, state: string): Promise<HousingMarket | undefined> {
+  const searchQuery = `${city} ${state}`;
+  const cacheKey = `housing_market:${searchQuery}`;
+  const cached = getCached<HousingMarket>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const host = RAPIDAPI_HOST();
+    const url = `https://${host}/housing_market?search_query=${encodeURIComponent(searchQuery)}`;
+    const res = await fetch(url, { headers: rapidHeaders() });
+
+    if (!res.ok) return undefined;
+
+    const data = await res.json() as any;
+    const overview = data.market_overview;
+    const analytics = data.market_analytics;
+
+    if (!overview) return undefined;
+
+    const zhviTimeSeries: Array<{ date: string; value: number }> = [];
+    if (Array.isArray(analytics?.zhviRange)) {
+      for (const entry of analytics.zhviRange) {
+        if (entry.timePeriodEnd && entry.dataValue > 0) {
+          zhviTimeSeries.push({
+            date: entry.timePeriodEnd,
+            value: Math.round(entry.dataValue),
+          });
+        }
+      }
+      // API returns newest-first; reverse to chronological
+      zhviTimeSeries.reverse();
+    }
+
+    const result: HousingMarket = {
+      areaName: data.search_query || searchQuery,
+      typicalHomeValue: Number(overview.typical_home_values) || 0,
+      medianSalePrice: Number(overview.median_sale_price) || 0,
+      medianListPrice: Number(overview.median_list_price) || 0,
+      saleToListRatio: Number(overview.market_saletolist_ratio) || 0,
+      pctSoldAboveList: Number(overview.percent_ofsales_over_list_price) || 0,
+      pctSoldBelowList: Number(overview.percent_ofsales_under_list_price) || 0,
+      medianDaysToPending: Number(overview.median_days_to_pending) || 0,
+      forSaleInventory: Number(overview.for_sale_inventory) || 0,
+      newListings: Number(overview.new_listings) || 0,
+      zhviTimeSeries,
+    };
+
+    if (result.typicalHomeValue > 0) {
+      setCache(cacheKey, result);
+      return result;
+    }
+    return undefined;
+  } catch (err) {
+    console.warn(`[propertyDataService] Failed to fetch housing market for ${searchQuery}:`, (err as Error).message);
+    return undefined;
+  }
 }
 
 /**
@@ -137,6 +320,21 @@ export async function getPropertyByAddress(
 
   if (!property.address && !property.price) {
     throw new Error('No properties found for the provided address.');
+  }
+
+  // Enrich with price history from dedicated endpoint
+  if (!property.priceHistory && zpid) {
+    property.priceHistory = await fetchPriceHistory(zpid);
+  }
+
+  // Enrich with rental market trends (non-blocking)
+  if (!property.rentalMarketTrends && property.city && property.state) {
+    property.rentalMarketTrends = await fetchRentalMarketTrends(property.city, property.state);
+  }
+
+  // Enrich with housing market data (non-blocking)
+  if (!property.housingMarket && property.city && property.state) {
+    property.housingMarket = await fetchHousingMarket(property.city, property.state);
   }
 
   return property;
@@ -258,6 +456,34 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
 // ---------- normalizer ----------
 
 /**
+ * Normalize tax history from varying API response shapes.
+ */
+function normalizeTaxHistory(raw: any): Array<{ year: number; amount: number }> | undefined {
+  const hist = raw.taxHistory || raw.tax_history || raw.TaxHistory;
+  if (!Array.isArray(hist) || hist.length === 0) return undefined;
+  const parsed = hist
+    .map((h: any) => ({ year: Number(h.year || h.time), amount: Number(h.amount || h.value || h.taxPaid) || 0 }))
+    .filter((h: { year: number }) => h.year > 0);
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+/**
+ * Normalize price history from varying API response shapes.
+ */
+function normalizePriceHistory(raw: any): Array<{ date: string; price: number; event: string }> | undefined {
+  const hist = raw.priceHistory || raw.price_history || raw.PriceHistory;
+  if (!Array.isArray(hist) || hist.length === 0) return undefined;
+  const parsed = hist
+    .map((h: any) => ({
+      date: String(h.date || h.time || ''),
+      price: Number(h.price || h.amount || h.value) || 0,
+      event: String(h.event || h.type || h.priceChangeRate || 'Unknown'),
+    }))
+    .filter((h: { date: string; price: number }) => h.date && h.price > 0);
+  return parsed.length > 0 ? parsed : undefined;
+}
+
+/**
  * Normalize the flat response from private-zillow into our PropertyData shape.
  *
  * Response shape:
@@ -308,8 +534,8 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
     propertyType: undefined, // Not available from this provider
     description: undefined,
     photos: uniquePhotos,
-    taxHistory: undefined,
-    priceHistory: undefined,
+    taxHistory: normalizeTaxHistory(raw),
+    priceHistory: normalizePriceHistory(raw),
     homeStatus: raw.daysOnZillow != null ? `${raw.daysOnZillow} days on Zillow` : undefined,
     zillowUrl: raw.PropertyZillowURL || (resolvedZpid ? `https://www.zillow.com/homedetails/${resolvedZpid}_zpid/` : undefined),
   };

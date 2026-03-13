@@ -1,28 +1,34 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '@deal-platform/shared-auth';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { api, useAuth } from '@deal-platform/shared-auth';
 import type {
   PropertyAnalysis,
   AnalysisParams,
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
-import { Search } from 'lucide-react';
+import { Search, GitCompareArrows } from 'lucide-react';
 import type { AskWillProps } from '@deal-platform/shared-ui';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisHistory from './AnalysisHistory.js';
+import PropertyComparison from './PropertyComparison.js';
 
 interface PropertyAnalyzerProps {
   onAnalysisComplete?: (context: AskWillProps['propertyAnalysis']) => void;
 }
 
 export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyzerProps = {}) {
+  const { user } = useAuth();
+  const isAdmin = user?.is_admin === true;
   const { id: analysisId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PropertyAnalysis | null>(null);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'history'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'history' | 'compare'>(
+    location.pathname.endsWith('/compare') && isAdmin ? 'compare' : 'analyze'
+  );
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   // Analysis params — use defaults (adjustable in Loan Calculator after results)
@@ -130,6 +136,15 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
         >
           📋 History
         </button>
+        {isAdmin && (
+          <button
+            className={`analyzer__tab ${activeTab === 'compare' ? 'analyzer__tab--active' : ''}`}
+            onClick={() => { setActiveTab('compare'); navigate('/compare', { replace: true }); }}
+          >
+            <GitCompareArrows size={16} />
+            Compare
+          </button>
+        )}
       </div>
 
       {activeTab === 'analyze' && (
@@ -191,6 +206,10 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
           key={historyRefreshKey}
           onView={handleViewHistoryItem}
         />
+      )}
+
+      {activeTab === 'compare' && (
+        <PropertyComparison onNewAnalysis={() => setHistoryRefreshKey(k => k + 1)} />
       )}
     </div>
   );

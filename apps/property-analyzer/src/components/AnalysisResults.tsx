@@ -9,6 +9,8 @@ import {
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
 import RentalInsights from './RentalInsights';
+import HousingMarketTrends from './comparison/HousingMarketTrends';
+import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import {
   calculateMortgage,
@@ -381,6 +383,12 @@ export default function AnalysisResults({ analysis }: Props) {
           subjectRent={rental.mid}
         />
       )}
+
+      {/* Housing Market + Rental Market side-by-side */}
+      <div className="results__trends-grid">
+        <HousingMarketTrends properties={[analysis]} />
+        <RentalMarketTrends properties={[analysis]} />
+      </div>
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
       <div className="results__bottom-grid">

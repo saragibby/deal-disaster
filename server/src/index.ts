@@ -13,6 +13,7 @@ import portalRoutes from './routes/portal.js';
 import propertyRoutes from './routes/property.js';
 import propertyAnalyzerRoutes from './routes/propertyAnalyzer.js';
 import xomeRoutes from './routes/xome.js';
+import aiComparisonRoutes from './routes/aiComparison.js';
 import { initializeScheduledTasks } from './scheduler.js';
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/property', propertyRoutes);
 app.use('/api/analyzer', propertyAnalyzerRoutes);
+app.use('/api/ai', aiComparisonRoutes);
 app.use('/api/xome', xomeRoutes);
 
 // Health check

@@ -179,6 +179,35 @@ export type UserRole = 'user' | 'admin';
 
 // ===== Property Analyzer Types =====
 
+export interface RentalMarketTrends {
+  areaName: string;
+  medianRent: number;
+  monthlyChange: number;
+  yearlyChange: number;
+  availableRentals: number;
+  marketTemperature: string;
+  rentHistogram?: Array<{ price: number; count: number }>;
+  medianRentOverTime?: {
+    currentYear: Array<{ month: string; year: string; price: number }>;
+    prevYear: Array<{ month: string; year: string; price: number }>;
+  };
+  nationalMedianRent?: number;
+}
+
+export interface HousingMarket {
+  areaName: string;
+  typicalHomeValue: number;
+  medianSalePrice: number;
+  medianListPrice: number;
+  saleToListRatio: number;
+  pctSoldAboveList: number;
+  pctSoldBelowList: number;
+  medianDaysToPending: number;
+  forSaleInventory: number;
+  newListings: number;
+  zhviTimeSeries: Array<{ date: string; value: number }>;
+}
+
 export interface PropertyData {
   zpid: string;
   address: string;
@@ -198,6 +227,8 @@ export interface PropertyData {
   photos?: string[];
   taxHistory?: Array<{ year: number; amount: number }>;
   priceHistory?: Array<{ date: string; price: number; event: string }>;
+  rentalMarketTrends?: RentalMarketTrends;
+  housingMarket?: HousingMarket;
   homeStatus?: string;
   latitude?: number;
   longitude?: number;
@@ -359,4 +390,22 @@ export interface PropertyAnalysis {
   analysis_results: FullAnalysisResult;
   rental_comps?: RentalComp[];
   created_at: string;
+}
+
+// ── AI Comparison Types ──────────────────────────────────────────────────
+
+export interface AIComparisonSummary {
+  summary: string;
+  generatedAt: string;
+}
+
+export interface AIPropertyNarrative {
+  propertyId: number;
+  address: string;
+  narrative: string;
+}
+
+export interface AIComparisonNarratives {
+  narratives: AIPropertyNarrative[];
+  generatedAt: string;
 }

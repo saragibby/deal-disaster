@@ -2610,3 +2610,1040 @@ a:hover { color: var(--primary-dark); }
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   PROPERTY COMPARISON
+   ============================================================ */
+
+/* ── Selector ── */
+
+.comparison-selector {
+  display: flex; flex-direction: column; gap: 1.5rem;
+}
+
+.comparison-selector__selected-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 1rem 1.25rem;
+  background: white; border-radius: var(--radius, 16px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  position: sticky; top: 0; z-index: 20;
+}
+
+.comparison-selector__chips {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+
+.comparison-selector__chip {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.65rem; border-radius: 999px;
+  border: 2px solid; background: white;
+  font-size: 0.82rem; font-weight: 500;
+}
+
+.comparison-selector__chip-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+.comparison-selector__chip-remove {
+  background: none; border: none; cursor: pointer;
+  color: #94a3b8; padding: 0; display: flex;
+  transition: color 0.15s;
+}
+.comparison-selector__chip-remove:hover { color: #ef4444; }
+
+.comparison-selector__bar-actions {
+  display: flex; align-items: center; gap: 1rem;
+}
+
+.comparison-selector__count {
+  font-size: 0.82rem; color: #64748b; white-space: nowrap;
+}
+
+.comparison-selector__compare-btn {
+  display: flex; align-items: center; gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.comparison-selector__url-section,
+.comparison-selector__history-section {
+  padding: 1.5rem;
+}
+
+.comparison-selector__section-title {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 1.05rem; font-weight: 600; margin: 0 0 0.35rem;
+}
+
+.comparison-selector__section-desc {
+  color: #64748b; font-size: 0.88rem; margin: 0 0 1rem;
+}
+
+.comparison-selector__url-row {
+  display: flex; gap: 0.75rem;
+}
+
+.comparison-selector__url-row .analyzer__url-input {
+  flex: 1;
+}
+
+.comparison-selector__url-error {
+  margin-top: 0.5rem; color: #ef4444; font-size: 0.85rem;
+}
+
+/* History list */
+.comparison-selector__history-list {
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+
+.comparison-selector__history-item {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.85rem 1rem; border-radius: 12px;
+  border: 2px solid transparent; cursor: pointer;
+  transition: all 0.15s; background: #f8fafc;
+}
+.comparison-selector__history-item:hover {
+  background: #eef2ff; border-color: #c7d2fe;
+}
+.comparison-selector__history-item--selected {
+  background: #eef2ff; border-color: #6366f1;
+}
+.comparison-selector__history-item--disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
+
+.comparison-selector__history-check input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: #6366f1;
+}
+
+.comparison-selector__history-info {
+  flex: 1; min-width: 0;
+}
+
+.comparison-selector__history-address {
+  display: flex; flex-direction: column; gap: 0.15rem;
+}
+.comparison-selector__history-address strong {
+  font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.comparison-selector__history-location {
+  font-size: 0.78rem; color: #64748b;
+}
+
+.comparison-selector__history-metrics {
+  display: flex; gap: 1rem; margin-top: 0.25rem; font-size: 0.82rem;
+}
+
+.comparison-selector__history-date {
+  font-size: 0.78rem; color: #94a3b8; white-space: nowrap;
+}
+
+.comparison-selector__empty-hint {
+  text-align: center; padding: 2rem;
+  color: #94a3b8; display: flex; flex-direction: column;
+  align-items: center; gap: 0.5rem;
+}
+.comparison-selector__empty-hint p {
+  margin: 0; font-size: 0.95rem;
+}
+
+/* ── Dashboard ── */
+
+.comparison-dashboard {
+  display: flex; flex-direction: column; gap: 1.5rem;
+}
+
+.comparison-dashboard__header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+}
+
+.comparison-dashboard__title {
+  flex: 1; font-size: 1.25rem; font-weight: 700; margin: 0;
+}
+
+.comparison-dashboard__actions {
+  display: flex; gap: 0.5rem;
+}
+
+.comparison-dashboard__actions .btn {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.85rem; padding: 0.5rem 0.85rem;
+}
+
+/* Overview cards */
+.comparison-dashboard__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.comparison-dashboard__card {
+  background: white; border-radius: var(--radius, 16px);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  overflow: hidden; border-top: 4px solid;
+  transition: transform 0.15s;
+}
+.comparison-dashboard__card:hover {
+  transform: translateY(-2px);
+}
+
+.comparison-dashboard__card-img {
+  height: 120px; overflow: hidden;
+}
+.comparison-dashboard__card-img img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+.comparison-dashboard__card-body {
+  padding: 0.85rem 1rem; position: relative;
+}
+
+.comparison-dashboard__card-color {
+  width: 10px; height: 10px; border-radius: 50%;
+  position: absolute; top: 0.85rem; right: 1rem;
+}
+
+.comparison-dashboard__card-address {
+  font-size: 0.88rem; font-weight: 600; margin: 0 0 0.2rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding-right: 1.5rem;
+}
+
+.comparison-dashboard__card-location {
+  display: flex; align-items: center; gap: 0.25rem;
+  font-size: 0.75rem; color: #64748b; margin: 0 0 0.5rem;
+}
+
+.comparison-dashboard__card-price {
+  display: flex; align-items: center; gap: 0.15rem;
+  font-size: 1.05rem; font-weight: 700; color: #1e293b;
+  margin-bottom: 0.4rem;
+}
+
+.comparison-dashboard__card-details {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+  font-size: 0.75rem; color: #64748b;
+}
+.comparison-dashboard__card-details span {
+  display: flex; align-items: center; gap: 0.2rem;
+}
+
+.comparison-dashboard__card-cashflow {
+  display: flex; align-items: center; gap: 0.25rem;
+  font-size: 0.82rem; font-weight: 600; margin-top: 0.4rem;
+}
+
+/* Charts grid */
+.comparison-dashboard__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 1rem;
+}
+
+.comparison-dashboard__chart-card {
+  padding: 1.25rem;
+}
+.comparison-dashboard__chart-card h3 {
+  font-size: 1rem; font-weight: 600; margin: 0 0 1rem;
+}
+
+.comparison-tooltip {
+  background: white; padding: 0.65rem 0.85rem;
+  border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  font-size: 0.82rem; line-height: 1.6;
+}
+
+/* ── Property Radar (dot plot) ── */
+.comparison-dashboard__radar { margin-bottom: 1.5rem; }
+.comparison-dashboard__radar-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;
+}
+.comparison-dashboard__radar-header h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 1.05rem; font-weight: 600; color: #1e293b; margin: 0;
+}
+.comparison-dashboard__radar-filters {
+  display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem;
+}
+.comparison-dashboard__radar-filter {
+  padding: 0.3rem 0.7rem; border-radius: 20px; font-size: 0.78rem; font-weight: 500;
+  border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b;
+  cursor: pointer; transition: all 0.15s;
+}
+.comparison-dashboard__radar-filter:hover { border-color: #94a3b8; }
+.comparison-dashboard__radar-filter--active {
+  background: #6366f1; color: #fff; border-color: #6366f1;
+}
+.comparison-dashboard__radar-legend {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;
+}
+.comparison-dashboard__radar-legend-item {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.8rem;
+  background: #f8fafc; border: 1.5px solid #e2e8f0;
+  cursor: pointer; transition: all 0.15s; color: #334155;
+}
+.comparison-dashboard__radar-legend-item:hover,
+.comparison-dashboard__radar-legend-item--active {
+  background: #f1f5f9; border-color: var(--prop-color, #94a3b8);
+}
+.comparison-dashboard__radar-legend-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--prop-color, #94a3b8); flex-shrink: 0;
+}
+.comparison-dashboard__radar-chart {
+  display: flex; flex-direction: column; gap: 0;
+}
+.comparison-dashboard__radar-row {
+  display: grid; grid-template-columns: 150px 1fr 80px;
+  align-items: center; gap: 0.75rem;
+  padding: 0.55rem 0.5rem; border-radius: 8px;
+  transition: background 0.15s;
+}
+.comparison-dashboard__radar-row:hover,
+.comparison-dashboard__radar-row--hover {
+  background: #f8fafc;
+}
+.comparison-dashboard__radar-label {
+  display: flex; flex-direction: column; gap: 0;
+}
+.comparison-dashboard__radar-label-name {
+  font-size: 0.82rem; font-weight: 500; color: #334155;
+}
+.comparison-dashboard__radar-label-hint {
+  font-size: 0.65rem; color: #94a3b8; font-style: italic;
+}
+.comparison-dashboard__radar-track {
+  position: relative; height: 28px; display: flex; align-items: center;
+}
+.comparison-dashboard__radar-track-bg {
+  position: absolute; inset: 0;
+  top: 50%; transform: translateY(-50%);
+  height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%);
+}
+.comparison-dashboard__radar-dot {
+  position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  transform: translate(-50%, 0);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s, box-shadow 0.2s;
+}
+.comparison-dashboard__radar-dot:hover {
+  transform: translate(-50%, 0) scale(1.35);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  z-index: 10 !important;
+}
+.comparison-dashboard__radar-dot--winner {
+  width: 20px; height: 20px;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3), 0 1px 4px rgba(0,0,0,0.18);
+}
+.comparison-dashboard__radar-dot--dimmed {
+  opacity: 0.25;
+}
+.comparison-dashboard__radar-dot-tip {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b; color: #fff; padding: 0.35rem 0.6rem;
+  border-radius: 6px; font-size: 0.72rem; white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  pointer-events: none; z-index: 20;
+}
+.comparison-dashboard__radar-dot-tip strong {
+  display: block; font-size: 0.7rem; opacity: 0.75; margin-bottom: 1px;
+}
+.comparison-dashboard__radar-dot:hover .comparison-dashboard__radar-dot-tip {
+  display: block;
+}
+.comparison-dashboard__radar-dot-tip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #1e293b;
+}
+.comparison-dashboard__radar-edge {
+  position: absolute; top: 100%; font-size: 0.6rem; color: #94a3b8;
+  margin-top: 2px;
+}
+.comparison-dashboard__radar-edge--left { left: 0; }
+.comparison-dashboard__radar-edge--right { right: 0; }
+.comparison-dashboard__radar-winner {
+  text-align: right; font-size: 0.82rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.comparison-dashboard__radar-empty {
+  text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 2rem 0;
+}
+@media (max-width: 640px) {
+  .comparison-dashboard__radar-row {
+    grid-template-columns: 110px 1fr 60px; gap: 0.5rem;
+  }
+  .comparison-dashboard__radar-label-name { font-size: 0.75rem; }
+  .comparison-dashboard__radar-winner { font-size: 0.75rem; }
+}
+
+/* ── Cash Flow Waterfall ── */
+.comparison-dashboard__waterfall { margin-bottom: 1.5rem; }
+.comparison-dashboard__waterfall-header {
+  margin-bottom: 0.5rem;
+}
+.comparison-dashboard__waterfall-header h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 1.05rem; font-weight: 600; color: #1e293b; margin: 0 0 0.25rem;
+}
+.comparison-dashboard__waterfall-desc {
+  font-size: 0.85rem; color: #64748b; margin: 0;
+}
+.comparison-dashboard__waterfall-tabs {
+  display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;
+}
+.comparison-dashboard__waterfall-tab-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem;
+}
+.comparison-dashboard__waterfall-tab-label {
+  font-size: 0.75rem; color: #94a3b8; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.03em; margin-right: 0.25rem;
+}
+.comparison-dashboard__waterfall-tab {
+  padding: 0.3rem 0.65rem; border-radius: 6px; font-size: 0.78rem; font-weight: 500;
+  border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b;
+  cursor: pointer; transition: all 0.15s;
+}
+.comparison-dashboard__waterfall-tab:hover {
+  border-color: var(--tab-color, #94a3b8); color: #334155;
+}
+.comparison-dashboard__waterfall-tab--active {
+  background: var(--tab-color, #6366f1); color: #fff;
+  border-color: var(--tab-color, #6366f1);
+}
+.comparison-dashboard__waterfall-summary {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap;
+}
+.comparison-dashboard__waterfall-stat {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0.6rem 1.25rem; border-radius: 10px;
+  border: 2px solid #e2e8f0; background: #fafbfc;
+  min-width: 140px;
+}
+.comparison-dashboard__waterfall-stat-label {
+  font-size: 0.75rem; color: #64748b; margin-bottom: 0.15rem;
+}
+.comparison-dashboard__waterfall-stat-value {
+  font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.comparison-dashboard__waterfall-stat-value--pos { color: #10b981; }
+.comparison-dashboard__waterfall-stat-value--neg { color: #ef4444; }
+.comparison-dashboard__waterfall-stat-sub {
+  font-size: 0.72rem; color: #94a3b8;
+}
+.comparison-dashboard__waterfall-vs {
+  font-size: 0.85rem; font-weight: 600; color: #cbd5e1;
+  text-transform: uppercase;
+}
+
+/* Map */
+.comparison-dashboard__map-card {
+  padding: 1.25rem;
+}
+.comparison-dashboard__map-card h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 1rem; font-weight: 600; margin: 0 0 1rem;
+}
+
+/* Table */
+.comparison-dashboard__table-card {
+  padding: 1.25rem;
+}
+.comparison-dashboard__table-card h3 {
+  font-size: 1rem; font-weight: 600; margin: 0 0 1rem;
+}
+
+.comparison-dashboard__table-wrapper {
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+
+.comparison-dashboard__table {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+}
+
+.comparison-dashboard__table th,
+.comparison-dashboard__table td {
+  padding: 0.6rem 0.85rem; text-align: right;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.comparison-dashboard__table th {
+  background: #f8fafc; font-weight: 600; font-size: 0.78rem;
+  white-space: nowrap; border-bottom-width: 3px;
+}
+
+.comparison-dashboard__table-metric {
+  text-align: left !important; font-weight: 500; white-space: nowrap;
+}
+
+.comparison-dashboard__table-dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 0.4rem; vertical-align: middle;
+}
+
+.comparison-dashboard__table-best {
+  background: #ecfdf5; font-weight: 600; color: #059669;
+}
+
+/* ────── Deal Snapshot ────── */
+.comparison-dashboard__snapshot {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.comparison-dashboard__snapshot-card {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: white; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 0.6rem 1rem; flex: 1 1 180px; min-width: 180px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.comparison-dashboard__snapshot-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  background: #f8fafc; flex-shrink: 0;
+}
+.comparison-dashboard__snapshot-info {
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.comparison-dashboard__snapshot-label {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #94a3b8; font-weight: 600;
+}
+.comparison-dashboard__snapshot-value {
+  font-size: 0.85rem; font-weight: 700; color: #1e293b;
+}
+.comparison-dashboard__snapshot-prop {
+  font-size: 0.72rem; font-weight: 500;
+}
+
+/* ────── Top Pick Badge ────── */
+.comparison-dashboard__card--top-pick {
+  box-shadow: 0 0 0 2px #f59e0b, 0 4px 12px rgba(245,158,11,0.2);
+}
+.comparison-dashboard__top-pick-badge {
+  position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2;
+  display: flex; align-items: center; gap: 0.25rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white; font-size: 0.65rem; font-weight: 700;
+  padding: 0.2rem 0.5rem; border-radius: 6px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+.comparison-dashboard__card { position: relative; }
+
+/* ────── Effective Return footnote ────── */
+.comparison-dashboard__eff-return {
+  display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;
+  padding-top: 0.5rem; border-top: 1px solid #f1f5f9;
+  margin-top: 0.5rem; font-size: 0.78rem; color: #64748b;
+}
+
+/* ────── LTR vs STR Strategy ────── */
+.comparison-dashboard__strategy { margin-bottom: 1.5rem; }
+.comparison-dashboard__strategy-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem; margin-top: 0.75rem;
+}
+.comparison-dashboard__strategy-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid;
+  border-radius: 12px; padding: 1rem; overflow: hidden;
+}
+.comparison-dashboard__strategy-header {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+.comparison-dashboard__strategy-winner {
+  margin-left: auto; font-size: 0.7rem; font-weight: 700;
+  padding: 0.15rem 0.5rem; border-radius: 6px; text-transform: uppercase;
+}
+.comparison-dashboard__strategy-winner--ltr { background: #ede9fe; color: #7c3aed; }
+.comparison-dashboard__strategy-winner--str { background: #fef3c7; color: #d97706; }
+
+.comparison-dashboard__strategy-cols {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+}
+.comparison-dashboard__strategy-col h4 {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px;
+  color: #64748b; margin: 0 0 0.5rem; padding-bottom: 0.35rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.comparison-dashboard__strategy-col--empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; color: #94a3b8; font-size: 0.8rem;
+}
+.comparison-dashboard__strategy-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.25rem 0; font-size: 0.8rem;
+}
+.comparison-dashboard__strategy-row span { color: #64748b; }
+.comparison-dashboard__strategy-row strong { color: #1e293b; }
+
+/* ────── Break-Even Analysis ────── */
+.comparison-dashboard__breakeven { margin-bottom: 1.5rem; }
+.comparison-dashboard__breakeven-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem; margin-top: 0.75rem;
+}
+.comparison-dashboard__breakeven-card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid;
+  border-radius: 12px; padding: 1rem;
+}
+.comparison-dashboard__breakeven-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.75rem; font-size: 0.9rem;
+}
+.comparison-dashboard__breakeven-stat {
+  padding: 0.35rem 0; display: flex; flex-direction: column; gap: 0.2rem;
+  font-size: 0.82rem;
+}
+.comparison-dashboard__breakeven-stat > span { color: #64748b; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; }
+.comparison-dashboard__breakeven-stat > strong { color: #1e293b; }
+
+.comparison-dashboard__breakeven-bar-wrap {
+  position: relative; height: 8px; background: #e2e8f0;
+  border-radius: 4px; overflow: hidden; margin: 0.3rem 0;
+}
+.comparison-dashboard__breakeven-bar {
+  position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.comparison-dashboard__breakeven-bar--current {
+  background: rgba(99,102,241,0.3); border-right: 2px solid #6366f1;
+}
+.comparison-dashboard__breakeven-bar-labels {
+  display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8;
+}
+
+/* ────── Demand Indicator Pills ────── */
+.comparison-dashboard__table-section td {
+  background: #f8fafc; font-size: 0.78rem; padding-top: 0.75rem;
+  border-top: 2px solid #e2e8f0;
+}
+.comparison-dashboard__demand-pill {
+  display: inline-block; margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem; border-radius: 4px;
+  font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.comparison-dashboard__demand-pill--good { background: #ecfdf5; color: #059669; }
+.comparison-dashboard__demand-pill--neutral { background: #fefce8; color: #ca8a04; }
+.comparison-dashboard__demand-pill--poor { background: #fef2f2; color: #dc2626; }
+
+/* ── What-If Scenario Sliders ── */
+.comparison-dashboard__scenario {
+  margin-bottom: 1.5rem;
+  border: 2px solid transparent;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.comparison-dashboard__scenario--active {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+.comparison-dashboard__scenario-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.comparison-dashboard__scenario-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+.comparison-dashboard__scenario-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0 0 1rem;
+}
+.comparison-dashboard__scenario-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media (max-width: 640px) {
+  .comparison-dashboard__scenario-controls { grid-template-columns: 1fr; }
+}
+.comparison-dashboard__scenario-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.comparison-dashboard__scenario-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.comparison-dashboard__scenario-label strong {
+  font-variant-numeric: tabular-nums;
+  color: #1e293b;
+  transition: color 0.2s;
+}
+.comparison-dashboard__scenario-changed {
+  color: #6366f1 !important;
+  font-weight: 700;
+}
+.comparison-dashboard__scenario-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+}
+.comparison-dashboard__scenario-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.comparison-dashboard__scenario-slider input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.comparison-dashboard__scenario-slider input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #6366f1;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.comparison-dashboard__scenario-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+.comparison-dashboard__scenario-badge {
+  margin-top: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* ── AI Deal Summary ── */
+.comparison-dashboard__ai-summary { margin-bottom: 1.5rem; }
+.comparison-dashboard__ai-summary-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;
+}
+.comparison-dashboard__ai-summary-header h3 {
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.comparison-dashboard__ai-summary-empty {
+  text-align: center; padding: 1rem 0;
+}
+.comparison-dashboard__ai-summary-empty p {
+  color: #64748b; font-size: 0.85rem; margin-bottom: 0.75rem; max-width: 500px; margin-inline: auto;
+}
+.comparison-dashboard__ai-summary-loading {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: #6366f1; font-size: 0.85rem; padding: 1rem 0;
+}
+.comparison-dashboard__ai-summary-error {
+  text-align: center; padding: 0.75rem 0;
+}
+.comparison-dashboard__ai-summary-error p {
+  color: #ef4444; font-size: 0.85rem; margin-bottom: 0.5rem;
+}
+.comparison-dashboard__ai-summary-text {
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.comparison-dashboard__ai-insight {
+  display: flex; align-items: flex-start; gap: 0.65rem;
+  padding: 0.6rem 0.85rem; border-radius: 8px;
+  background: #f8fafc; border: 1px solid #eef2ff;
+  font-size: 0.88rem; line-height: 1.55; color: #334155;
+  transition: background 0.15s;
+}
+.comparison-dashboard__ai-insight:hover {
+  background: #eef2ff;
+}
+.comparison-dashboard__ai-insight-num {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #6366f1; color: #fff; flex-shrink: 0;
+  font-size: 0.7rem; font-weight: 700; margin-top: 1px;
+}
+
+/* ── AI Property Narratives ── */
+.comparison-dashboard__ai-narratives { margin-bottom: 1.5rem; }
+.comparison-dashboard__ai-narratives-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;
+}
+.comparison-dashboard__ai-narratives-header h3 {
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.comparison-dashboard__ai-narratives-list {
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.comparison-dashboard__ai-narrative-item {
+  border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+}
+.comparison-dashboard__ai-narrative-toggle {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.6rem 0.75rem;
+  background: #f8fafc; border: none; cursor: pointer; font-size: 0.85rem; text-align: left;
+  transition: background 0.15s;
+}
+.comparison-dashboard__ai-narrative-toggle:hover { background: #f1f5f9; }
+.comparison-dashboard__ai-narrative-toggle strong { flex: 1; }
+.comparison-dashboard__ai-narrative-text {
+  padding: 0.6rem 0.75rem; color: #334155; font-size: 0.85rem; line-height: 1.55;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ── Price History Trends ── */
+.comparison-dashboard__price-history { margin-bottom: 1.5rem; }
+.comparison-dashboard__price-history h3 {
+  display: flex; align-items: center; gap: 0.4rem; margin: 0;
+}
+.comparison-dashboard__price-history-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.comparison-dashboard__price-history-toggle {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.78rem; color: #64748b; cursor: pointer; user-select: none;
+}
+.comparison-dashboard__price-history-toggle input { cursor: pointer; }
+.comparison-dashboard__price-history-legend {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;
+}
+.comparison-dashboard__price-history-legend-item {
+  display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: #334155;
+}
+.comparison-dashboard__price-history-chart {
+  margin-bottom: 0.75rem;
+}
+.comparison-dashboard__price-history-stats-strip {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+}
+.comparison-dashboard__price-history-stat-group {
+  flex: 1; min-width: 200px;
+  border: 1px solid #e2e8f0; border-left: 3px solid;
+  border-radius: 8px; padding: 0.6rem 0.85rem;
+}
+.comparison-dashboard__price-history-stat-name {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.8rem; font-weight: 600; color: #334155; margin-bottom: 0.35rem;
+}
+.comparison-dashboard__price-history-stat-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+}
+.comparison-dashboard__price-history-empty {
+  color: #64748b; font-size: 0.85rem; text-align: center; padding: 1rem 0;
+}
+.comparison-dashboard__price-history-stat {
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.comparison-dashboard__price-history-stat > span {
+  color: #94a3b8; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 500;
+}
+.comparison-dashboard__price-history-stat > strong { color: #1e293b; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.comparison-dashboard__trend-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.65rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.3px; margin-left: 0.25rem;
+}
+.comparison-dashboard__trend-badge--appreciating { background: #ecfdf5; color: #059669; }
+.comparison-dashboard__trend-badge--declining { background: #fef2f2; color: #dc2626; }
+.comparison-dashboard__trend-badge--flat { background: #f1f5f9; color: #64748b; }
+@media (max-width: 640px) {
+  .comparison-dashboard__price-history-stats-strip { flex-direction: column; }
+  .comparison-dashboard__price-history-stat-group { min-width: 0; }
+}
+
+/* ── Trends Grid (Price History + Rental Market side-by-side) ── */
+.results__trends-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.results__trends-grid > .results__card { margin-bottom: 0; }
+@media (max-width: 900px) {
+  .results__trends-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Housing Market Trends ── */
+.housing-market { margin-bottom: 1.5rem; }
+.housing-market h3 {
+  display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.75rem 0;
+  font-size: 1rem; color: #1e293b;
+}
+.housing-market__empty {
+  color: #64748b; font-size: 0.85rem; text-align: center; padding: 1rem 0;
+}
+.housing-market__stats {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+  margin-bottom: 0.85rem; padding: 0.6rem 0.75rem;
+  background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
+}
+.housing-market__stat {
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.housing-market__stat > span {
+  color: #94a3b8; font-size: 0.65rem; text-transform: uppercase;
+  letter-spacing: 0.3px; font-weight: 500;
+  display: flex; align-items: center; gap: 0.2rem;
+}
+.housing-market__stat > strong {
+  color: #1e293b; font-size: 0.82rem; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 0.2rem;
+}
+.housing-market__sale-bar {
+  display: flex; height: 18px; border-radius: 9px; overflow: hidden;
+  margin-bottom: 0.25rem; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.2px;
+}
+.housing-market__sale-segment {
+  display: flex; align-items: center; justify-content: center;
+  color: white; white-space: nowrap; min-width: 0;
+}
+.housing-market__sale-segment--above { background: #ef4444; }
+.housing-market__sale-segment--at { background: #94a3b8; }
+.housing-market__sale-segment--below { background: #10b981; }
+.housing-market__sale-bar-label {
+  font-size: 0.6rem; color: #94a3b8; text-align: center; margin-bottom: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.housing-market__chart { margin-bottom: 0.5rem; }
+.housing-market__chart-label {
+  font-size: 0.72rem; color: #64748b; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.35rem;
+}
+
+/* ── Rental Market Trends ── */
+.rental-market { margin-bottom: 1.5rem; }
+.rental-market h3 {
+  display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.75rem 0;
+  font-size: 1rem; color: #1e293b;
+}
+.rental-market__empty {
+  color: #64748b; font-size: 0.85rem; text-align: center; padding: 1rem 0;
+}
+.rental-market__stats {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+  margin-bottom: 0.85rem; padding: 0.6rem 0.75rem;
+  background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
+}
+.rental-market__stat {
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.rental-market__stat > span {
+  color: #94a3b8; font-size: 0.65rem; text-transform: uppercase;
+  letter-spacing: 0.3px; font-weight: 500;
+}
+.rental-market__stat > strong {
+  color: #1e293b; font-size: 0.82rem; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; gap: 0.2rem;
+}
+.rental-market__chart { margin-bottom: 0.75rem; }
+.rental-market__chart-label {
+  font-size: 0.72rem; color: #64748b; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 0.35rem;
+}
+.rental-market__legend {
+  display: flex; gap: 1rem; justify-content: center;
+  font-size: 0.72rem; color: #64748b; margin-top: 0.25rem;
+}
+.rental-market__legend > span {
+  display: flex; align-items: center; gap: 0.3rem;
+}
+.rental-market__legend-line {
+  display: inline-block; width: 18px; height: 2.5px; border-radius: 2px; vertical-align: middle;
+}
+.rental-market__legend-line--current { background: #6366f1; }
+.rental-market__legend-line--previous { background: #94a3b8; opacity: 0.7; }
+.rental-market__legend-line--yours { background: #f59e0b; height: 2px; border-top: 2px dashed #f59e0b; background: transparent; }
+
+/* ── Button primary ── */
+.btn--primary {
+  background: #6366f1; color: white; border: none; cursor: pointer;
+  padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 0.35rem; transition: background 0.15s;
+}
+.btn--primary:hover { background: #4f46e5; }
+.btn--primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Spin animation for refresh icon */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
+/* Text utilities */
+.text--positive { color: #059669; }
+.text--negative { color: #ef4444; }
+
+/* Button utilities */
+.btn--ghost {
+  background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.9rem; color: #64748b; padding: 0.4rem 0.6rem;
+  border-radius: 8px; transition: all 0.15s;
+}
+.btn--ghost:hover { background: #f1f5f9; color: #1e293b; }
+
+.btn--outline {
+  background: white; border: 1.5px solid #e2e8f0; cursor: pointer;
+  border-radius: 8px; transition: all 0.15s;
+}
+.btn--outline:hover { border-color: #6366f1; color: #6366f1; }
+
+/* ── Print ── */
+@media print {
+  body * { visibility: hidden; }
+  .comparison-dashboard, .comparison-dashboard * { visibility: visible; }
+  .comparison-dashboard { position: absolute; left: 0; top: 0; width: 100%; }
+  .no-print { display: none !important; }
+  .comparison-dashboard__card { break-inside: avoid; }
+  .comparison-dashboard__radar { break-inside: avoid; }
+  .comparison-dashboard__waterfall { break-inside: avoid; }
+  .comparison-dashboard__table-card { break-inside: avoid; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .comparison-selector__url-row {
+    flex-direction: column;
+  }
+  .comparison-selector__selected-bar {
+    flex-direction: column; align-items: stretch;
+  }
+  .comparison-selector__bar-actions {
+    justify-content: space-between;
+  }
+  .comparison-dashboard__waterfall-tabs {
+    flex-direction: column;
+  }
+  .comparison-dashboard__cards {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  .comparison-dashboard__header {
+    flex-direction: column; align-items: flex-start;
+  }
+  .comparison-dashboard__actions {
+    width: 100%;
+  }
+  .comparison-dashboard__actions .btn {
+    flex: 1; justify-content: center;
+  }
+}

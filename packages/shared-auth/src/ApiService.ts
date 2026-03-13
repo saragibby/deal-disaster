@@ -526,6 +526,24 @@ export class ApiService {
   async getMarketTrends(postalCode: string) {
     return this.fetchJson<any>(`/api/xome/market-trends?postalCode=${encodeURIComponent(postalCode)}`, { auth: true });
   }
+
+  // ===== AI Comparison endpoints =====
+
+  async getComparisonSummary(propertyIds: number[]) {
+    return this.fetchJson<{ summary: string; generatedAt: string }>('/api/ai/comparison-summary', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ propertyIds }),
+    });
+  }
+
+  async getPropertyNarratives(propertyIds: number[]) {
+    return this.fetchJson<{ narratives: Array<{ propertyId: number; address: string; narrative: string }>; generatedAt: string }>('/api/ai/property-narratives', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ propertyIds }),
+    });
+  }
 }
 
 export const api = new ApiService();
