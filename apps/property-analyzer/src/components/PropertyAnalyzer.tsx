@@ -9,6 +9,7 @@ import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { Search, GitCompareArrows } from 'lucide-react';
 import type { AskWillProps } from '@deal-platform/shared-ui';
 import AnalysisResults from './AnalysisResults.js';
+import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
 import PropertyComparison from './PropertyComparison.js';
 
@@ -26,6 +27,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PropertyAnalysis | null>(null);
+  const [wasLoading, setWasLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'analyze' | 'history' | 'compare'>(
     location.pathname.endsWith('/compare') && isAdmin ? 'compare' : 'analyze'
   );
@@ -89,6 +91,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
     }
 
     setLoading(true);
+    setWasLoading(true);
     setError(null);
     setResult(null);
 
@@ -186,17 +189,12 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
             </div>
           )}
 
-          {/* Loading */}
-          {loading && (
-            <div className="analyzer__loading">
-              <div className="analyzer-spinner" />
-              <p>Analyzing property and finding rental comps...</p>
-            </div>
-          )}
+          {/* Loading skeleton */}
+          {loading && <AnalysisSkeleton />}
 
           {/* Results */}
           {result && !loading && (
-            <AnalysisResults analysis={result} />
+            <AnalysisResults analysis={result} skipEntrance={wasLoading} />
           )}
         </>
       )}

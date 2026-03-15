@@ -19,7 +19,8 @@
  * or derive comps from the /similar endpoint.
  */
 
-import type { PropertyData, PropertySummary, RentalComp, ComparableProperty, RentalMarketTrends, HousingMarket } from '@deal-platform/shared-types';
+import type { PropertyData, PropertySummary, RentalComp, ComparableProperty } from '@deal-platform/shared-types';
+import { getAreaMarketData } from './areaMarketService.js';
 
 // ---------- configuration ----------
 
@@ -114,14 +115,11 @@ export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
     property.priceHistory = await fetchPriceHistory(zpid);
   }
 
-  // Enrich with rental market trends (non-blocking)
-  if (!property.rentalMarketTrends && property.city && property.state) {
-    property.rentalMarketTrends = await fetchRentalMarketTrends(property.city, property.state);
-  }
-
-  // Enrich with housing market data (non-blocking)
-  if (!property.housingMarket && property.city && property.state) {
-    property.housingMarket = await fetchHousingMarket(property.city, property.state);
+  // Enrich with area market data (DB-cached, shared across users, weekly refresh)
+  if ((!property.rentalMarketTrends || !property.housingMarket) && property.city && property.state) {
+    const areaData = await getAreaMarketData(property.city, property.state);
+    if (!property.rentalMarketTrends) property.rentalMarketTrends = areaData.rentalMarket;
+    if (!property.housingMarket) property.housingMarket = areaData.housingMarket;
   }
 
   setCache(cacheKey, property);
@@ -173,126 +171,6 @@ async function fetchPriceHistory(zpid: string): Promise<Array<{ date: string; pr
 }
 
 /**
- * Fetch rental market trends for the property's city/state.
- * Uses: GET /rental_market?search_query=<city+state>
- *
- * Returns undefined if the endpoint fails or no data is available (non-blocking).
- */
-async function fetchRentalMarketTrends(city: string, state: string): Promise<RentalMarketTrends | undefined> {
-  const searchQuery = `${city} ${state}`;
-  const cacheKey = `rental_market:${searchQuery}`;
-  const cached = getCached<RentalMarketTrends>(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const host = RAPIDAPI_HOST();
-    const url = `https://${host}/rental_market?search_query=${encodeURIComponent(searchQuery)}`;
-    const res = await fetch(url, { headers: rapidHeaders() });
-
-    if (!res.ok) return undefined;
-
-    const data = await res.json() as any;
-    const trends = data.rental_market_trends;
-
-    if (!trends?.summary) return undefined;
-
-    const result: RentalMarketTrends = {
-      areaName: trends.areaName || searchQuery,
-      medianRent: Number(trends.summary.medianRent) || 0,
-      monthlyChange: Number(trends.summary.monthlyChange) || 0,
-      yearlyChange: Number(trends.summary.yearlyChange) || 0,
-      availableRentals: Number(trends.summary.availableRentals) || 0,
-      marketTemperature: trends.marketTemperature?.temperature || 'UNKNOWN',
-      rentHistogram: Array.isArray(trends.rentHistogram?.priceAndCount)
-        ? trends.rentHistogram.priceAndCount
-            .filter((h: any) => h.price > 0 && h.count > 0)
-            .map((h: any) => ({ price: Number(h.price), count: Number(h.count) }))
-        : undefined,
-      medianRentOverTime: trends.medianRentPriceOverTime ? {
-        currentYear: (trends.medianRentPriceOverTime.currentYear || []).map((m: any) => ({
-          month: String(m.month), year: String(m.year), price: Number(m.price) || 0,
-        })),
-        prevYear: (trends.medianRentPriceOverTime.prevYear || []).map((m: any) => ({
-          month: String(m.month), year: String(m.year), price: Number(m.price) || 0,
-        })),
-      } : undefined,
-      nationalMedianRent: trends.rentCompare?.medianRent ? Number(trends.rentCompare.medianRent) : undefined,
-    };
-
-    if (result.medianRent > 0) {
-      setCache(cacheKey, result);
-      return result;
-    }
-    return undefined;
-  } catch (err) {
-    console.warn(`[propertyDataService] Failed to fetch rental market trends for ${searchQuery}:`, (err as Error).message);
-    return undefined;
-  }
-}
-
-/**
- * Fetch housing market overview + ZHVI time series for a city.
- * Uses: GET /housing_market?search_query=<city+state>
- */
-async function fetchHousingMarket(city: string, state: string): Promise<HousingMarket | undefined> {
-  const searchQuery = `${city} ${state}`;
-  const cacheKey = `housing_market:${searchQuery}`;
-  const cached = getCached<HousingMarket>(cacheKey);
-  if (cached) return cached;
-
-  try {
-    const host = RAPIDAPI_HOST();
-    const url = `https://${host}/housing_market?search_query=${encodeURIComponent(searchQuery)}`;
-    const res = await fetch(url, { headers: rapidHeaders() });
-
-    if (!res.ok) return undefined;
-
-    const data = await res.json() as any;
-    const overview = data.market_overview;
-    const analytics = data.market_analytics;
-
-    if (!overview) return undefined;
-
-    const zhviTimeSeries: Array<{ date: string; value: number }> = [];
-    if (Array.isArray(analytics?.zhviRange)) {
-      for (const entry of analytics.zhviRange) {
-        if (entry.timePeriodEnd && entry.dataValue > 0) {
-          zhviTimeSeries.push({
-            date: entry.timePeriodEnd,
-            value: Math.round(entry.dataValue),
-          });
-        }
-      }
-      // API returns newest-first; reverse to chronological
-      zhviTimeSeries.reverse();
-    }
-
-    const result: HousingMarket = {
-      areaName: data.search_query || searchQuery,
-      typicalHomeValue: Number(overview.typical_home_values) || 0,
-      medianSalePrice: Number(overview.median_sale_price) || 0,
-      medianListPrice: Number(overview.median_list_price) || 0,
-      saleToListRatio: Number(overview.market_saletolist_ratio) || 0,
-      pctSoldAboveList: Number(overview.percent_ofsales_over_list_price) || 0,
-      pctSoldBelowList: Number(overview.percent_ofsales_under_list_price) || 0,
-      medianDaysToPending: Number(overview.median_days_to_pending) || 0,
-      forSaleInventory: Number(overview.for_sale_inventory) || 0,
-      newListings: Number(overview.new_listings) || 0,
-      zhviTimeSeries,
-    };
-
-    if (result.typicalHomeValue > 0) {
-      setCache(cacheKey, result);
-      return result;
-    }
-    return undefined;
-  } catch (err) {
-    console.warn(`[propertyDataService] Failed to fetch housing market for ${searchQuery}:`, (err as Error).message);
-    return undefined;
-  }
-}
-
-/**
  * Fetch property details by address.
  * Uses: GET /byaddress?propertyaddress=<full address>
  */
@@ -327,14 +205,11 @@ export async function getPropertyByAddress(
     property.priceHistory = await fetchPriceHistory(zpid);
   }
 
-  // Enrich with rental market trends (non-blocking)
-  if (!property.rentalMarketTrends && property.city && property.state) {
-    property.rentalMarketTrends = await fetchRentalMarketTrends(property.city, property.state);
-  }
-
-  // Enrich with housing market data (non-blocking)
-  if (!property.housingMarket && property.city && property.state) {
-    property.housingMarket = await fetchHousingMarket(property.city, property.state);
+  // Enrich with area market data (DB-cached, shared across users, weekly refresh)
+  if ((!property.rentalMarketTrends || !property.housingMarket) && property.city && property.state) {
+    const areaData = await getAreaMarketData(property.city, property.state);
+    if (!property.rentalMarketTrends) property.rentalMarketTrends = areaData.rentalMarket;
+    if (!property.housingMarket) property.housingMarket = areaData.housingMarket;
   }
 
   return property;

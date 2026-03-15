@@ -1,5 +1,8 @@
 import { useState, useCallback, type RefObject } from 'react';
 
+const HEADER_HEIGHT = 14; // mm reserved for header on each page
+const FOOTER_HEIGHT = 6;  // mm reserved for footer
+
 export default function useExportComparison(ref: RefObject<HTMLDivElement | null>) {
   const [exporting, setExporting] = useState(false);
 
@@ -14,9 +17,13 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         import('jspdf'),
       ]);
 
-      // Hide no-print elements during capture
+      // Hide no-print elements during capture (but show print header)
       const noPrint = el.querySelectorAll('.no-print');
+      const printHeader = el.querySelector('.print-header') as HTMLElement | null;
+      const compHeader = el.querySelector('.comparison-dashboard__header') as HTMLElement | null;
       noPrint.forEach(n => (n as HTMLElement).style.display = 'none');
+      if (printHeader) printHeader.style.display = 'none'; // captured separately via jsPDF text
+      if (compHeader) compHeader.style.display = 'none'; // hide Back button & title
 
       const canvas = await html2canvas(el, {
         scale: 1.5,
@@ -26,31 +33,67 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
       });
 
       noPrint.forEach(n => (n as HTMLElement).style.display = '');
+      if (printHeader) printHeader.style.display = '';
+      if (compHeader) compHeader.style.display = '';
 
-      // A4 landscape
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      // Build title from property addresses
+      const addresses = Array.from(el.querySelectorAll('.print-header__property'))
+        .map(el => el.textContent?.trim())
+        .filter(Boolean);
+      const title = 'Property Comparison Report';
+      const dateStr = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
+
+      // A4 portrait
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 8;
       const usableWidth = pageWidth - margin * 2;
-      const usableHeight = pageHeight - margin * 2;
+      const contentTop = margin + HEADER_HEIGHT;
+      const contentHeight = pageHeight - contentTop - margin - FOOTER_HEIGHT;
 
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
       const ratio = usableWidth / imgWidth;
       const scaledHeight = imgHeight * ratio;
 
-      // Multi-page: slice the image if it's taller than one page
-      const pagesNeeded = Math.ceil(scaledHeight / usableHeight);
+      const pagesNeeded = Math.ceil(scaledHeight / contentHeight);
 
       for (let page = 0; page < pagesNeeded; page++) {
         if (page > 0) pdf.addPage();
 
-        const sourceY = (page * usableHeight) / ratio;
-        const sourceH = Math.min(usableHeight / ratio, imgHeight - sourceY);
+        // ── Page header ──
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(12);
+        pdf.setTextColor(30, 41, 59); // slate-800
+        pdf.text(title, margin, margin + 5);
+
+        // Addresses on first page header
+        if (page === 0 && addresses.length > 0) {
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(100, 116, 139); // slate-500
+          pdf.text(addresses.join('  •  '), margin, margin + 9);
+        }
+
+        // Date on right
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(dateStr, pageWidth - margin, margin + 5, { align: 'right' });
+
+        // Header underline
+        pdf.setDrawColor(102, 126, 234); // #667eea
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, contentTop - 2, pageWidth - margin, contentTop - 2);
+
+        // ── Content slice ──
+        const sourceY = (page * contentHeight) / ratio;
+        const sourceH = Math.min(contentHeight / ratio, imgHeight - sourceY);
         const destH = sourceH * ratio;
 
-        // Create a sub-canvas for this page slice
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = imgWidth;
         pageCanvas.height = Math.ceil(sourceH);
@@ -58,7 +101,24 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         ctx.drawImage(canvas, 0, -sourceY);
 
         const pageImg = pageCanvas.toDataURL('image/jpeg', 0.85);
-        pdf.addImage(pageImg, 'JPEG', margin, margin, usableWidth, destH);
+        pdf.addImage(pageImg, 'JPEG', margin, contentTop, usableWidth, destH);
+
+        // ── Page footer ──
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(7);
+        pdf.setTextColor(148, 163, 184); // slate-400
+        pdf.text(
+          `Page ${page + 1} of ${pagesNeeded}`,
+          pageWidth / 2,
+          pageHeight - margin,
+          { align: 'center' },
+        );
+        pdf.text(
+          'Generated by Property Analyzer',
+          pageWidth - margin,
+          pageHeight - margin,
+          { align: 'right' },
+        );
       }
 
       pdf.save('property-comparison.pdf');

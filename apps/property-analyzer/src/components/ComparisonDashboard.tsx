@@ -52,8 +52,26 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
     });
   };
 
+  const printDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
+
   return (
     <div className="comparison-dashboard" ref={dashboardRef}>
+      {/* Print-only report header */}
+      <div className="print-header">
+        <div className="print-header__top">
+          <h1 className="print-header__title">⚡ Property Comparison Report</h1>
+          <span className="print-header__date">{printDate}</span>
+        </div>
+        <div className="print-header__properties">
+          {properties.map((p, i) => (
+            <span key={p.id ?? i} className="print-header__property">
+              {p.property_data?.address || `Property ${i + 1}`}
+            </span>
+          ))}
+        </div>
+      </div>
       <ComparisonHeader
         propertyCount={properties.length}
         onBack={onBack}
@@ -62,6 +80,7 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
         onPrint={printComparison}
         exporting={exporting}
       />
+      <PropertyCards properties={adjusted} topPickIdx={dealSnapshot.topPickIdx} />
       <DealSnapshotBanner properties={adjusted} snapshot={dealSnapshot} />
       <AIDealSummary properties={properties} />
       <ScenarioSliders
@@ -70,7 +89,6 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
         onChange={setScenario}
         onReset={resetScenario}
       />
-      <PropertyCards properties={adjusted} topPickIdx={dealSnapshot.topPickIdx} />
       <AIPropertyNarratives properties={properties} />
       <PropertyRadar properties={adjusted} />
       <CashFlowWaterfall properties={adjusted} />

@@ -309,6 +309,14 @@ a:hover { color: var(--primary-dark); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Skip entrance animations when transitioning from skeleton loader */
+.results--no-entrance {
+  animation: none !important;
+}
+.results--no-entrance .results__section {
+  animation: none !important;
+}
+
 .results__card {
   background: white; border-radius: var(--radius);
   padding: 2.5rem; box-shadow: var(--shadow-card);
@@ -2772,7 +2780,7 @@ a:hover { color: var(--primary-dark); }
 /* Overview cards */
 .comparison-dashboard__cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 }
 
@@ -3608,16 +3616,157 @@ a:hover { color: var(--primary-dark); }
 }
 .btn--outline:hover { border-color: #6366f1; color: #6366f1; }
 
+/* ── Print-only report header (hidden on screen) ── */
+.print-header {
+  display: none;
+}
+
 /* ── Print ── */
 @media print {
+  @page {
+    size: portrait;
+    margin: 14mm 10mm 16mm;
+  }
+
+  /* Reset: hide everything, then show comparison */
   body * { visibility: hidden; }
-  .comparison-dashboard, .comparison-dashboard * { visibility: visible; }
-  .comparison-dashboard { position: absolute; left: 0; top: 0; width: 100%; }
-  .no-print { display: none !important; }
-  .comparison-dashboard__card { break-inside: avoid; }
-  .comparison-dashboard__radar { break-inside: avoid; }
-  .comparison-dashboard__waterfall { break-inside: avoid; }
-  .comparison-dashboard__table-card { break-inside: avoid; }
+  .comparison-dashboard,
+  .comparison-dashboard * { visibility: visible; }
+  .comparison-dashboard {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    background: white;
+    color: #0f172a;
+    gap: 0;
+  }
+
+  /* Hide interactive / non-print elements */
+  .no-print,
+  .comparison-dashboard__header,
+  .comparison-dashboard__scenario,
+  .comparison-dashboard__ai-summary .btn,
+  .comparison-dashboard__ai-narratives .btn { display: none !important; }
+
+  /* Show print header */
+  .print-header {
+    display: block !important;
+    visibility: visible;
+    padding: 0 0 14px;
+    border-bottom: 3px solid #667eea;
+    margin-bottom: 24px;
+  }
+  .print-header__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .print-header__title {
+    font-family: 'Poppins', sans-serif;
+    font-size: 18pt;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+  }
+  .print-header__date {
+    font-size: 9pt;
+    color: #64748b;
+  }
+  .print-header__properties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .print-header__property {
+    font-size: 8.5pt;
+    background: #f1f5f9;
+    color: #334155;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* Section spacing & page breaks */
+  .comparison-dashboard > * {
+    margin-bottom: 14px;
+  }
+
+  /* Each major section avoids splitting across pages */
+  .comparison-dashboard__snapshot,
+  .comparison-dashboard__cards,
+  .comparison-dashboard__radar,
+  .comparison-dashboard__waterfall,
+  .comparison-dashboard__strategy,
+  .comparison-dashboard__breakeven,
+  .comparison-dashboard__price-history,
+  .comparison-dashboard__table-card,
+  .comparison-dashboard__ai-summary,
+  .comparison-dashboard__ai-narratives {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Force page break before large visual sections */
+  .comparison-dashboard__radar {
+    break-before: page;
+    page-break-before: always;
+  }
+  .comparison-dashboard__strategy {
+    break-before: page;
+    page-break-before: always;
+  }
+  .comparison-dashboard__table-card {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Cards print in a row, not wrapping oddly */
+  .comparison-dashboard__card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* Charts: remove shadows, ensure borders */
+  .results__card,
+  .comparison-dashboard__chart-card {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+
+  /* Snapshot banner: better print layout */
+  .comparison-dashboard__snapshot {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .comparison-dashboard__snapshot-card {
+    box-shadow: none;
+    border: 1px solid #f1f5f9;
+  }
+
+  /* Hide interactive map (not useful printed) */
+  .comparison-dashboard .leaflet-container {
+    display: none;
+  }
+
+  /* Tighten body text */
+  .comparison-dashboard {
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+  .comparison-dashboard h3 {
+    font-size: 11pt;
+  }
+
+  /* Waterfall chart tabs: flatten */
+  .comparison-dashboard__waterfall-tabs {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
 }
 
 /* ── Responsive ── */
@@ -3646,4 +3795,270 @@ a:hover { color: var(--primary-dark); }
   .comparison-dashboard__actions .btn {
     flex: 1; justify-content: center;
   }
+}
+
+/* ===== Skeleton Loading ===== */
+
+/* -- Progress bar -- */
+.skel-progress {
+  background: white;
+  border-radius: var(--radius);
+  padding: 1.25rem 2rem;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 2rem;
+}
+.skel-progress__track {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.skel-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #667eea, #764ba2, #2563eb);
+  background-size: 200% 100%;
+  animation: skel-progress-shift 2s ease-in-out infinite;
+  transition: width 0.3s ease-out;
+}
+@keyframes skel-progress-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.skel-progress__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+.skel-progress__step {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: opacity 0.3s;
+}
+.skel-progress__pct {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* -- Card & section stagger -- */
+.skel-card {
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.skel-card__title {
+  color: var(--text) !important;
+}
+.skel-section {
+  animation: skel-section-in 0.4s ease-out both;
+}
+.skel-root > .skel-section:nth-child(2)                                   { animation-delay: 0.06s; }
+.skel-root > .results__grid > .skel-section:nth-child(1)                  { animation-delay: 0.12s; }
+.skel-root > .results__grid > .skel-section:nth-child(2)                  { animation-delay: 0.18s; }
+.skel-root > .skel-section:nth-child(4)                                   { animation-delay: 0.24s; }
+.skel-root > .results__trends-grid > .skel-section:nth-child(1)           { animation-delay: 0.30s; }
+.skel-root > .results__trends-grid > .skel-section:nth-child(2)           { animation-delay: 0.36s; }
+.skel-root > .results__bottom-grid > .skel-section:nth-child(1)           { animation-delay: 0.42s; }
+.skel-root > .results__bottom-grid > .skel-section:nth-child(2)           { animation-delay: 0.48s; }
+@keyframes skel-section-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* -- Bars (LinkedIn-style) -- */
+.skel-bar {
+  background: #e8ecf1;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.skel-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.5) 50%,
+    transparent 100%);
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes skel-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* -- Circle (stat icons / avatars) -- */
+.skel-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e8ecf1;
+  position: relative;
+  overflow: hidden;
+}
+.skel-circle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.5) 50%,
+    transparent 100%);
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+
+/* -- Metric row skeleton -- */
+.skel-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.skel-metric:last-child { border-bottom: none; }
+
+/* -- Stat pill skeleton -- */
+.skel-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* -- Hero number block -- */
+.skel-hero-block {
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+/* -- Chart placeholder -- */
+.skel-chart {
+  height: 160px;
+  border-radius: 12px;
+  background: #e8ecf1;
+  position: relative;
+  overflow: hidden;
+}
+.skel-chart::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.5) 50%,
+    transparent 100%);
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+
+/* -- Comp card grid -- */
+.skel-comp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.skel-comp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e2e8f0;
+}
+.skel-comp__stats {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 768px) {
+  .skel-comp-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Results: Staggered Section Reveal ===== */
+@keyframes section-reveal {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.results__section {
+  animation: section-reveal 0.35s ease-out both;
+}
+
+.results > .results__section:nth-child(1)                                    { animation-delay: 0s; }
+.results > .results__section:nth-child(2) .results__section:nth-child(1)     { animation-delay: 0.08s; }
+.results > .results__section:nth-child(2) .results__section:nth-child(2)     { animation-delay: 0.15s; }
+.results > .results__section:nth-child(3)                                    { animation-delay: 0.22s; }
+.results > .results__section:nth-child(4) .results__section:nth-child(1)     { animation-delay: 0.29s; }
+.results > .results__section:nth-child(4) .results__section:nth-child(2)     { animation-delay: 0.36s; }
+.results > .results__section:nth-child(5) .results__section:nth-child(1)     { animation-delay: 0.43s; }
+.results > .results__section:nth-child(5) .results__section:nth-child(2)     { animation-delay: 0.50s; }
+
+/* ===== Comparison Skeleton ===== */
+.comp-skel .skel-section {
+  animation: skel-section-in 0.4s ease-out both;
+}
+.comp-skel .skel-section:nth-child(2) { animation-delay: 0.06s; }
+.comp-skel .skel-section:nth-child(3) { animation-delay: 0.12s; }
+.comp-skel .skel-section:nth-child(4) { animation-delay: 0.18s; }
+.comp-skel .skel-section:nth-child(5) { animation-delay: 0.24s; }
+.comp-skel .skel-section:nth-child(6) { animation-delay: 0.30s; }
+
+.comp-skel__header {
+  justify-content: space-between;
+}
+
+.comp-skel__snapshot {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 1rem;
+}
+.comp-skel__snapshot-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.comp-skel__prop-card {
+  border-top: 4px solid #e2e8f0 !important;
+}
+.comp-skel__prop-img {
+  height: 120px;
+  background: #e8ecf1;
+  position: relative;
+  overflow: hidden;
+}
+.comp-skel__prop-img::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%);
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+
+.comp-skel__table {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.comp-skel__table-rows {
+  display: flex;
+  flex-direction: column;
+}
+.comp-skel__table-rows .skel-metric {
+  display: flex;
+  gap: 1rem;
 }

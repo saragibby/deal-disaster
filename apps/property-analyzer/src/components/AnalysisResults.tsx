@@ -21,6 +21,7 @@ import {
 
 interface Props {
   analysis: PropertyAnalysis;
+  skipEntrance?: boolean;
 }
 
 function fmt(n: number): string {
@@ -36,7 +37,7 @@ function pct(n: number): string {
   return n.toFixed(2) + '%';
 }
 
-export default function AnalysisResults({ analysis }: Props) {
+export default function AnalysisResults({ analysis, skipEntrance }: Props) {
   const property = analysis.property_data;
   const results = analysis.analysis_results;
   const rental = results.rentalEstimate;
@@ -115,9 +116,9 @@ export default function AnalysisResults({ analysis }: Props) {
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
 
   return (
-    <div className="results">
+    <div className={`results${skipEntrance ? ' results--no-entrance' : ''}`}>
       {/* Property Info Card */}
-      <div className="results__card results__property">
+      <div className="results__card results__property results__section">
         <div className="results__property-top">
           {/* Info */}
           <div className="results__property-info">
@@ -207,9 +208,9 @@ export default function AnalysisResults({ analysis }: Props) {
       </div>
 
       {/* Two column grid */}
-      <div className="results__grid">
+      <div className="results__grid results__section">
         {/* Rental Estimate Card */}
-        <div className="results__card">
+        <div className="results__card results__section">
           <h3 className="results__card-title">
             <span className="results__icon results__icon--blue">🏘️</span>
             Rental Estimate
@@ -295,7 +296,7 @@ export default function AnalysisResults({ analysis }: Props) {
         </div>
 
         {/* Cash Flow Card */}
-        <div className="results__card">
+        <div className="results__card results__section">
           <h3 className="results__card-title">
             <span className="results__icon results__icon--green">💵</span>
             Cash Flow Analysis
@@ -377,21 +378,21 @@ export default function AnalysisResults({ analysis }: Props) {
 
       {/* Comparable Properties */}
       {results.comparables && results.comparables.length > 0 && (
-        <ComparableProperties
+        <div className="results__section"><ComparableProperties
           comparables={results.comparables}
           subject={property}
           subjectRent={rental.mid}
-        />
+        /></div>
       )}
 
       {/* Housing Market + Rental Market side-by-side */}
-      <div className="results__trends-grid">
+      <div className="results__trends-grid results__section">
         <HousingMarketTrends properties={[analysis]} />
         <RentalMarketTrends properties={[analysis]} />
       </div>
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
-      <div className="results__bottom-grid">
+      <div className="results__bottom-grid results__section">
         {/* Nearby Foreclosures */}
         <ForeclosureCard
           zip={property.zip}

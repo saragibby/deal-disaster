@@ -4,6 +4,7 @@ import { api } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import ComparisonSelector from './ComparisonSelector.js';
 import ComparisonDashboard from './ComparisonDashboard.js';
+import ComparisonSkeleton from './ComparisonSkeleton.js';
 
 interface Props {
   onNewAnalysis?: () => void;
@@ -74,12 +75,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
   }, [setSearchParams]);
 
   if (phase === 'loading') {
-    return (
-      <div className="comparison__loading">
-        <div className="analyzer-spinner" />
-        <p>Loading shared comparison...</p>
-      </div>
-    );
+    return <ComparisonSkeleton />;
   }
 
   if (phase === 'comparing' && properties.length >= 2) {
