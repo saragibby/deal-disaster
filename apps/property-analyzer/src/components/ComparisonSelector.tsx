@@ -25,7 +25,7 @@ function shortAddress(address: string): string {
 
 export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) {
   const [selected, setSelected] = useState<PropertyAnalysis[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
 
   // URL input
   const [url, setUrl] = useState('');
@@ -60,18 +60,18 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
   }, [fetchHistory]);
 
   const addProperty = useCallback((analysis: PropertyAnalysis) => {
-    if (selectedIds.has(analysis.id)) return;
+    if (selectedSlugs.has(analysis.slug)) return;
     if (selected.length >= MAX_PROPERTIES) return;
 
     setSelected(prev => [...prev, analysis]);
-    setSelectedIds(prev => new Set(prev).add(analysis.id));
-  }, [selected.length, selectedIds]);
+    setSelectedSlugs(prev => new Set(prev).add(analysis.slug));
+  }, [selected.length, selectedSlugs]);
 
-  const removeProperty = useCallback((id: number) => {
-    setSelected(prev => prev.filter(p => p.id !== id));
-    setSelectedIds(prev => {
+  const removeProperty = useCallback((slug: string) => {
+    setSelected(prev => prev.filter(p => p.slug !== slug));
+    setSelectedSlugs(prev => {
       const next = new Set(prev);
-      next.delete(id);
+      next.delete(slug);
       return next;
     });
   }, []);
@@ -111,12 +111,12 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
   }, [url, selected.length, addProperty, onNewAnalysis, fetchHistory]);
 
   const toggleHistoryItem = useCallback((analysis: PropertyAnalysis) => {
-    if (selectedIds.has(analysis.id)) {
-      removeProperty(analysis.id);
+    if (selectedSlugs.has(analysis.slug)) {
+      removeProperty(analysis.slug);
     } else {
       if (selected.length >= MAX_PROPERTIES) return;
       // History items may not have full data — fetch full analysis
-      api.getAnalysis(analysis.id)
+      api.getAnalysis(analysis.slug)
         .then((resp: any) => {
           const full = resp.analysis || resp;
           addProperty(full);
@@ -126,7 +126,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
           addProperty(analysis);
         });
     }
-  }, [selectedIds, selected.length, addProperty, removeProperty]);
+  }, [selectedSlugs, selected.length, addProperty, removeProperty]);
 
   return (
     <div className="comparison-selector">
@@ -136,7 +136,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
           <div className="comparison-selector__chips">
             {selected.map((p, i) => (
               <div
-                key={p.id}
+                key={p.slug}
                 className="comparison-selector__chip"
                 style={{ borderColor: PROPERTY_COLORS[i] }}
               >
@@ -149,7 +149,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
                 </span>
                 <button
                   className="comparison-selector__chip-remove"
-                  onClick={() => removeProperty(p.id)}
+                  onClick={() => removeProperty(p.slug)}
                   title="Remove"
                 >
                   <X size={14} />
@@ -240,12 +240,12 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
                 const prop = a.property_data;
                 const results = a.analysis_results;
                 const cashFlow = results?.cashFlow;
-                const isSelected = selectedIds.has(a.id);
+                const isSelected = selectedSlugs.has(a.slug);
                 const atMax = selected.length >= MAX_PROPERTIES && !isSelected;
 
                 return (
                   <div
-                    key={a.id}
+                    key={a.slug}
                     className={`comparison-selector__history-item ${
                       isSelected ? 'comparison-selector__history-item--selected' : ''
                     } ${atMax ? 'comparison-selector__history-item--disabled' : ''}`}

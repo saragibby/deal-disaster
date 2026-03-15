@@ -66,7 +66,7 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
         </div>
         <div className="print-header__properties">
           {properties.map((p, i) => (
-            <span key={p.id ?? i} className="print-header__property">
+            <span key={p.slug ?? i} className="print-header__property">
               {p.property_data?.address || `Property ${i + 1}`}
             </span>
           ))}

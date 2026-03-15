@@ -38,7 +38,7 @@ function buildPropertySnapshot(p: PropertyAnalysis): string {
   const rent = p.analysis_results?.rentalEstimate;
 
   return [
-    `Property #${p.id}: ${prop.address}`,
+    `Property ${p.slug}: ${prop.address}`,
     `  Price: $${prop.price.toLocaleString()} | Zestimate: $${(prop.zestimate || 0).toLocaleString()}`,
     `  ${prop.bedrooms}bd/${prop.bathrooms}ba | ${(prop.sqft || 0).toLocaleString()} sqft | Built ${prop.yearBuilt || 'N/A'}`,
     `  Monthly Rent: $${(cf?.monthlyRent || 0).toLocaleString()} | Confidence: ${rent?.confidence || 'N/A'}`,
@@ -102,7 +102,7 @@ export async function generateComparisonSummary(
  */
 export async function generatePropertyNarratives(
   properties: PropertyAnalysis[],
-): Promise<Array<{ propertyId: number; address: string; narrative: string }>> {
+): Promise<Array<{ propertyId: string; address: string; narrative: string }>> {
   const openai = getClient();
 
   const snapshots = properties.map(buildPropertySnapshot).join('\n\n');
@@ -112,7 +112,7 @@ export async function generatePropertyNarratives(
     messages: [
       {
         role: 'system',
-        content: `You are an expert real estate investment analyst. For each property provided, write a 2-3 sentence investment assessment in plain English. Cover cash flow quality, ROI attractiveness, any STR potential, and notable risks. Return ONLY a JSON array of objects with "propertyId" (number) and "narrative" (string). No markdown fences, just raw JSON.`,
+        content: `You are an expert real estate investment analyst. For each property provided, write a 2-3 sentence investment assessment in plain English. Cover cash flow quality, ROI attractiveness, any STR potential, and notable risks. Return ONLY a JSON array of objects with "propertyId" (string, matching the property slug) and "narrative" (string). No markdown fences, just raw JSON.`,
       },
       {
         role: 'user',
@@ -140,10 +140,10 @@ export async function generatePropertyNarratives(
   }
 
   try {
-    const parsed: Array<{ propertyId: number; narrative: string }> = JSON.parse(raw);
+    const parsed: Array<{ propertyId: string; narrative: string }> = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error('Expected array');
     return parsed.map((item) => {
-      const prop = properties.find(p => p.id === item.propertyId);
+      const prop = properties.find(p => p.slug === item.propertyId);
       return {
         propertyId: item.propertyId,
         address: prop?.property_data.address || 'Unknown',
@@ -153,7 +153,7 @@ export async function generatePropertyNarratives(
   } catch {
     // Fallback: return the entire response as a single narrative for the first property
     return properties.map(p => ({
-      propertyId: p.id,
+      propertyId: p.slug,
       address: p.property_data.address,
       narrative: '',
     }));

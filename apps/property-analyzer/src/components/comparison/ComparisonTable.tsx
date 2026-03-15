@@ -85,7 +85,7 @@ export default function ComparisonTable({ properties }: Props) {
             <tr>
               <th className="comparison-dashboard__table-metric">Metric</th>
               {properties.map((p, i) => (
-                <th key={p.id} style={{ borderBottomColor: PROPERTY_COLORS[i] }}>
+                <th key={p.slug} style={{ borderBottomColor: PROPERTY_COLORS[i] }}>
                   <PropertyDot color={PROPERTY_COLORS[i]} />
                   {shortAddr(p.property_data.address)}
                 </th>

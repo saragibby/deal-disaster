@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
+import { api } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins,
+  Coins, Share2, Download, Printer, Lock, Globe,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -12,6 +13,7 @@ import RentalInsights from './RentalInsights';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
+import useExportAnalysis from '../hooks/useExportAnalysis';
 import {
   calculateMortgage,
   calculateCashFlow,
@@ -22,6 +24,7 @@ import {
 interface Props {
   analysis: PropertyAnalysis;
   skipEntrance?: boolean;
+  readOnly?: boolean;
 }
 
 function fmt(n: number): string {
@@ -37,11 +40,44 @@ function pct(n: number): string {
   return n.toFixed(2) + '%';
 }
 
-export default function AnalysisResults({ analysis, skipEntrance }: Props) {
+export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Props) {
   const property = analysis.property_data;
   const results = analysis.analysis_results;
   const rental = results.rentalEstimate;
   const originalParams = analysis.analysis_params;
+
+  // Print / PDF export
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const { exportToPdf, printAnalysis, exporting } = useExportAnalysis(resultsRef);
+
+  // Sharing
+  const [isShared, setIsShared] = useState(analysis.is_shared ?? false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const toggleShare = useCallback(async () => {
+    if (!analysis.slug) return;
+    setShareLoading(true);
+    try {
+      const result = await api.toggleShareAnalysis(analysis.slug, !isShared);
+      setIsShared(result.is_shared);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update sharing.');
+    } finally {
+      setShareLoading(false);
+    }
+  }, [analysis.slug, isShared]);
+
+  const copyShareLink = useCallback(() => {
+    const origin = window.location.origin;
+    const url = `${origin}/property-analyzer/shared/${analysis.slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  }, [analysis.slug]);
 
   // ── Adjustable parameters ────────────────────────────────────────
   const [params, setParams] = useState<AnalysisParams>({
@@ -116,7 +152,61 @@ export default function AnalysisResults({ analysis, skipEntrance }: Props) {
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
 
   return (
-    <div className={`results${skipEntrance ? ' results--no-entrance' : ''}`}>
+    <div className={`results${skipEntrance ? ' results--no-entrance' : ''}`} ref={resultsRef}>
+      {/* Print-only report header */}
+      <div className="analysis-print-header">
+        <div className="analysis-print-header__top">
+          <h1 className="analysis-print-header__title">⚡ Investment Analysis</h1>
+          <span className="analysis-print-header__date">
+            {new Date(analysis.created_at).toLocaleDateString('en-US', {
+              year: 'numeric', month: 'long', day: 'numeric',
+            })}
+          </span>
+        </div>
+        <p className="analysis-print-header__address">{property.address}, {property.city}, {property.state} {property.zip}</p>
+      </div>
+
+      {/* Action toolbar */}
+      {!readOnly && (
+        <div className="results__toolbar no-print">
+          <div className="results__toolbar-share">
+            <button
+              className={`btn btn--outline btn--sm ${isShared ? 'btn--shared' : ''}`}
+              onClick={toggleShare}
+              disabled={shareLoading}
+              title={isShared ? 'Make private' : 'Make shareable'}
+            >
+              {isShared ? <Globe size={14} /> : <Lock size={14} />}
+              {shareLoading ? 'Updating...' : isShared ? 'Public' : 'Private'}
+            </button>
+            {isShared && (
+              <button
+                className="btn btn--outline btn--sm"
+                onClick={copyShareLink}
+                title="Copy share link"
+              >
+                <Share2 size={14} />
+                {shareCopied ? 'Copied!' : 'Copy Link'}
+              </button>
+            )}
+          </div>
+          <div className="results__toolbar-export">
+            <button
+              className="btn btn--outline btn--sm"
+              onClick={exportToPdf}
+              disabled={exporting}
+              title="Download as PDF"
+            >
+              {exporting ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <Download size={14} />}
+              {exporting ? 'Exporting...' : 'PDF'}
+            </button>
+            <button className="btn btn--outline btn--sm" onClick={printAnalysis} title="Print analysis">
+              <Printer size={14} /> Print
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Property Info Card */}
       <div className="results__card results__property results__section">
         <div className="results__property-top">
@@ -392,15 +482,17 @@ export default function AnalysisResults({ analysis, skipEntrance }: Props) {
       </div>
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
-      <div className="results__bottom-grid results__section">
-        {/* Nearby Foreclosures */}
-        <ForeclosureCard
-          zip={property.zip}
-          city={property.city}
-          state={property.state}
-          latitude={property.latitude}
-          longitude={property.longitude}
-        />
+      <div className={`results__bottom-grid results__section${readOnly ? ' results__bottom-grid--full' : ''}`}>
+        {/* Nearby Foreclosures (hidden on shared/read-only view) */}
+        {!readOnly && (
+          <ForeclosureCard
+            zip={property.zip}
+            city={property.city}
+            state={property.state}
+            latitude={property.latitude}
+            longitude={property.longitude}
+          />
+        )}
 
         {/* Loan Calculator — adjustable */}
         <div id="loan-calculator" className={`results__card results__mortgage-card ${isAdjusted ? 'results__mortgage-card--adjusted' : ''}`}>

@@ -7,10 +7,19 @@ const CAPTURE_TIMEOUT = 30_000;
 const BLANK =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
+/**
+ * Temporarily mutate the LIVE document so that when html2canvas deep-clones it
+ * into a hidden iframe, the clone contains zero cross-origin resources.
+ *
+ * html2canvas clones <style> elements by their textContent — NOT via the CSSOM.
+ * So we must rewrite textContent to strip @import lines; deleteRule() alone is
+ * invisible to the clone.
+ */
 function neutralizeCrossOrigin(el: HTMLElement) {
   const undos: (() => void)[] = [];
 
-  // Rewrite <style> textContent to strip @import url(...) lines
+  // 1. Rewrite <style> textContent to strip @import url(...) lines.
+  //    This is the only way to stop the clone from fetching Google Fonts etc.
   document.querySelectorAll('style').forEach(style => {
     const original = style.textContent || '';
     if (/@import\s/i.test(original)) {
@@ -19,7 +28,7 @@ function neutralizeCrossOrigin(el: HTMLElement) {
     }
   });
 
-  // Disable cross-origin <link rel="stylesheet">
+  // 2. Disable cross-origin <link rel="stylesheet"> (e.g. Google Fonts CDN)
   document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach(link => {
     const href = link.href || '';
     if (href.startsWith('http') && !href.startsWith(window.location.origin)) {
@@ -29,7 +38,7 @@ function neutralizeCrossOrigin(el: HTMLElement) {
     }
   });
 
-  // Remove cross-origin <script> tags
+  // 3. Remove cross-origin <script> tags (Google Tag Manager etc.)
   document.querySelectorAll('script[src]').forEach(script => {
     const src = script.getAttribute('src') || '';
     if (src.startsWith('http') && !src.startsWith(window.location.origin)) {
@@ -42,7 +51,8 @@ function neutralizeCrossOrigin(el: HTMLElement) {
     }
   });
 
-  // Swap every <img> src in the full document to an inline data URI
+  // 4. Swap every <img> src in the ENTIRE document to an inline data URI.
+  //    html2canvas clones the full document, not just the target element.
   document.querySelectorAll('img').forEach(img => {
     const origSrc = img.getAttribute('src');
     const origSrcset = img.getAttribute('srcset');
@@ -62,7 +72,7 @@ function neutralizeCrossOrigin(el: HTMLElement) {
     });
   });
 
-  // Swap <canvas> to static images or hide
+  // 5. Swap <canvas> to static images or hide
   el.querySelectorAll('canvas').forEach(c => {
     try {
       const dataUrl = (c as HTMLCanvasElement).toDataURL();
@@ -81,7 +91,7 @@ function neutralizeCrossOrigin(el: HTMLElement) {
   return () => undos.forEach(fn => fn());
 }
 
-export default function useExportComparison(ref: RefObject<HTMLDivElement | null>) {
+export default function useExportAnalysis(ref: RefObject<HTMLDivElement | null>) {
   const [exporting, setExporting] = useState(false);
 
   const exportToPdf = useCallback(async () => {
@@ -96,6 +106,7 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         import('jspdf'),
       ]);
 
+      // Neutralize cross-origin resources BEFORE html2canvas clones the DOM
       restore = neutralizeCrossOrigin(el);
 
       const capturePromise = html2canvas(el, {
@@ -109,18 +120,17 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         windowHeight: el.scrollHeight + 200,
         height: el.scrollHeight,
         onclone: (doc, clonedEl) => {
-          // Kill all animations so nothing is mid-fade
+          // Kill ALL animations/transitions so nothing is mid-fade or invisible
           const reset = doc.createElement('style');
           reset.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }';
           doc.head.appendChild(reset);
 
+          // Show print header, hide interactive elements
+          const ph = clonedEl.querySelector('.analysis-print-header') as HTMLElement | null;
+          if (ph) ph.style.display = 'block';
           clonedEl.querySelectorAll('.no-print').forEach(n => {
             (n as HTMLElement).style.display = 'none';
           });
-          const ph = clonedEl.querySelector('.print-header') as HTMLElement | null;
-          if (ph) ph.style.display = 'none';
-          const ch = clonedEl.querySelector('.comparison-dashboard__header') as HTMLElement | null;
-          if (ch) ch.style.display = 'none';
         },
       });
 
@@ -130,13 +140,11 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
 
       const canvas = await Promise.race([capturePromise, timeoutPromise]);
 
+      // Restore DOM immediately after capture completes
       restore(); restore = null;
 
-      // Build title from property addresses
-      const addresses = Array.from(el.querySelectorAll('.print-header__property'))
-        .map(el => el.textContent?.trim())
-        .filter(Boolean);
-      const title = 'Property Comparison Report';
+      const address = el.querySelector('.results__property-address')?.textContent?.trim() || 'Property';
+      const title = `Investment Analysis — ${address}`;
       const dateStr = new Date().toLocaleDateString('en-US', {
         year: 'numeric', month: 'long', day: 'numeric',
       });
@@ -163,25 +171,16 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         // ── Page header ──
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(12);
-        pdf.setTextColor(30, 41, 59); // slate-800
-        pdf.text(title, margin, margin + 5);
+        pdf.setTextColor(30, 41, 59);
+        pdf.text(page === 0 ? title : 'Investment Analysis (cont.)', margin, margin + 5);
 
-        // Addresses on first page header
-        if (page === 0 && addresses.length > 0) {
-          pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(7.5);
-          pdf.setTextColor(100, 116, 139); // slate-500
-          pdf.text(addresses.join('  •  '), margin, margin + 9);
-        }
-
-        // Date on right
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(7.5);
         pdf.setTextColor(100, 116, 139);
         pdf.text(dateStr, pageWidth - margin, margin + 5, { align: 'right' });
 
         // Header underline
-        pdf.setDrawColor(102, 126, 234); // #667eea
+        pdf.setDrawColor(102, 126, 234);
         pdf.setLineWidth(0.5);
         pdf.line(margin, contentTop - 2, pageWidth - margin, contentTop - 2);
 
@@ -202,7 +201,7 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         // ── Page footer ──
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(7);
-        pdf.setTextColor(148, 163, 184); // slate-400
+        pdf.setTextColor(148, 163, 184);
         pdf.text(
           `Page ${page + 1} of ${pagesNeeded}`,
           pageWidth / 2,
@@ -217,7 +216,8 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
         );
       }
 
-      pdf.save('property-comparison.pdf');
+      const safeAddress = address.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '-').toLowerCase();
+      pdf.save(`analysis-${safeAddress}.pdf`);
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Failed to export PDF. Please try using Print instead.');
@@ -227,9 +227,9 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
     }
   }, [ref]);
 
-  const printComparison = useCallback(() => {
+  const printAnalysis = useCallback(() => {
     window.print();
   }, []);
 
-  return { exportToPdf, printComparison, exporting };
+  return { exportToPdf, printAnalysis, exporting };
 }

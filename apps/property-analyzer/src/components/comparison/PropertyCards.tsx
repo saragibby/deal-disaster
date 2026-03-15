@@ -17,7 +17,7 @@ export default function PropertyCards({ properties, topPickIdx }: Props) {
         const isTopPick = topPickIdx === i;
         return (
           <div
-            key={p.id}
+            key={p.slug}
             className={`comparison-dashboard__card${isTopPick ? ' comparison-dashboard__card--top-pick' : ''}`}
             style={{ borderTopColor: PROPERTY_COLORS[i] }}
           >

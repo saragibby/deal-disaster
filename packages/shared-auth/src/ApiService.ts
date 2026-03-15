@@ -494,23 +494,34 @@ export class ApiService {
     );
   }
 
-  async getAnalysis(id: number) {
-    return this.fetchJson<{ analysis: any }>(`/api/analyzer/history/${id}`, { auth: true });
+  async getAnalysis(slug: string) {
+    return this.fetchJson<{ analysis: any }>(`/api/analyzer/history/${encodeURIComponent(slug)}`, { auth: true });
   }
 
-  async deleteAnalysis(id: number) {
-    return this.fetchJson<{ success: boolean }>(`/api/analyzer/history/${id}`, {
+  async deleteAnalysis(slug: string) {
+    return this.fetchJson<{ success: boolean }>(`/api/analyzer/history/${encodeURIComponent(slug)}`, {
       method: 'DELETE',
       auth: true,
     });
   }
 
-  async reAnalyze(id: number, params: Record<string, any>) {
-    return this.fetchJson<any>(`/api/analyzer/re-analyze/${id}`, {
+  async reAnalyze(slug: string, params: Record<string, any>) {
+    return this.fetchJson<any>(`/api/analyzer/re-analyze/${encodeURIComponent(slug)}`, {
       method: 'POST',
       auth: true,
       body: JSON.stringify({ params }),
     });
+  }
+
+  async toggleShareAnalysis(slug: string, shared: boolean) {
+    return this.fetchJson<{ slug: string; is_shared: boolean }>(
+      `/api/analyzer/history/${encodeURIComponent(slug)}/share`,
+      { method: 'PATCH', auth: true, body: JSON.stringify({ shared }) },
+    );
+  }
+
+  async getSharedAnalysis(slug: string) {
+    return this.fetchJson<{ analysis: any }>(`/api/analyzer/shared/${encodeURIComponent(slug)}`);
   }
 
   // ===== Xome Foreclosure/Auction endpoints =====
@@ -529,19 +540,19 @@ export class ApiService {
 
   // ===== AI Comparison endpoints =====
 
-  async getComparisonSummary(propertyIds: number[]) {
+  async getComparisonSummary(propertySlugs: string[]) {
     return this.fetchJson<{ summary: string; generatedAt: string }>('/api/ai/comparison-summary', {
       method: 'POST',
       auth: true,
-      body: JSON.stringify({ propertyIds }),
+      body: JSON.stringify({ propertySlugs }),
     });
   }
 
-  async getPropertyNarratives(propertyIds: number[]) {
-    return this.fetchJson<{ narratives: Array<{ propertyId: number; address: string; narrative: string }>; generatedAt: string }>('/api/ai/property-narratives', {
+  async getPropertyNarratives(propertySlugs: string[]) {
+    return this.fetchJson<{ narratives: Array<{ propertyId: string; address: string; narrative: string }>; generatedAt: string }>('/api/ai/property-narratives', {
       method: 'POST',
       auth: true,
-      body: JSON.stringify({ propertyIds }),
+      body: JSON.stringify({ propertySlugs }),
     });
   }
 }

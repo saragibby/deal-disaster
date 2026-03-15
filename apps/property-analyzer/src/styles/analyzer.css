@@ -1202,6 +1202,9 @@ a:hover { color: var(--primary-dark); }
   display: flex;
   flex-direction: column;
 }
+.results__bottom-grid--full {
+  grid-template-columns: 1fr;
+}
 
 .results__tax-intro { opacity: 0.9; margin-bottom: 1.5rem; font-size: 1.05rem; }
 .results__tax-breakdown {
@@ -3129,7 +3132,9 @@ a:hover { color: var(--primary-dark); }
 
 /* ────── Top Pick Badge ────── */
 .comparison-dashboard__card--top-pick {
-  box-shadow: 0 0 0 2px #f59e0b, 0 4px 12px rgba(245,158,11,0.2);
+  border: 2px solid #f59e0b;
+  border-top: 4px solid #f59e0b;
+  box-shadow: 0 4px 12px rgba(245,158,11,0.2);
 }
 .comparison-dashboard__top-pick-badge {
   position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2;
@@ -3621,6 +3626,76 @@ a:hover { color: var(--primary-dark); }
   display: none;
 }
 
+.analysis-print-header {
+  display: none;
+}
+
+/* ── Analysis Results Toolbar ── */
+.results__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.results__toolbar-share,
+.results__toolbar-export {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.results__toolbar .btn--active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.results__toolbar .btn--shared {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #6ee7b7;
+}
+.results__toolbar .btn--shared:hover {
+  background: #d1fae5;
+  border-color: #34d399;
+}
+
+/* ── Shared Analysis View ── */
+.shared-view__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, #f0f4ff, #e8ecff);
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius);
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  color: #4338ca;
+  font-size: 0.95rem;
+}
+.shared-view__banner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.shared-view__error {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+.shared-view__error h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+.shared-view__error p {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ── Print ── */
 @media print {
   @page {
@@ -3628,11 +3703,19 @@ a:hover { color: var(--primary-dark); }
     margin: 14mm 10mm 16mm;
   }
 
-  /* Reset: hide everything, then show comparison */
+  /* Reset: hide everything, then show content areas */
   body * { visibility: hidden; }
+
   .comparison-dashboard,
-  .comparison-dashboard * { visibility: visible; }
-  .comparison-dashboard {
+  .comparison-dashboard *,
+  .results,
+  .results *,
+  .shared-view,
+  .shared-view * { visibility: visible; }
+
+  .comparison-dashboard,
+  .results,
+  .shared-view {
     position: absolute;
     left: 0; top: 0;
     width: 100%;
@@ -3766,6 +3849,75 @@ a:hover { color: var(--primary-dark); }
   .comparison-dashboard__waterfall-tabs {
     flex-direction: row !important;
     flex-wrap: wrap;
+  }
+
+  /* ── Analysis print styles ── */
+
+  /* Show analysis print header */
+  .analysis-print-header {
+    display: block !important;
+    visibility: visible;
+    padding: 0 0 12px;
+    border-bottom: 3px solid #667eea;
+    margin-bottom: 20px;
+  }
+  .analysis-print-header__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .analysis-print-header__title {
+    font-family: 'Poppins', sans-serif;
+    font-size: 16pt;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+  }
+  .analysis-print-header__date {
+    font-size: 9pt;
+    color: #64748b;
+  }
+  .analysis-print-header__address {
+    font-size: 10pt;
+    color: #334155;
+    margin: 4px 0 0;
+  }
+
+  /* Hide toolbar and interactive elements */
+  .results__toolbar,
+  .results__offer-toggle,
+  .results__offer-popover,
+  .loan-calc__more-toggle,
+  .loan-calc__params--secondary,
+  .results__editable-input,
+  .results__offer-range,
+  .shared-view__banner-actions { display: none !important; }
+
+  /* Analysis sections: avoid splitting */
+  .results__card,
+  .results__section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+  }
+
+  /* Shared view banner in print */
+  .shared-view__banner {
+    visibility: visible;
+    background: #f0f4ff;
+    border: 1px solid #c7d2fe;
+    break-after: avoid;
+  }
+
+  /* Tighten analysis text */
+  .results {
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+  .results h3 {
+    font-size: 11pt;
   }
 }
 

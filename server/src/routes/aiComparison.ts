@@ -18,23 +18,23 @@ const MAX_PROPERTIES = 10;
 // ── POST /comparison-summary ─────────────────────────────────────────────
 router.post('/comparison-summary', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { propertyIds } = req.body as { propertyIds?: number[] };
+    const { propertySlugs } = req.body as { propertySlugs?: string[] };
 
-    if (!Array.isArray(propertyIds) || propertyIds.length < 2) {
-      return res.status(400).json({ error: 'At least 2 property IDs are required' });
+    if (!Array.isArray(propertySlugs) || propertySlugs.length < 2) {
+      return res.status(400).json({ error: 'At least 2 property slugs are required' });
     }
-    if (propertyIds.length > MAX_PROPERTIES) {
+    if (propertySlugs.length > MAX_PROPERTIES) {
       return res.status(400).json({ error: `Maximum ${MAX_PROPERTIES} properties allowed` });
     }
-    if (!propertyIds.every(id => Number.isInteger(id) && id > 0)) {
-      return res.status(400).json({ error: 'Invalid property IDs' });
+    if (!propertySlugs.every(s => typeof s === 'string' && s.length > 0)) {
+      return res.status(400).json({ error: 'Invalid property slugs' });
     }
 
     // Load properties owned by this user
-    const placeholders = propertyIds.map((_, i) => `$${i + 2}`).join(', ');
+    const placeholders = propertySlugs.map((_, i) => `$${i + 2}`).join(', ');
     const result = await pool.query(
-      `SELECT * FROM property_analyses WHERE user_id = $1 AND id IN (${placeholders})`,
-      [req.userId, ...propertyIds],
+      `SELECT * FROM property_analyses WHERE user_id = $1 AND slug IN (${placeholders})`,
+      [req.userId, ...propertySlugs],
     );
 
     if (result.rows.length < 2) {
@@ -59,22 +59,22 @@ router.post('/comparison-summary', authenticateToken, async (req: AuthRequest, r
 // ── POST /property-narratives ────────────────────────────────────────────
 router.post('/property-narratives', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { propertyIds } = req.body as { propertyIds?: number[] };
+    const { propertySlugs } = req.body as { propertySlugs?: string[] };
 
-    if (!Array.isArray(propertyIds) || propertyIds.length < 1) {
-      return res.status(400).json({ error: 'At least 1 property ID is required' });
+    if (!Array.isArray(propertySlugs) || propertySlugs.length < 1) {
+      return res.status(400).json({ error: 'At least 1 property slug is required' });
     }
-    if (propertyIds.length > MAX_PROPERTIES) {
+    if (propertySlugs.length > MAX_PROPERTIES) {
       return res.status(400).json({ error: `Maximum ${MAX_PROPERTIES} properties allowed` });
     }
-    if (!propertyIds.every(id => Number.isInteger(id) && id > 0)) {
-      return res.status(400).json({ error: 'Invalid property IDs' });
+    if (!propertySlugs.every(s => typeof s === 'string' && s.length > 0)) {
+      return res.status(400).json({ error: 'Invalid property slugs' });
     }
 
-    const placeholders = propertyIds.map((_, i) => `$${i + 2}`).join(', ');
+    const placeholders = propertySlugs.map((_, i) => `$${i + 2}`).join(', ');
     const result = await pool.query(
-      `SELECT * FROM property_analyses WHERE user_id = $1 AND id IN (${placeholders})`,
-      [req.userId, ...propertyIds],
+      `SELECT * FROM property_analyses WHERE user_id = $1 AND slug IN (${placeholders})`,
+      [req.userId, ...propertySlugs],
     );
 
     if (result.rows.length === 0) {

@@ -20,7 +20,7 @@ interface PropertyAnalyzerProps {
 export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyzerProps = {}) {
   const { user } = useAuth();
   const isAdmin = user?.is_admin === true;
-  const { id: analysisId } = useParams<{ id: string }>();
+  const { id: analysisSlug } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [url, setUrl] = useState('');
@@ -62,13 +62,13 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
 
   // Auto-load analysis from URL param
   useEffect(() => {
-    if (!analysisId) return;
+    if (!analysisSlug) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     setActiveTab('analyze');
 
-    api.getAnalysis(Number(analysisId))
+    api.getAnalysis(analysisSlug)
       .then((resp: any) => {
         if (!cancelled) {
           setResult(resp.analysis || resp);
@@ -82,7 +82,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
       });
 
     return () => { cancelled = true; };
-  }, [analysisId]);
+  }, [analysisSlug]);
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) {
@@ -100,8 +100,8 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
       // Navigate to the analysis URL so it's shareable
-      if (response.id) {
-        navigate(`/analysis/${response.id}`, { replace: true });
+      if (response.slug) {
+        navigate(`/analysis/${response.slug}`, { replace: true });
       }
     } catch (err: any) {
       setError(err.message || 'Analysis failed. Please check the URL and try again.');
@@ -111,7 +111,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
   }, [url, params]);
 
   const handleViewHistoryItem = useCallback((analysis: PropertyAnalysis) => {
-    navigate(`/analysis/${analysis.id}`);
+    navigate(`/analysis/${analysis.slug}`);
   }, [navigate]);
 
   return (

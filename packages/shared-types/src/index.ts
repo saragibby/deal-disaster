@@ -382,6 +382,7 @@ export interface FullAnalysisResult {
 
 export interface PropertyAnalysis {
   id: number;
+  slug: string;
   user_id: number;
   zillow_url: string;
   zpid?: string;
@@ -389,6 +390,7 @@ export interface PropertyAnalysis {
   analysis_params: AnalysisParams;
   analysis_results: FullAnalysisResult;
   rental_comps?: RentalComp[];
+  is_shared?: boolean;
   created_at: string;
 }
 
@@ -400,7 +402,7 @@ export interface AIComparisonSummary {
 }
 
 export interface AIPropertyNarrative {
-  propertyId: number;
+  propertyId: string;
   address: string;
   narrative: string;
 }

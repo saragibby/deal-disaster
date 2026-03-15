@@ -41,10 +41,10 @@ export default function AnalysisHistory({ onView }: Props) {
     fetchHistory();
   }, [fetchHistory]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (slug: string) => {
     if (!confirm('Delete this analysis?')) return;
     try {
-      await api.deleteAnalysis(id);
+      await api.deleteAnalysis(slug);
       fetchHistory();
     } catch (err: any) {
       alert(err.message || 'Failed to delete.');
@@ -84,7 +84,7 @@ export default function AnalysisHistory({ onView }: Props) {
           const positive = cashFlow?.monthlyCashFlow >= 0;
 
           return (
-            <div key={a.id} className="history__item" onClick={() => onView(a)} role="button" tabIndex={0} style={{ cursor: 'pointer' }}>
+            <div key={a.slug} className="history__item" onClick={() => onView(a)} role="button" tabIndex={0} style={{ cursor: 'pointer' }}>
               <div className="history__item-main">
                 <div className="history__item-address">
                   <strong>{prop.address || 'Unknown Address'}</strong>
@@ -113,7 +113,7 @@ export default function AnalysisHistory({ onView }: Props) {
                 <div className="history__actions">
                   <button
                     className="history__action-btn history__action-btn--danger"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(a.slug); }}
                     title="Delete"
                   >
                     <Trash2 size={16} />

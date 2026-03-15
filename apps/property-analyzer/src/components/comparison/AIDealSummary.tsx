@@ -16,8 +16,8 @@ export default function AIDealSummary({ properties }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const ids = properties.map(p => p.id);
-      const result = await api.getComparisonSummary(ids);
+      const slugs = properties.map(p => p.slug);
+      const result = await api.getComparisonSummary(slugs);
       setSummary(result.summary);
     } catch (err: any) {
       setError(err.message || 'Failed to generate AI summary');

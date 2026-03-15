@@ -18,18 +18,18 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
   const [properties, setProperties] = useState<PropertyAnalysis[]>([]);
   const [loadingError, setLoadingError] = useState<string | null>(null);
 
-  // Auto-load from URL params ?ids=1,5,12
+  // Auto-load from URL params ?props=slug1,slug2,slug3
   useEffect(() => {
-    const idsParam = searchParams.get('ids');
-    if (!idsParam) return;
+    const slugsParam = searchParams.get('props');
+    if (!slugsParam) return;
 
-    const ids = idsParam.split(',').map(Number).filter(n => !isNaN(n) && n > 0);
-    if (ids.length < 2) return;
+    const slugs = slugsParam.split(',').filter(s => s.length > 0);
+    if (slugs.length < 2) return;
 
     setPhase('loading');
     setLoadingError(null);
 
-    Promise.allSettled(ids.map(id => api.getAnalysis(id)))
+    Promise.allSettled(slugs.map(slug => api.getAnalysis(slug)))
       .then(results => {
         const loaded: PropertyAnalysis[] = [];
         const errors: string[] = [];
@@ -39,7 +39,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
             const analysis = (r.value as any).analysis || r.value;
             loaded.push(analysis);
           } else {
-            errors.push(`Analysis #${ids[i]} could not be loaded`);
+            errors.push(`Analysis ${slugs[i]} could not be loaded`);
           }
         });
 
@@ -63,9 +63,9 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
   const handleCompare = useCallback((selected: PropertyAnalysis[]) => {
     setProperties(selected);
     setPhase('comparing');
-    // Update URL with ids for shareability
-    const ids = selected.map(p => p.id).join(',');
-    setSearchParams({ ids }, { replace: true });
+    // Update URL with slugs for shareability
+    const slugs = selected.map(p => p.slug).join(',');
+    setSearchParams({ props: slugs }, { replace: true });
   }, [setSearchParams]);
 
   const handleBack = useCallback(() => {

@@ -10,28 +10,28 @@ interface Props {
 }
 
 interface NarrativeMap {
-  [propertyId: number]: string;
+  [propertySlug: string]: string;
 }
 
 export default function AIPropertyNarratives({ properties }: Props) {
   const [narratives, setNarratives] = useState<NarrativeMap>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const hasNarratives = Object.keys(narratives).length > 0;
 
   const generate = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const ids = properties.map(p => p.id);
-      const result = await api.getPropertyNarratives(ids);
+      const slugs = properties.map(p => p.slug);
+      const result = await api.getPropertyNarratives(slugs);
       const map: NarrativeMap = {};
       result.narratives.forEach(n => { map[n.propertyId] = n.narrative; });
       setNarratives(map);
       // Auto-expand all
-      const exp: Record<number, boolean> = {};
-      properties.forEach(p => { exp[p.id] = true; });
+      const exp: Record<string, boolean> = {};
+      properties.forEach(p => { exp[p.slug] = true; });
       setExpanded(exp);
     } catch (err: any) {
       setError(err.message || 'Failed to generate narratives');
@@ -40,8 +40,8 @@ export default function AIPropertyNarratives({ properties }: Props) {
     }
   }, [properties]);
 
-  const toggle = (id: number) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggle = (slug: string) => {
+    setExpanded(prev => ({ ...prev, [slug]: !prev[slug] }));
   };
 
   if (!hasNarratives && !loading && !error) {
@@ -83,14 +83,14 @@ export default function AIPropertyNarratives({ properties }: Props) {
       {hasNarratives && !loading && (
         <div className="comparison-dashboard__ai-narratives-list">
           {properties.map((p, i) => {
-            const narrative = narratives[p.id];
+            const narrative = narratives[p.slug];
             if (!narrative) return null;
-            const isOpen = expanded[p.id];
+            const isOpen = expanded[p.slug];
             return (
-              <div key={p.id} className="comparison-dashboard__ai-narrative-item">
+              <div key={p.slug} className="comparison-dashboard__ai-narrative-item">
                 <button
                   className="comparison-dashboard__ai-narrative-toggle"
-                  onClick={() => toggle(p.id)}
+                  onClick={() => toggle(p.slug)}
                 >
                   <span
                     className="comparison-dashboard__table-dot"
