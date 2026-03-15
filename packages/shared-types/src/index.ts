@@ -355,6 +355,24 @@ export interface ComparableProperty {
   zillowUrl?: string;
 }
 
+export interface STRSeasonalityMonth {
+  month: string;
+  revenue: number;
+  occupancy: number;              // 0-1
+}
+
+export interface STRRevenueRange {
+  low: number;
+  mid: number;
+  high: number;
+}
+
+export interface STRMarketContext {
+  activeListings: number;
+  avgRating?: number;
+  supplyGrowth?: number;          // YoY percentage, e.g. 0.08 = +8%
+}
+
 export interface STREstimate {
   nightlyRate: number;
   occupancyRate: number;          // 0-1
@@ -364,6 +382,9 @@ export interface STREstimate {
   netMonthlyRevenue: number;
   confidence: 'low' | 'medium' | 'high';
   source: 'algorithm' | 'airdna' | 'mashvisor';
+  seasonality?: STRSeasonalityMonth[];
+  revenueRange?: STRRevenueRange;
+  marketContext?: STRMarketContext;
 }
 
 export interface FullAnalysisResult {

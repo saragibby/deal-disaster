@@ -83,6 +83,27 @@ interface AirDnaPropertyData {
     occupancy?: number;
     revenue?: number;
   };
+
+  // Seasonality — monthly breakdown (Jan–Dec)
+  monthly_revenue_by_month?: number[];
+  months?: { month: string; revenue?: number; occupancy?: number; adr?: number }[];
+  seasonality?: { month: string; revenue?: number; occupancy?: number }[];
+  revenue_by_month?: number[];
+
+  // Revenue percentiles / range
+  revenue_percentiles?: { p25?: number; p50?: number; p75?: number };
+  percentiles?: { revenue_25?: number; revenue_50?: number; revenue_75?: number };
+  rental_estimate_range?: { low?: number; median?: number; high?: number };
+
+  // Market supply / competitive context
+  comparable_listings?: number;
+  active_listings?: number;
+  total_active_listings?: number;
+  num_listings?: number;
+  average_rating?: number;
+  avg_rating?: number;
+  listing_growth_rate?: number;
+  listings_growth?: number;
 }
 
 // ---------- public API ----------
@@ -211,8 +232,9 @@ function parseResponse(
   property: PropertyData,
   confidence: 'medium' | 'high',
 ): STREstimate | null {
-  // Log raw shape for debugging during initial integration
+  // Log full response for integration debugging (remove once stable)
   console.log('[AirDNA] Raw response keys:', Object.keys(raw));
+  console.log('[AirDNA] Full response:', JSON.stringify(raw, null, 2));
 
   // Extract ADR (nightly rate) — try every known location
   const adr =
@@ -274,6 +296,17 @@ function parseResponse(
 
   const netMonthlyRevenue = grossMonthlyRevenue - cleaningCosts - platformFees;
 
+  // ── Extract enrichment data ──────────────────────────────────────────
+
+  // Seasonality — try multiple response shapes
+  const seasonality = parseSeasonality(raw, nightlyRate, occupancyRate);
+
+  // Revenue range / percentiles
+  const revenueRange = parseRevenueRange(raw, grossMonthlyRevenue);
+
+  // Market context (supply, ratings, growth)
+  const marketContext = parseMarketContext(raw);
+
   const estimate: STREstimate = {
     nightlyRate,
     occupancyRate: Math.round(occupancyRate * 100) / 100,
@@ -283,8 +316,105 @@ function parseResponse(
     netMonthlyRevenue,
     confidence,
     source: 'airdna',
+    ...(seasonality && { seasonality }),
+    ...(revenueRange && { revenueRange }),
+    ...(marketContext && { marketContext }),
   };
 
   console.log(`[AirDNA] STR estimate: $${nightlyRate}/night, ${Math.round(occupancyRate * 100)}% occ, $${grossMonthlyRevenue}/mo gross`);
   return estimate;
+}
+
+// ---------- enrichment parsers ----------
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function parseSeasonality(
+  raw: AirDnaPropertyData,
+  baseNightly: number,
+  baseOccupancy: number,
+): STREstimate['seasonality'] {
+  // Shape 1: { months: [{ month, revenue, occupancy }] }
+  if (Array.isArray(raw.months) && raw.months.length >= 12) {
+    return raw.months.slice(0, 12).map((m) => ({
+      month: m.month,
+      revenue: m.revenue ?? Math.round(baseNightly * 30 * (m.occupancy ?? baseOccupancy)),
+      occupancy: m.occupancy != null && m.occupancy > 1 ? m.occupancy / 100 : (m.occupancy ?? baseOccupancy),
+    }));
+  }
+
+  // Shape 2: { seasonality: [{ month, revenue, occupancy }] }
+  if (Array.isArray(raw.seasonality) && raw.seasonality.length >= 12) {
+    return raw.seasonality.slice(0, 12).map((m) => ({
+      month: m.month,
+      revenue: m.revenue ?? Math.round(baseNightly * 30 * (m.occupancy ?? baseOccupancy)),
+      occupancy: m.occupancy != null && m.occupancy > 1 ? m.occupancy / 100 : (m.occupancy ?? baseOccupancy),
+    }));
+  }
+
+  // Shape 3: { monthly_revenue_by_month: [number x 12] } or { revenue_by_month: [...] }
+  const revArr = raw.monthly_revenue_by_month ?? raw.revenue_by_month;
+  if (Array.isArray(revArr) && revArr.length >= 12) {
+    return revArr.slice(0, 12).map((rev, i) => ({
+      month: MONTH_NAMES[i],
+      revenue: Math.round(rev),
+      occupancy: baseOccupancy, // no per-month occupancy in this shape
+    }));
+  }
+
+  return undefined;
+}
+
+function parseRevenueRange(
+  raw: AirDnaPropertyData,
+  grossMonthly: number,
+): STREstimate['revenueRange'] {
+  // Shape 1: { revenue_percentiles: { p25, p50, p75 } }
+  const rp = raw.revenue_percentiles;
+  if (rp && (rp.p25 || rp.p50 || rp.p75)) {
+    return {
+      low: Math.round((rp.p25 ?? grossMonthly * 0.75) / 12),
+      mid: Math.round((rp.p50 ?? grossMonthly)),
+      high: Math.round((rp.p75 ?? grossMonthly * 1.25) / 12),
+    };
+  }
+
+  // Shape 2: { percentiles: { revenue_25, revenue_50, revenue_75 } }
+  const pc = raw.percentiles;
+  if (pc && (pc.revenue_25 || pc.revenue_50 || pc.revenue_75)) {
+    return {
+      low: Math.round((pc.revenue_25 ?? grossMonthly * 0.75) / 12),
+      mid: Math.round((pc.revenue_50 ?? grossMonthly)),
+      high: Math.round((pc.revenue_75 ?? grossMonthly * 1.25) / 12),
+    };
+  }
+
+  // Shape 3: { rental_estimate_range: { low, median, high } }
+  const re = raw.rental_estimate_range;
+  if (re && (re.low || re.median || re.high)) {
+    return {
+      low: Math.round(re.low ?? grossMonthly * 0.75),
+      mid: Math.round(re.median ?? grossMonthly),
+      high: Math.round(re.high ?? grossMonthly * 1.25),
+    };
+  }
+
+  return undefined;
+}
+
+function parseMarketContext(raw: AirDnaPropertyData): STREstimate['marketContext'] {
+  const activeListings =
+    raw.active_listings ??
+    raw.total_active_listings ??
+    raw.comparable_listings ??
+    raw.num_listings ??
+    null;
+
+  if (activeListings == null) return undefined;
+
+  return {
+    activeListings,
+    avgRating: raw.average_rating ?? raw.avg_rating ?? undefined,
+    supplyGrowth: raw.listing_growth_rate ?? raw.listings_growth ?? undefined,
+  };
 }

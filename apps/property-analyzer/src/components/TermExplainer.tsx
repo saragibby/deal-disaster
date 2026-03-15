@@ -40,7 +40,7 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
   'nightly rate': {
     term: 'Nightly Rate',
     definition:
-      'The estimated average nightly price your property could command as a short-term rental on platforms like Airbnb or VRBO.',
+      'The estimated average nightly price your property could command as a short-term rental on platforms like Airbnb, VRBO, or Furnished Finder.',
     formula: 'Based on comparable listings in the area, adjusted for bedrooms, location, and amenities.',
   },
   occupancy: {
@@ -60,6 +60,22 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
     definition:
       'Your take-home short-term rental income after subtracting cleaning costs and platform fees. This is the number to compare against long-term rent.',
     formula: 'Gross Revenue − Cleaning Costs − Platform Fees',
+  },
+  seasonality: {
+    term: 'Monthly Revenue Seasonality',
+    definition:
+      'How short-term rental income varies month to month. Summer months typically earn 15–20% more than annual average, while winter months may dip 20–30%. Understanding seasonality helps you budget for slower months and maximize pricing during peak demand.',
+  },
+  'revenue range': {
+    term: 'Revenue Range',
+    definition:
+      'The estimated low-to-high range of gross monthly revenue based on market percentiles. The low end represents conservative bookings (25th percentile), mid is the most likely outcome (50th), and high is strong performance (75th). A wider range indicates more market variability.',
+    formula: 'Based on comparable listing performance in the area',
+  },
+  'active listings': {
+    term: 'Active Listings',
+    definition:
+      'The number of short-term rental listings currently active in the area. More listings mean more competition, which can pressure nightly rates and occupancy. Fewer listings in a high-demand area may signal opportunity.',
   },
   'median sold price': {
     term: 'Median Sold Price',

@@ -909,6 +909,159 @@ a:hover { color: var(--primary-dark); }
 .rental-insights__delta--up { color: var(--success); }
 .rental-insights__delta--down { color: var(--danger); }
 
+/* Deep dive toggle button */
+.rental-insights__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.45rem 0;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.rental-insights__toggle:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* Deep dive container */
+.rental-insights__deep-dive {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rental-insights__deep-section {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.rental-insights__deep-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.6rem;
+}
+
+/* Muted badge variant (for algorithmic estimates) */
+.rental-insights__badge--muted {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 99px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Seasonality chart */
+.rental-insights__seasonality-chart {
+  margin-bottom: 0.25rem;
+}
+
+.rental-insights__seasonality-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.rental-insights__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.rental-insights__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Revenue range */
+.rental-insights__range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rental-insights__range-track {
+  position: relative;
+  height: 10px;
+  background: linear-gradient(90deg, #f59e0b33, #22c55e33, #3b82f633);
+  border-radius: 5px;
+}
+
+.rental-insights__range-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #f59e0b, #22c55e, #3b82f6);
+  opacity: 0.35;
+}
+
+.rental-insights__range-marker {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 16px;
+  background: var(--text);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.rental-insights__range-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.rental-insights__range-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.rental-insights__range-label--mid {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Market context pills */
+.rental-insights__context-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rental-insights__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  background: var(--surface);
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 /* Market trend chart */
 .rental-insights__chart-wrap {
   background: var(--bg);

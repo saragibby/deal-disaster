@@ -117,5 +117,33 @@ export function estimateSTR(
     netMonthlyRevenue,
     confidence: 'low',  // algorithmic only — upgrade to 'medium'/'high' with API data
     source: 'algorithm',
+    seasonality: buildAlgorithmicSeasonality(nightlyRate, occupancy),
+    revenueRange: {
+      low: Math.round(grossMonthlyRevenue * 0.80),
+      mid: grossMonthlyRevenue,
+      high: Math.round(grossMonthlyRevenue * 1.20),
+    },
   };
+}
+
+/**
+ * Generate a 12-month seasonality curve from national STR averages.
+ * Peak in Jun–Aug, trough in Jan–Feb, shoulder months in between.
+ */
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const SEASONALITY_CURVE = [0.75, 0.72, 0.85, 0.90, 0.98, 1.12, 1.20, 1.18, 1.05, 0.92, 0.80, 0.78];
+
+function buildAlgorithmicSeasonality(
+  nightlyRate: number,
+  baseOccupancy: number,
+): STREstimate['seasonality'] {
+  return MONTH_NAMES.map((month, i) => {
+    const factor = SEASONALITY_CURVE[i];
+    const adjOccupancy = Math.min(0.95, Math.max(0.30, baseOccupancy * factor));
+    return {
+      month,
+      revenue: Math.round(nightlyRate * 30 * adjOccupancy),
+      occupancy: Math.round(adjOccupancy * 100) / 100,
+    };
+  });
 }

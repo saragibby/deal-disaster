@@ -6,7 +6,8 @@ import type {
   ComparableProperty,
 } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
-import { TrendingUp, Home, BarChart3, Info, CircleCheck, CircleAlert, CircleMinus } from 'lucide-react';
+import { TrendingUp, Home, BarChart3, Info, CircleCheck, CircleAlert, CircleMinus, ChevronDown, ChevronUp, Building2, Star, TrendingDown } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import TermExplainer, { findExplainer } from './TermExplainer';
 
 /* ================================================================== */
@@ -54,9 +55,9 @@ export default function RentalInsights({
         <span>
           All figures are <strong>algorithmic estimates</strong> — not appraisals.
           Long-term rent is modeled from price tiers &amp; property traits.
-          Airbnb projections use national averages for occupancy, cleaning,
-          and platform fees; actual results vary by season, location, and
-          regulations.
+          Short-term rental projections use national averages for occupancy,
+          cleaning, and platform fees; actual results vary by season, location,
+          and regulations.
         </span>
       </div>
     </div>
@@ -64,10 +65,11 @@ export default function RentalInsights({
 }
 
 /* ================================================================== */
-/*  Section A — Airbnb / Short-Term Rental Estimate                    */
+/*  Section A — Short-Term Rental Estimate                             */
 /* ================================================================== */
 function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRent: number }) {
   if (!strEstimate) return null;
+  const [expanded, setExpanded] = useState(false);
 
   const { nightlyRate, occupancyRate, grossMonthlyRevenue, cleaningCosts, platformFees, netMonthlyRevenue } = strEstimate;
   const strVsLtr = ltrRent > 0 ? ((netMonthlyRevenue - ltrRent) / ltrRent) * 100 : 0;
@@ -75,10 +77,12 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
   // Bar widths for visual comparison
   const maxVal = Math.max(netMonthlyRevenue, ltrRent, 1);
 
+  const hasDeepDive = strEstimate.seasonality || strEstimate.revenueRange || strEstimate.marketContext;
+
   return (
     <div className="rental-insights__section">
       <h4 className="rental-insights__heading">
-        <Home size={15} /> Airbnb Potential
+        <Home size={15} /> Short-Term Rental Potential
         <span className="rental-insights__badge rental-insights__badge--purple">
           {strEstimate.source === 'algorithm' ? 'Estimate' : strEstimate.source.toUpperCase()}
         </span>
@@ -111,7 +115,7 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
           <span className="rental-insights__bar-value">{fmt(ltrRent)}</span>
         </div>
         <div className="rental-insights__bar-row">
-          <span className="rental-insights__bar-label">Airbnb net</span>
+          <span className="rental-insights__bar-label">STR net</span>
           <div className="rental-insights__bar-track">
             <div
               className="rental-insights__bar rental-insights__bar--str"
@@ -125,6 +129,151 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
             </span>
           </span>
         </div>
+      </div>
+
+      {/* Deep Dive toggle */}
+      {hasDeepDive && (
+        <>
+          <button
+            type="button"
+            className="rental-insights__toggle"
+            onClick={() => setExpanded(e => !e)}
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {expanded ? 'Hide Details' : 'Show Details'}
+          </button>
+
+          {expanded && (
+            <div className="rental-insights__deep-dive">
+              <STRSeasonalityChart seasonality={strEstimate.seasonality} source={strEstimate.source} />
+              <STRRevenueRange revenueRange={strEstimate.revenueRange} source={strEstimate.source} />
+              <STRMarketContextPills marketContext={strEstimate.marketContext} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Deep Dive — Seasonality Chart                                      */
+/* ================================================================== */
+function STRSeasonalityChart({ seasonality, source }: { seasonality?: STREstimate['seasonality']; source: string }) {
+  if (!seasonality || seasonality.length === 0) return null;
+
+  const maxRev = Math.max(...seasonality.map(m => m.revenue));
+  const minRev = Math.min(...seasonality.map(m => m.revenue));
+
+  const data = seasonality.map(m => ({
+    month: m.month,
+    revenue: m.revenue,
+    occupancy: Math.round(m.occupancy * 100),
+  }));
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">
+        Monthly Revenue Seasonality
+        {source === 'algorithm' && (
+          <span className="rental-insights__badge rental-insights__badge--muted">Estimated</span>
+        )}
+      </h5>
+      <div className="rental-insights__seasonality-chart">
+        <ResponsiveContainer width="100%" height={140}>
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 10 }} interval={0} />
+            <YAxis hide domain={[0, 'auto']} />
+            <Tooltip
+              formatter={(value) => [fmt(Number(value ?? 0)), 'Revenue']}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Bar dataKey="revenue" radius={[3, 3, 0, 0]}>
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={entry.revenue === maxRev ? '#22c55e' : entry.revenue === minRev ? '#f59e0b' : '#8b5cf6'}
+                  opacity={0.85}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="rental-insights__seasonality-legend">
+        <span className="rental-insights__legend-item">
+          <span className="rental-insights__legend-dot" style={{ background: '#22c55e' }} /> Best month
+        </span>
+        <span className="rental-insights__legend-item">
+          <span className="rental-insights__legend-dot" style={{ background: '#f59e0b' }} /> Slowest month
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Deep Dive — Revenue Range                                          */
+/* ================================================================== */
+function STRRevenueRange({ revenueRange, source }: { revenueRange?: STREstimate['revenueRange']; source: string }) {
+  if (!revenueRange) return null;
+
+  const { low, mid, high } = revenueRange;
+  const range = high - low || 1;
+  const midPct = ((mid - low) / range) * 100;
+  const explainer = findExplainer('revenue range');
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">
+        Revenue Range
+        {explainer && <TermExplainer info={explainer} />}
+        {source === 'algorithm' && (
+          <span className="rental-insights__badge rental-insights__badge--muted">Estimated</span>
+        )}
+      </h5>
+      <div className="rental-insights__range">
+        <div className="rental-insights__range-track">
+          <div className="rental-insights__range-fill" />
+          <div
+            className="rental-insights__range-marker"
+            style={{ left: `${midPct}%` }}
+            title={`Likely: ${fmt(mid)}/mo`}
+          />
+        </div>
+        <div className="rental-insights__range-labels">
+          <span className="rental-insights__range-label">{fmt(low)}/mo</span>
+          <span className="rental-insights__range-label rental-insights__range-label--mid">{fmt(mid)}/mo</span>
+          <span className="rental-insights__range-label">{fmt(high)}/mo</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Deep Dive — Market Context Pills                                   */
+/* ================================================================== */
+function STRMarketContextPills({ marketContext }: { marketContext?: STREstimate['marketContext'] }) {
+  if (!marketContext) return null;
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">Market Context</h5>
+      <div className="rental-insights__context-pills">
+        <span className="rental-insights__pill">
+          <Building2 size={13} /> {marketContext.activeListings.toLocaleString()} active listings
+        </span>
+        {marketContext.avgRating != null && (
+          <span className="rental-insights__pill">
+            <Star size={13} /> {marketContext.avgRating.toFixed(1)}★ avg rating
+          </span>
+        )}
+        {marketContext.supplyGrowth != null && (
+          <span className="rental-insights__pill">
+            <TrendingDown size={13} /> {marketContext.supplyGrowth > 0 ? '+' : ''}{(marketContext.supplyGrowth * 100).toFixed(0)}% supply YoY
+          </span>
+        )}
       </div>
     </div>
   );
