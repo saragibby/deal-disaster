@@ -5,7 +5,7 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins, Share2, Download, Printer, Lock, Globe,
+  Coins, Share2, Download, Lock, Globe,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -48,7 +48,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
 
   // Print / PDF export
   const resultsRef = useRef<HTMLDivElement>(null);
-  const { exportToPdf, printAnalysis, exporting } = useExportAnalysis(resultsRef);
+  const { exportToPdf, exporting } = useExportAnalysis(resultsRef);
 
   // Sharing
   const [isShared, setIsShared] = useState(analysis.is_shared ?? false);
@@ -199,9 +199,6 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             >
               {exporting ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <Download size={14} />}
               {exporting ? 'Exporting...' : 'PDF'}
-            </button>
-            <button className="btn btn--outline btn--sm" onClick={printAnalysis} title="Print analysis">
-              <Printer size={14} /> Print
             </button>
           </div>
         </div>
