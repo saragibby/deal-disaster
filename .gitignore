@@ -25,3 +25,6 @@ dist-ssr
 heroku_backup.dump
 test-results/
 playwright-report/
+
+# Database backups
+*.dump

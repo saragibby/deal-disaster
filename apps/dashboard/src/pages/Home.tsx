@@ -167,8 +167,8 @@ export default function Home() {
               const photo = prop?.photos?.[0];
               return (
                 <a
-                  key={a.id}
-                  href={buildAppUrl(`/property-analyzer/analysis/${a.id}`)}
+                  key={a.slug}
+                  href={buildAppUrl(`/property-analyzer/analysis/${a.slug}`)}
                   className="recent-analysis-card"
                 >
                   {photo && (
