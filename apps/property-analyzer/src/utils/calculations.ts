@@ -59,6 +59,7 @@ export function calculateCashFlow(
 ): CashFlowBreakdown {
   const monthlyTax = params.annualPropertyTax / 12;
   const monthlyInsurance = params.annualInsurance / 12;
+  const monthlyHoa = params.monthlyHoa || 0;
   const monthlyVacancy = monthlyRent * (params.vacancyPct / 100);
   const monthlyRepairs = monthlyRent * (params.repairsPct / 100);
   const monthlyCapex = monthlyRent * (params.capexPct / 100);
@@ -68,6 +69,7 @@ export function calculateCashFlow(
     mortgage.monthlyPayment +
     monthlyTax +
     monthlyInsurance +
+    monthlyHoa +
     monthlyVacancy +
     monthlyRepairs +
     monthlyCapex +
@@ -80,6 +82,7 @@ export function calculateCashFlow(
     monthlyMortgage: mortgage.monthlyPayment,
     monthlyTax: Math.round(monthlyTax * 100) / 100,
     monthlyInsurance: Math.round(monthlyInsurance * 100) / 100,
+    monthlyHoa: Math.round(monthlyHoa * 100) / 100,
     monthlyVacancy: Math.round(monthlyVacancy * 100) / 100,
     monthlyRepairs: Math.round(monthlyRepairs * 100) / 100,
     monthlyCapex: Math.round(monthlyCapex * 100) / 100,
@@ -111,6 +114,7 @@ export function calculateROI(
   const annualOperatingExpenses =
     (cashFlow.monthlyTax +
       cashFlow.monthlyInsurance +
+      cashFlow.monthlyHoa +
       cashFlow.monthlyVacancy +
       cashFlow.monthlyRepairs +
       cashFlow.monthlyCapex +

@@ -555,6 +555,42 @@ export class ApiService {
       body: JSON.stringify({ propertySlugs }),
     });
   }
+
+  // ===== Saved Comparisons =====
+
+  async saveComparison(name: string, propertySlugs: string[]) {
+    return this.fetchJson<{ comparison: any }>('/api/comparisons', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ name, propertySlugs }),
+    });
+  }
+
+  async getSavedComparisons(page = 1, limit = 20) {
+    return this.fetchJson<{ comparisons: any[]; total: number; page: number; limit: number }>(
+      `/api/comparisons?page=${page}&limit=${limit}`,
+      { auth: true },
+    );
+  }
+
+  async getSavedComparison(id: number) {
+    return this.fetchJson<{ comparison: any }>(`/api/comparisons/${id}`, { auth: true });
+  }
+
+  async deleteSavedComparison(id: number) {
+    return this.fetchJson<{ success: boolean }>(`/api/comparisons/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  }
+
+  async updateComparisonSlugs(id: number, propertySlugs: string[]) {
+    return this.fetchJson<{ comparison: any }>(`/api/comparisons/${id}`, {
+      method: 'PATCH',
+      auth: true,
+      body: JSON.stringify({ propertySlugs }),
+    });
+  }
 }
 
 export const api = new ApiService();

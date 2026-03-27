@@ -41,7 +41,7 @@ export function applyScenario<T extends {
   property_data: { price: number };
   analysis_params?: { vacancyPct?: number; repairsPct?: number; capexPct?: number; managementPct?: number; annualPropertyTax?: number; annualInsurance?: number; costSegPct?: number; taxRate?: number };
   analysis_results?: {
-    cashFlow?: { monthlyRent: number; monthlyMortgage: number; monthlyTax: number; monthlyInsurance: number; monthlyVacancy: number; monthlyRepairs: number; monthlyCapex: number; monthlyManagement: number; totalMonthlyExpenses: number; monthlyCashFlow: number; annualCashFlow: number };
+    cashFlow?: { monthlyRent: number; monthlyMortgage: number; monthlyTax: number; monthlyInsurance: number; monthlyHoa?: number; monthlyVacancy: number; monthlyRepairs: number; monthlyCapex: number; monthlyManagement: number; totalMonthlyExpenses: number; monthlyCashFlow: number; annualCashFlow: number };
     roi?: { totalCashInvested: number; cashOnCashROI: number; capRate: number; grossRentMultiplier: number };
     taxSavings?: { purchasePrice: number; depreciationDeduction: number; taxSavings: number; effectiveFirstYearReturn: number };
     [key: string]: any;
@@ -75,8 +75,9 @@ export function applyScenario<T extends {
   const monthlyMortgage = cf.monthlyMortgage;
   const monthlyTax = cf.monthlyTax;
   const monthlyInsurance = cf.monthlyInsurance;
+  const monthlyHoa = cf.monthlyHoa ?? 0;
 
-  const totalMonthlyExpenses = Math.round((monthlyMortgage + monthlyTax + monthlyInsurance + monthlyVacancy + monthlyRepairs + monthlyCapex + monthlyManagement) * 100) / 100;
+  const totalMonthlyExpenses = Math.round((monthlyMortgage + monthlyTax + monthlyInsurance + monthlyHoa + monthlyVacancy + monthlyRepairs + monthlyCapex + monthlyManagement) * 100) / 100;
   const monthlyCashFlow = Math.round((newRent - totalMonthlyExpenses) * 100) / 100;
   const annualCashFlow = Math.round(monthlyCashFlow * 12 * 100) / 100;
 
@@ -85,6 +86,7 @@ export function applyScenario<T extends {
     monthlyMortgage,
     monthlyTax,
     monthlyInsurance,
+    monthlyHoa,
     monthlyVacancy,
     monthlyRepairs,
     monthlyCapex,
@@ -98,7 +100,7 @@ export function applyScenario<T extends {
   const roi = property.analysis_results?.roi;
   const totalCashInvested = roi?.totalCashInvested ?? 0;
   const annualRent = newRent * 12;
-  const annualOpEx = (monthlyTax + monthlyInsurance + monthlyVacancy + monthlyRepairs + monthlyCapex + monthlyManagement) * 12;
+  const annualOpEx = (monthlyTax + monthlyInsurance + monthlyHoa + monthlyVacancy + monthlyRepairs + monthlyCapex + monthlyManagement) * 12;
   const noi = annualRent - annualOpEx;
 
   const newRoi = {

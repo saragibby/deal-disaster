@@ -5,7 +5,7 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins, Share2, Download, Lock, Globe,
+  Coins, Share2, Download, Lock, Globe, Pencil,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -88,6 +88,19 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
   const [showAllParams, setShowAllParams] = useState(false);
   const [showOfferSlider, setShowOfferSlider] = useState(false);
   const offerRef = useRef<HTMLDivElement>(null);
+
+  // Open expense params panel and scroll to it
+  const openExpenseParams = useCallback(() => {
+    setShowAllParams(true);
+    setTimeout(() => {
+      document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, []);
+
+  // Scroll to loan calculator for mortgage adjustment
+  const scrollToLoanCalc = useCallback(() => {
+    document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // Close offer popover on outside click
   useEffect(() => {
@@ -388,30 +401,35 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             <span className="results__icon results__icon--green">💵</span>
             Cash Flow Analysis
           </h3>
+          {!readOnly && (
+            <p className="results__adjust-hint">
+              <SlidersHorizontal size={12} />
+              Click any expense to adjust
+            </p>
+          )}
 
           <MetricRow label="Monthly Rent Income" value={fmt(cashFlow.monthlyRent)} positive />
-          <div className="results__metric-row">
-            <span className="results__metric-label">
-              Mortgage (P&amp;I)
-              <button
-                type="button"
-                className="results__adjust-link"
-                onClick={() => document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                title="Adjust in Loan Calculator below"
-              >
-                <SlidersHorizontal size={13} />
-                Adjust
-              </button>
-            </span>
-            <span className="results__metric-value">{fmt(cashFlow.monthlyMortgage)}</span>
-          </div>
-          <MetricRow label="Property Tax" value={fmt(cashFlow.monthlyTax)} />
-          <MetricRow label="Insurance" value={fmt(cashFlow.monthlyInsurance)} />
-          <MetricRow label="Vacancy Reserve" value={fmt(cashFlow.monthlyVacancy)} />
-          <MetricRow label="Repairs Reserve" value={fmt(cashFlow.monthlyRepairs)} />
-          <MetricRow label="CapEx Reserve" value={fmt(cashFlow.monthlyCapex)} />
+          <AdjustableExpenseRow label="Mortgage (P&I)" value={fmt(cashFlow.monthlyMortgage)} readOnly={readOnly} onAdjust={scrollToLoanCalc} />
+          <AdjustableExpenseRow label="Property Tax" value={fmt(cashFlow.monthlyTax)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow label="Insurance" value={fmt(cashFlow.monthlyInsurance)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow
+            label="HOA Fees"
+            value={fmt(cashFlow.monthlyHoa)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={
+              results.dataSources?.hoa === 'zillow'
+                ? { text: 'From Zillow', variant: 'api' }
+                : results.dataSources?.hoa === 'estimate'
+                ? { text: 'Estimated', variant: 'estimate' }
+                : undefined
+            }
+          />
+          <AdjustableExpenseRow label="Vacancy Reserve" value={fmt(cashFlow.monthlyVacancy)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow label="Repairs Reserve" value={fmt(cashFlow.monthlyRepairs)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow label="CapEx Reserve" value={fmt(cashFlow.monthlyCapex)} readOnly={readOnly} onAdjust={openExpenseParams} />
           {cashFlow.monthlyManagement > 0 && (
-            <MetricRow label="Management" value={fmt(cashFlow.monthlyManagement)} />
+            <AdjustableExpenseRow label="Management" value={fmt(cashFlow.monthlyManagement)} readOnly={readOnly} onAdjust={openExpenseParams} />
           )}
 
           <div className="results__big-number" style={{ marginTop: '0.75rem' }}>
@@ -570,6 +588,18 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             <SliderInput label="Management" value={params.managementPct} onChange={v => updateParam('managementPct', v)} min={0} max={15} step={1} suffix="%" />
             <SliderInput label="Property Tax" value={params.annualPropertyTax} onChange={v => updateParam('annualPropertyTax', v)} min={0} max={50000} step={100} suffix="/yr" isCurrency />
             <SliderInput label="Insurance" value={params.annualInsurance} onChange={v => updateParam('annualInsurance', v)} min={0} max={20000} step={100} suffix="/yr" isCurrency />
+            <SliderInput label="HOA Fees" value={params.monthlyHoa} onChange={v => updateParam('monthlyHoa', v)} min={0} max={1500} step={10} suffix="/mo" isCurrency />
+            {results.dataSources?.hoa !== 'zillow' && property.zillowUrl && (
+              <a
+                className="results__hoa-check-link"
+                href={property.zillowUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+              >
+                Check HOA fees on Zillow listing →
+              </a>
+            )}
             <SliderInput label="Cost Seg" value={params.costSegPct} onChange={v => updateParam('costSegPct', v)} min={10} max={35} step={0.5} suffix="%" />
             <SliderInput label="Tax Rate" value={params.taxRate} onChange={v => updateParam('taxRate', v)} min={0} max={50} step={1} suffix="%" />
           </div>
@@ -611,6 +641,47 @@ function MetricRow({
       <span className={`results__metric-value ${positive ? 'results__metric-value--positive' : ''}`}>
         {value}
       </span>
+    </div>
+  );
+}
+
+function AdjustableExpenseRow({
+  label,
+  value,
+  readOnly,
+  onAdjust,
+  sourceBadge,
+}: {
+  label: string;
+  value: string;
+  readOnly?: boolean;
+  onAdjust: () => void;
+  sourceBadge?: { text: string; variant: 'api' | 'estimate' };
+}) {
+  const explainer = findExplainer(label);
+  if (readOnly) {
+    return <MetricRow label={label} value={value} />;
+  }
+  return (
+    <div
+      className="results__metric-row results__metric-row--adjustable"
+      onClick={onAdjust}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAdjust(); } }}
+      title={`Click to adjust ${label}`}
+    >
+      <span className="results__metric-label">
+        {label}
+        {explainer && <TermExplainer info={explainer} />}
+        {sourceBadge && (
+          <span className={`results__source-badge results__source-badge--${sourceBadge.variant}`}>
+            {sourceBadge.text}
+          </span>
+        )}
+        <Pencil size={11} className="results__edit-icon" />
+      </span>
+      <span className="results__metric-value">{value}</span>
     </div>
   );
 }

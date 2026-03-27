@@ -107,6 +107,23 @@ export async function setupDatabase() {
     `);
     console.log('✅ Feedback indexes created');
 
+    // Create saved_comparisons table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_comparisons (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        property_slugs TEXT[] NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
+      ON saved_comparisons(user_id, updated_at DESC)
+    `);
+    console.log('✅ Saved comparisons table created');
+
     // Create leaderboard view
     await pool.query(`
       CREATE OR REPLACE VIEW leaderboard AS

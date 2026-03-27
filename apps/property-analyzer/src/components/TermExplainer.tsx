@@ -6,6 +6,7 @@ export interface TermDefinition {
   definition: string;
   formula?: string;
   whyReserve?: string;
+  note?: string;
 }
 
 /** Lookup of all term explanations, keyed by keyword found in label text */
@@ -122,6 +123,12 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
       'Monthly rent divided by livable square footage. This normalizes rent across different-sized properties and is a key metric landlords and appraisers use to compare rental value.',
     formula: 'Monthly Rent ÷ Square Footage',
   },
+  'hoa': {
+    term: 'HOA Fees (Homeowners Association)',
+    definition:
+      'Monthly fees charged by a homeowners association for shared amenities and maintenance (landscaping, pool, exterior upkeep, etc). Common for condos, townhomes, and planned communities.',
+    note: 'The Zillow listing often shows HOA fees — check the listing and set the amount here for accurate cash flow.',
+  },
   'comps nearby': {
     term: 'Comparable Properties Nearby',
     definition:
@@ -182,6 +189,9 @@ export default function TermExplainer({ info }: { info: TermDefinition }) {
         <div className="term-explainer__tooltip">
           <div className="term-explainer__header">{info.term}</div>
           <p className="term-explainer__body">{info.definition}</p>
+          {info.note && (
+            <p className="term-explainer__body" style={{ fontStyle: 'italic' }}>{info.note}</p>
+          )}
           {info.formula && (
             <div className="term-explainer__formula">
               <span className="term-explainer__formula-label">Formula:</span>{' '}

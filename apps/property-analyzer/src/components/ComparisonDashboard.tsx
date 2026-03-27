@@ -1,4 +1,5 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
+import { api } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import useExportComparison from '../hooks/useExportComparison.js';
 import { type ScenarioParams, DEFAULT_SCENARIO, applyScenario } from '../utils/comparisonUtils.js';
@@ -19,11 +20,16 @@ import ScenarioSliders from './comparison/ScenarioSliders.js';
 interface Props {
   properties: PropertyAnalysis[];
   onBack: () => void;
+  onSaved?: () => void;
 }
 
-export default function ComparisonDashboard({ properties, onBack }: Props) {
+export default function ComparisonDashboard({ properties, onBack, onSaved }: Props) {
   const dashboardRef = useRef<HTMLDivElement>(null);
-  const { exportToPdf, printComparison, exporting } = useExportComparison(dashboardRef);
+  const { exportToPdf, exporting } = useExportComparison(dashboardRef);
+
+  // Save comparison state
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   // What-If scenario state
   const [scenario, setScenario] = useState<ScenarioParams>(DEFAULT_SCENARIO);
@@ -52,6 +58,29 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
     });
   };
 
+  const handleSave = useCallback(async () => {
+    const addresses = properties
+      .map(p => p.property_data?.address?.split(',')[0])
+      .filter(Boolean);
+    const defaultName = addresses.length > 0
+      ? addresses.join(' vs ')
+      : `Comparison (${properties.length} properties)`;
+    const name = prompt('Name this comparison:', defaultName);
+    if (!name) return;
+
+    setSaving(true);
+    try {
+      const slugs = properties.map(p => p.slug);
+      await api.saveComparison(name, slugs);
+      setSaved(true);
+      onSaved?.();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save comparison.');
+    } finally {
+      setSaving(false);
+    }
+  }, [properties, onSaved]);
+
   const printDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
   });
@@ -77,8 +106,10 @@ export default function ComparisonDashboard({ properties, onBack }: Props) {
         onBack={onBack}
         onShare={handleShare}
         onExportPdf={exportToPdf}
-        onPrint={printComparison}
+        onSave={handleSave}
         exporting={exporting}
+        saving={saving}
+        saved={saved}
       />
       <PropertyCards properties={adjusted} topPickIdx={dealSnapshot.topPickIdx} />
       <DealSnapshotBanner properties={adjusted} snapshot={dealSnapshot} />

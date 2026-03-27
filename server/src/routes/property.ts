@@ -132,6 +132,22 @@ router.post('/analyze', authenticateToken, async (req: AuthRequest, res: Respons
       params.annualPropertyTax = property.taxHistory[0].amount || params.annualPropertyTax;
     }
 
+    // HOA fee: prefer API data, then estimate by property type
+    if (userParams?.monthlyHoa == null) {
+      if (property.hoaFee) {
+        params.monthlyHoa = property.hoaFee;
+      } else {
+        const pType = (property.propertyType || '').toLowerCase();
+        if (pType.includes('condo') || pType.includes('condominium')) {
+          params.monthlyHoa = 350;
+        } else if (pType.includes('townhouse') || pType.includes('town_house')) {
+          params.monthlyHoa = 250;
+        } else if (pType.includes('coop') || pType.includes('co-op')) {
+          params.monthlyHoa = 400;
+        }
+      }
+    }
+
     // Run analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
 

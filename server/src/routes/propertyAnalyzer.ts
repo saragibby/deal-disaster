@@ -77,6 +77,29 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       params.annualPropertyTax = property.taxHistory[0].amount || params.annualPropertyTax;
     }
 
+    // HOA fee: prefer API data, then estimate by property type
+    let hoaSource: 'zillow' | 'estimate' | 'none' = 'none';
+    if (userParams?.monthlyHoa == null) {
+      if (property.hoaFee) {
+        params.monthlyHoa = property.hoaFee;
+        hoaSource = 'zillow';
+      } else {
+        const pType = (property.propertyType || '').toLowerCase();
+        if (pType.includes('condo') || pType.includes('condominium')) {
+          params.monthlyHoa = 350;
+          hoaSource = 'estimate';
+        } else if (pType.includes('townhouse') || pType.includes('town_house')) {
+          params.monthlyHoa = 250;
+          hoaSource = 'estimate';
+        } else if (pType.includes('coop') || pType.includes('co-op')) {
+          params.monthlyHoa = 400;
+          hoaSource = 'estimate';
+        }
+      }
+    } else {
+      hoaSource = property.hoaFee ? 'zillow' : 'none';
+    }
+
     // Rental estimation — prefer RentCast real comps, fall back to Zillow similar/algorithmic
     let apiComps = await rentCastService.getRentalComps(property);
     if (apiComps.length === 0) {
@@ -109,6 +132,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     results.dataSources = {
       rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
+      hoa: hoaSource,
     };
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)

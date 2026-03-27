@@ -406,12 +406,13 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
     sqft: Number(raw['Area(sqft)']) || 0,
     lotSize: undefined,
     yearBuilt: Number(raw.yearBuilt) || 0,
-    propertyType: undefined, // Not available from this provider
+    propertyType: raw.homeType || raw.propertyType || undefined,
     description: undefined,
     photos: uniquePhotos,
     taxHistory: normalizeTaxHistory(raw),
     priceHistory: normalizePriceHistory(raw),
     homeStatus: raw.daysOnZillow != null ? `${raw.daysOnZillow} days on Zillow` : undefined,
+    hoaFee: raw.monthlyHoaFee ? Number(raw.monthlyHoaFee) : undefined,
     zillowUrl: raw.PropertyZillowURL || (resolvedZpid ? `https://www.zillow.com/homedetails/${resolvedZpid}_zpid/` : undefined),
   };
 }

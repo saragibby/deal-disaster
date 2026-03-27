@@ -230,6 +230,7 @@ export interface PropertyData {
   rentalMarketTrends?: RentalMarketTrends;
   housingMarket?: HousingMarket;
   homeStatus?: string;
+  hoaFee?: number;
   latitude?: number;
   longitude?: number;
   zillowUrl?: string;
@@ -276,6 +277,7 @@ export interface AnalysisParams {
   managementPct: number;
   annualPropertyTax: number;
   annualInsurance: number;
+  monthlyHoa: number;
   costSegPct: number;
   taxRate: number;
   offerPrice: number;
@@ -292,6 +294,7 @@ export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
   managementPct: 0,
   annualPropertyTax: 2500,
   annualInsurance: 1500,
+  monthlyHoa: 0,
   costSegPct: 22.5,
   taxRate: 20,
   offerPrice: 0,
@@ -310,6 +313,7 @@ export interface CashFlowBreakdown {
   monthlyMortgage: number;
   monthlyTax: number;
   monthlyInsurance: number;
+  monthlyHoa: number;
   monthlyVacancy: number;
   monthlyRepairs: number;
   monthlyCapex: number;
@@ -398,6 +402,7 @@ export interface FullAnalysisResult {
   dataSources?: {
     rental: 'algorithm' | 'rentcast' | 'blended';
     str: 'algorithm' | 'airdna';
+    hoa: 'zillow' | 'estimate' | 'none';
   };
 }
 
@@ -431,4 +436,14 @@ export interface AIPropertyNarrative {
 export interface AIComparisonNarratives {
   narratives: AIPropertyNarrative[];
   generatedAt: string;
+}
+
+// ── Saved Comparison Types ───────────────────────────────────────────────
+
+export interface SavedComparison {
+  id: number;
+  name: string;
+  property_slugs: string[];
+  created_at: string;
+  updated_at: string;
 }

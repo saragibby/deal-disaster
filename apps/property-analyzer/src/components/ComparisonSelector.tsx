@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@deal-platform/shared-auth';
-import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { Search, X, ChevronLeft, ChevronRight, Plus, GitCompareArrows, Building2 } from 'lucide-react';
+import type { PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
+import { Search, X, ChevronLeft, ChevronRight, ChevronDown, Plus, GitCompareArrows, Building2, FolderOpen, Trash2, PlusCircle } from 'lucide-react';
 
 const MAX_PROPERTIES = 6;
 
 interface Props {
   onCompare: (properties: PropertyAnalysis[]) => void;
   onNewAnalysis?: () => void;
+  onLoadComparison?: (slugs: string[]) => void;
+  savedRefreshKey?: number;
 }
 
 function fmt(n: number): string {
@@ -23,7 +25,7 @@ function shortAddress(address: string): string {
   return short.length > 35 ? short.slice(0, 32) + '...' : short;
 }
 
-export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) {
+export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadComparison, savedRefreshKey }: Props) {
   const [selected, setSelected] = useState<PropertyAnalysis[]>([]);
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
 
@@ -40,6 +42,30 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
   const [historyError, setHistoryError] = useState<string | null>(null);
   const historyLimit = 10;
   const totalPages = Math.ceil(historyTotal / historyLimit);
+
+  // Saved comparisons
+  const [savedComparisons, setSavedComparisons] = useState<SavedComparison[]>([]);
+  const [savedLoading, setSavedLoading] = useState(true);
+  const [savedError, setSavedError] = useState<string | null>(null);
+  const [savedExpanded, setSavedExpanded] = useState(false);
+  const [addToMenuSlug, setAddToMenuSlug] = useState<string | null>(null);
+
+  const fetchSavedComparisons = useCallback(async () => {
+    setSavedLoading(true);
+    setSavedError(null);
+    try {
+      const data = await api.getSavedComparisons(1, 50);
+      setSavedComparisons(data.comparisons);
+    } catch (err: any) {
+      setSavedError(err.message || 'Failed to load saved comparisons.');
+    } finally {
+      setSavedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSavedComparisons();
+  }, [fetchSavedComparisons, savedRefreshKey]);
 
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -127,7 +153,37 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
         });
     }
   }, [selectedSlugs, selected.length, addProperty, removeProperty]);
+  const handleLoadSaved = useCallback((comp: SavedComparison) => {
+    if (onLoadComparison) {
+      onLoadComparison(comp.property_slugs);
+    }
+  }, [onLoadComparison]);
 
+  const handleDeleteSaved = useCallback(async (e: React.MouseEvent, comp: SavedComparison) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${comp.name}"?`)) return;
+    try {
+      await api.deleteSavedComparison(comp.id);
+      fetchSavedComparisons();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete comparison.');
+    }
+  }, [fetchSavedComparisons]);
+
+  const handleAddToSaved = useCallback(async (comp: SavedComparison, slug: string) => {
+    if (comp.property_slugs.includes(slug)) return;
+    if (comp.property_slugs.length >= MAX_PROPERTIES) {
+      alert(`"${comp.name}" already has ${MAX_PROPERTIES} properties (maximum).`);
+      return;
+    }
+    try {
+      await api.updateComparisonSlugs(comp.id, [...comp.property_slugs, slug]);
+      setAddToMenuSlug(null);
+      fetchSavedComparisons();
+    } catch (err: any) {
+      alert(err.message || 'Failed to add property to comparison.');
+    }
+  }, [fetchSavedComparisons]);
   return (
     <div className="comparison-selector">
       {/* Selected Properties Bar */}
@@ -211,6 +267,83 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
         )}
       </div>
 
+      {/* Saved Comparisons Section — collapsible */}
+      <div className="results__card comparison-selector__saved-section">
+        <button
+          className="comparison-selector__section-toggle"
+          onClick={() => setSavedExpanded(prev => !prev)}
+        >
+          <h3 className="comparison-selector__section-title">
+            <FolderOpen size={18} /> Saved Comparisons
+            {!savedLoading && savedComparisons.length > 0 && (
+              <span className="comparison-selector__badge">{savedComparisons.length}</span>
+            )}
+          </h3>
+          <ChevronDown
+            size={18}
+            className={`comparison-selector__toggle-icon ${savedExpanded ? 'comparison-selector__toggle-icon--open' : ''}`}
+          />
+        </button>
+
+        {savedExpanded && (
+          <>
+            <p className="comparison-selector__section-desc">
+              Load a previously saved comparison report
+            </p>
+
+            {savedLoading ? (
+              <div className="history__loading">
+                <div className="analyzer-spinner" />
+                <p>Loading saved comparisons...</p>
+              </div>
+            ) : savedError ? (
+              <div className="analyzer__error">⚠️ {savedError}</div>
+            ) : savedComparisons.length === 0 ? (
+              <div className="history__empty">
+                <FolderOpen size={48} strokeWidth={1.5} />
+                <h3>No saved comparisons</h3>
+                <p>Compare properties and click "Save" to access them here later.</p>
+              </div>
+            ) : (
+              <div className="comparison-selector__history-list">
+                {savedComparisons.map(comp => (
+                  <div
+                    key={comp.id}
+                    className="comparison-selector__history-item comparison-selector__saved-item"
+                    onClick={() => handleLoadSaved(comp)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="comparison-selector__history-info">
+                      <div className="comparison-selector__history-address">
+                        <strong>{comp.name}</strong>
+                        <span className="comparison-selector__history-location">
+                          {comp.property_slugs.length} properties
+                        </span>
+                      </div>
+                    </div>
+                    <div className="comparison-selector__saved-actions">
+                      <span className="comparison-selector__history-date">
+                        {new Date(comp.created_at).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric',
+                        })}
+                      </span>
+                      <button
+                        className="comparison-selector__delete-btn"
+                        onClick={(e) => handleDeleteSaved(e, comp)}
+                        title="Delete saved comparison"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {/* History Selection Section */}
       <div className="results__card comparison-selector__history-section">
         <h3 className="comparison-selector__section-title">
@@ -277,10 +410,51 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis }: Props) 
                         <span>{(results?.roi?.cashOnCashROI || 0).toFixed(1)}% CoC</span>
                       </div>
                     </div>
-                    <div className="comparison-selector__history-date">
-                      {new Date(a.created_at).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric',
-                      })}
+                    <div className="comparison-selector__history-actions">
+                      <div className="comparison-selector__history-date">
+                        {new Date(a.created_at).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric',
+                        })}
+                      </div>
+                      {savedComparisons.length > 0 && (
+                        <div className="comparison-selector__add-to-wrapper">
+                          <button
+                            className="comparison-selector__add-to-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddToMenuSlug(addToMenuSlug === a.slug ? null : a.slug);
+                            }}
+                            title="Add to saved comparison"
+                          >
+                            <PlusCircle size={14} />
+                          </button>
+                          {addToMenuSlug === a.slug && (
+                            <div className="comparison-selector__add-to-menu">
+                              <div className="comparison-selector__add-to-menu-title">Add to comparison:</div>
+                              {savedComparisons.map(comp => {
+                                const alreadyIn = comp.property_slugs.includes(a.slug);
+                                const full = comp.property_slugs.length >= MAX_PROPERTIES;
+                                return (
+                                  <button
+                                    key={comp.id}
+                                    className="comparison-selector__add-to-menu-item"
+                                    disabled={alreadyIn || full}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddToSaved(comp, a.slug);
+                                    }}
+                                  >
+                                    <span>{comp.name}</span>
+                                    <span className="comparison-selector__add-to-meta">
+                                      {alreadyIn ? 'Already added' : full ? 'Full' : `${comp.property_slugs.length}/${MAX_PROPERTIES}`}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
