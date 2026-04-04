@@ -5,6 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   base: '/deal-or-disaster/',
+  envDir: path.resolve(__dirname, '../..'),
   server: {
     port: 5201,
     hmr: {

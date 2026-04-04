@@ -151,6 +151,92 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
       'Monthly amortized cost of tenant transitions including cleaning, restocking supplies, and vacancy gaps between mid-term tenants.',
     formula: 'Annual Turnover Expense ÷ 12',
   },
+
+  // ── LTR (Long-Term Rental) financial terms ──
+
+  'break-even occupancy': {
+    term: 'Break-even Occupancy',
+    definition:
+      'The minimum occupancy rate needed to cover all expenses. Lower is safer — it means you can absorb more vacancy before losing money.',
+  },
+  'cash-on-cash': {
+    term: 'Cash-on-Cash ROI',
+    definition:
+      'Annual cash flow divided by your total cash invested (down payment + closing costs). Measures the return on your actual out-of-pocket investment.',
+    note: 'A CoC ROI of 8% means for every $100 you invested, you earn $8/year in cash flow. Most investors target 8-12%.',
+  },
+  'cash flow': {
+    term: 'Cash Flow',
+    definition:
+      'The money left over each month after all expenses are paid — your actual take-home profit from the property.',
+  },
+  'cost segregation': {
+    term: 'Cost Segregation',
+    definition:
+      'A tax strategy that accelerates depreciation deductions by reclassifying building components into shorter recovery periods.',
+    note: 'Instead of depreciating the full property over 27.5 years, cost segregation lets you write off 15-30% in Year 1 through bonus depreciation.',
+  },
+  'down payment': {
+    term: 'Down Payment',
+    definition:
+      'The upfront cash portion of the purchase price. Investment properties typically require 20-25% down.',
+  },
+  'effective first-year return': {
+    term: 'Effective First-Year Return',
+    definition:
+      'Your total first-year benefit (cash flow + tax savings) as a percentage of cash invested. Shows the true Year 1 return including tax advantages.',
+  },
+  'gross rent multiplier': {
+    term: 'Gross Rent Multiplier',
+    definition:
+      'Purchase price divided by annual rent. A quick way to compare property values — lower is generally better.',
+    note: 'A GRM under 10 is considered strong. Over 15 suggests the property may be overpriced relative to its rental income.',
+  },
+  'interest rate': {
+    term: 'Interest Rate',
+    definition:
+      'The annual rate charged on your mortgage loan. Even small rate changes significantly impact monthly payments and long-term costs.',
+  },
+  insurance: {
+    term: 'Insurance',
+    definition:
+      'Annual property insurance premium covering damage, liability, and loss of rental income. Required by most lenders.',
+  },
+  'loan term': {
+    term: 'Loan Term',
+    definition:
+      'The length of your mortgage in years. 30-year terms have lower monthly payments but more total interest than 15-year terms.',
+  },
+  management: {
+    term: 'Management',
+    definition:
+      'Monthly fee paid to a property manager, typically 8-12% of gross rent. Covers tenant placement, maintenance coordination, and rent collection.',
+  },
+  mortgage: {
+    term: 'Mortgage',
+    definition:
+      'Your monthly principal and interest payment on the loan. This is typically the largest single expense for a rental property.',
+  },
+  'property tax': {
+    term: 'Property Tax',
+    definition:
+      'Annual tax assessed by the local government based on the property\'s assessed value. Varies significantly by location.',
+  },
+  'safety margin': {
+    term: 'Safety Margin',
+    definition:
+      'The gap between your current occupancy and break-even occupancy. A larger margin means more room for unexpected vacancy.',
+  },
+  'tax savings': {
+    term: 'Tax Savings',
+    definition:
+      'The dollar amount saved on income taxes through depreciation deductions. Reduces your effective tax burden from rental income.',
+  },
+  'total cash invested': {
+    term: 'Total Cash Invested',
+    definition:
+      'Your down payment plus estimated closing costs (~3% of purchase price). This is the total cash you need to close the deal.',
+  },
 };
 
 /**

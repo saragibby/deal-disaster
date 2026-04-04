@@ -789,7 +789,7 @@ function App() {
             challengeData={dailyChallengeData}
           />
         )}
-        {isAuthenticated && <AskWill />}
+        {isAuthenticated && import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && <AskWill />}
       </div>
     );
   }
@@ -849,7 +849,7 @@ function App() {
     </div>
     <Footer />
     {showProfile && <Profile onClose={() => setShowProfile(false)} />}
-    {isAuthenticated && <AskWill />}
+    {isAuthenticated && import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && <AskWill />}
     </div>
   );
 }

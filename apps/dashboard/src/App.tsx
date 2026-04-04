@@ -21,7 +21,7 @@ export default function App() {
   return (
     <AppShell title="Passive Income Club" logoSrc={picLogo} footer={<Footer />}>
       <Outlet />
-      {isAuthenticated && <AskWill />}
+      {isAuthenticated && import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && <AskWill />}
     </AppShell>
   );
 }

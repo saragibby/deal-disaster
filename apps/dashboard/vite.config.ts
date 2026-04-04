@@ -5,6 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  envDir: path.resolve(__dirname, '../..'),
   server: {
     port: 5200,
     proxy: {

@@ -9,8 +9,9 @@ import {
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
-import RentalInsights from './RentalInsights';
-import StrategyComparison from './StrategyComparison';
+import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart } from './RentalTabs';
+import ROIScorecard from './ROIScorecard';
+import WealthProjection from './FiveYearProjection';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
@@ -219,7 +220,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
       )}
 
       {/* Property Info Card */}
-      <div className="results__card results__property results__section">
+      <div id="property-info" className="results__card results__property results__section">
         <div className="results__property-top">
           {/* Info */}
           <div className="results__property-info">
@@ -308,6 +309,16 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
         </div>
       </div>
 
+      {/* Rental summary strip */}
+      <div id="rental-summary" className="results__section">
+        <RentalSummaryStrip
+          property={property}
+          effectiveRent={effectiveRent}
+          mtrEstimate={results.mtrEstimate}
+          strEstimate={results.strEstimate}
+        />
+      </div>
+
       {/* Two column grid */}
       <div className="results__grid results__section">
         {/* Rental Estimate Card */}
@@ -317,35 +328,36 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             Rental Estimate
           </h3>
 
-          <div className="results__big-number">
-            <div className="results__big-label">Estimated Monthly Rent</div>
-            <div className="results__editable-value results__editable-value--centered results__editable-value--hero">
-              <span className="results__editable-prefix results__editable-prefix--hero">$</span>
-              <input
-                type="number"
-                className="results__editable-input results__editable-input--rent results__editable-input--hero"
-                value={effectiveRent}
-                onChange={e => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) updateParam('rentOverride', v);
-                }}
-                step={25}
-              />
-              {rentAdjusted && (
-                <button
-                  type="button"
-                  className="results__rent-reset"
-                  onClick={() => updateParam('rentOverride', rental.mid)}
-                >
-                  Reset
-                </button>
-              )}
+          <div className="results__rent-compact">
+            <div className="results__rent-compact-header">
+              <span className="results__rent-compact-label">Long-Term Rental Estimate</span>
+              <span className="results__rent-compact-confidence">
+                {rental.confidence} &bull; {fmt(rental.low)} – {fmt(rental.high)}
+              </span>
             </div>
-            <div className="results__big-caption">
-              Confidence: {rental.confidence} &bull; Range: {fmt(rental.low)} – {fmt(rental.high)}
-            </div>
-
-            <div className="results__rent-slider-inline">
+            <div className="results__rent-compact-controls">
+              <div className="results__editable-value results__editable-value--centered">
+                <span className="results__editable-prefix results__editable-prefix--hero">$</span>
+                <input
+                  type="number"
+                  className="results__editable-input results__editable-input--rent results__editable-input--hero"
+                  value={effectiveRent}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v > 0) updateParam('rentOverride', v);
+                  }}
+                  step={25}
+                />
+                {rentAdjusted && (
+                  <button
+                    type="button"
+                    className="results__rent-reset"
+                    onClick={() => updateParam('rentOverride', rental.mid)}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
               <input
                 type="range"
                 className="results__offer-range"
@@ -355,56 +367,24 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
                 max={Math.round(rental.high * 1.2)}
                 step={25}
               />
-              <div className="results__offer-slider-bounds">
-                <span>{fmt(Math.round(rental.low * 0.8))}</span>
-                <span>{fmt(Math.round(rental.high * 1.2))}</span>
-              </div>
             </div>
           </div>
-
-          {rental.comps && rental.comps.length > 0 && (
-            <div className="results__comps-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Source</th>
-                    <th>Rent</th>
-                    {rental.comps.some(c => c.bedrooms) && <th>Beds</th>}
-                    {rental.comps.some(c => c.sqft) && <th>Sq Ft</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rental.comps.map((comp, i) => (
-                    <tr key={i}>
-                      <td>{comp.address || comp.source}</td>
-                      <td><strong>{fmt(comp.rent)}</strong></td>
-                      {rental.comps!.some(c => c.bedrooms) && <td>{comp.bedrooms || '—'}</td>}
-                      {rental.comps!.some(c => c.sqft) && <td>{comp.sqft?.toLocaleString() || '—'}</td>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
 
           <StrategyComparison
             ltrRent={effectiveRent}
             mtrEstimate={results.mtrEstimate}
             strEstimate={results.strEstimate}
           />
-
-          <RentalInsights
+          <DemandIndicators
             property={property}
-            rental={rental}
-            strEstimate={results.strEstimate}
-            mtrEstimate={results.mtrEstimate}
             comparables={results.comparables}
             effectiveRent={effectiveRent}
           />
+          <MarketTrendChart zip={property.zip} />
         </div>
 
         {/* Cash Flow Card */}
-        <div className="results__card results__section">
+        <div id="cash-flow" className="results__card results__section">
           <h3 className="results__card-title">
             <span className="results__icon results__icon--green">💵</span>
             Cash Flow Analysis
@@ -450,12 +430,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             </div>
           </div>
 
-          <div className="results__metrics-footer">
-            <MetricRow label="Cash-on-Cash ROI" value={pct(roi.cashOnCashROI)} positive={roi.cashOnCashROI > 0} />
-            <MetricRow label="Cap Rate" value={pct(roi.capRate)} />
-            <MetricRow label="Gross Rent Multiplier" value={roi.grossRentMultiplier.toFixed(1) + 'x'} />
-            <MetricRow label="Total Cash Invested" value={fmt(roi.totalCashInvested)} />
-          </div>
+          <ROIScorecard roi={roi} />
 
           {/* Tax Savings — two-panel layout */}
           <div className="results__tax-inline">
@@ -489,9 +464,38 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
         </div>
       </div>
 
+      {/* Wealth Projection — full width */}
+      <div className="results__card results__section">
+        <h3 className="results__card-title">
+          <span className="results__icon results__icon--blue">📈</span>
+          Wealth Projection
+        </h3>
+        <WealthProjection
+          purchasePrice={effectivePrice}
+          cashFlow={cashFlow}
+          mortgage={mortgage}
+          roi={roi}
+          vacancyPct={params.vacancyPct}
+        />
+      </div>
+
+      {/* Rental Strategy Tabs — full width */}
+      <div id="strategy-tabs" className="results__section">
+        <RentalTabs
+          property={property}
+          rental={rental}
+          strEstimate={results.strEstimate}
+          mtrEstimate={results.mtrEstimate}
+          comparables={results.comparables}
+          effectiveRent={effectiveRent}
+          cashFlow={cashFlow}
+          roi={roi}
+        />
+      </div>
+
       {/* Comparable Properties */}
       {results.comparables && results.comparables.length > 0 && (
-        <div className="results__section"><ComparableProperties
+        <div id="comparables" className="results__section"><ComparableProperties
           comparables={results.comparables}
           subject={property}
           subjectRent={rental.mid}
@@ -499,13 +503,13 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
       )}
 
       {/* Housing Market + Rental Market side-by-side */}
-      <div className="results__trends-grid results__section">
+      <div id="market-trends" className="results__trends-grid results__section">
         <HousingMarketTrends properties={[analysis]} />
         <RentalMarketTrends properties={[analysis]} />
       </div>
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
-      <div className={`results__bottom-grid results__section${readOnly ? ' results__bottom-grid--full' : ''}`}>
+      <div id="bottom-tools" className={`results__bottom-grid results__section${readOnly ? ' results__bottom-grid--full' : ''}`}>
         {/* Nearby Foreclosures (hidden on shared/read-only view) */}
         {!readOnly && (
           <ForeclosureCard

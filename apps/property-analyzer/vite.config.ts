@@ -5,6 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   base: '/property-analyzer/',
+  envDir: path.resolve(__dirname, '../..'),
   server: {
     port: 5202,
     strictPort: true,

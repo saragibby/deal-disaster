@@ -8,6 +8,8 @@ import type {
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { Search, GitCompareArrows } from 'lucide-react';
 import type { AskWillProps } from '@deal-platform/shared-ui';
+import type { SectionSignal } from './SectionNav.js';
+import { deriveSignals } from './SectionNav.js';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
@@ -15,9 +17,10 @@ import PropertyComparison from './PropertyComparison.js';
 
 interface PropertyAnalyzerProps {
   onAnalysisComplete?: (context: AskWillProps['propertyAnalysis']) => void;
+  onSignalsChange?: (signals: SectionSignal[] | null) => void;
 }
 
-export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyzerProps = {}) {
+export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }: PropertyAnalyzerProps = {}) {
   const { user } = useAuth();
   const isAdmin = user?.is_admin === true;
   const { id: analysisSlug } = useParams<{ id: string }>();
@@ -59,6 +62,12 @@ export default function PropertyAnalyzer({ onAnalysisComplete }: PropertyAnalyze
       strNetMonthly: r.strEstimate?.netMonthlyRevenue,
     });
   }, [result, onAnalysisComplete]);
+
+  // Derive section nav signals when result changes
+  useEffect(() => {
+    if (!onSignalsChange) return;
+    onSignalsChange(result ? deriveSignals(result) : null);
+  }, [result, onSignalsChange]);
 
   // Auto-load analysis from URL param
   useEffect(() => {

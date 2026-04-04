@@ -5,10 +5,13 @@ import type { AskWillProps } from '@deal-platform/shared-ui';
 import { LogOut, User } from 'lucide-react';
 import { Footer } from '@deal-platform/shared-ui';
 import PropertyAnalyzer from './components/PropertyAnalyzer';
+import { SectionNav } from './components/SectionNav';
+import type { SectionSignal } from './components/SectionNav';
 
 export default function App() {
   const { isAuthenticated, loading, user } = useAuth();
   const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
+  const [sectionSignals, setSectionSignals] = useState<SectionSignal[] | null>(null);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
@@ -30,9 +33,15 @@ export default function App() {
         </a>
 
         <nav className="analyzer-app__nav">
-          <a href={buildAppUrl('/')} className="analyzer-app__nav-link">Home</a>
-          <a href={buildAppUrl('/games')} className="analyzer-app__nav-link">Games</a>
-          <a href={buildAppUrl('/tools')} className="analyzer-app__nav-link">Tools</a>
+          {sectionSignals ? (
+            <SectionNav signals={sectionSignals} />
+          ) : (
+            <>
+              <a href={buildAppUrl('/')} className="analyzer-app__nav-link">Home</a>
+              <a href={buildAppUrl('/games')} className="analyzer-app__nav-link">Games</a>
+              <a href={buildAppUrl('/tools')} className="analyzer-app__nav-link">Tools</a>
+            </>
+          )}
 
           {isAuthenticated && user ? (
             <>
@@ -49,10 +58,10 @@ export default function App() {
 
       {/* Main content */}
       <main className="analyzer-app__content">
-        <PropertyAnalyzer onAnalysisComplete={setPropertyAnalysis} />
+        <PropertyAnalyzer onAnalysisComplete={setPropertyAnalysis} onSignalsChange={setSectionSignals} />
       </main>
 
-      {isAuthenticated && <AskWill propertyAnalysis={propertyAnalysis} />}
+      {isAuthenticated && import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && <AskWill propertyAnalysis={propertyAnalysis} />}
       <Footer />
     </div>
   );
