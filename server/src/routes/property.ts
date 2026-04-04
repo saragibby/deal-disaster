@@ -16,6 +16,7 @@ import { authenticateToken, authenticateOptional, AuthRequest } from '../middlew
 import * as propertyDataService from '../services/propertyDataService.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
+import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import type { AnalysisParams, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 
@@ -150,6 +151,10 @@ router.post('/analyze', authenticateToken, async (req: AuthRequest, res: Respons
 
     // Run analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
+
+    // Mid-term rental — algorithmic estimation
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+    results.mtrEstimate = mtrEstimate;
 
     res.json({ property, results, rentalEstimate });
   } catch (err: any) {

@@ -391,6 +391,59 @@ export interface STREstimate {
   marketContext?: STRMarketContext;
 }
 
+// ── Mid-Term Rental (MTR) Types ──────────────────────────────────────────
+
+export interface MTRDemandFactors {
+  bedroomScore: number;           // 0-100 — 2-3BR ideal for MTR
+  propertyTypeScore: number;      // 0-100 — SFH & townhouse preferred
+  overallScore: number;           // 0-100 — weighted composite
+}
+
+export type FurnishingQuality = 'budget' | 'standard' | 'premium';
+
+export interface FurnishingCostBreakdown {
+  perBedroomCost: number;
+  commonAreaCost: number;
+  totalCost: number;
+  amortizedMonthly: number;       // totalCost / (usefulLifeYears × 12)
+  usefulLifeYears: number;
+  quality: FurnishingQuality;
+}
+
+export interface MTRSeasonalityMonth {
+  month: string;
+  revenue: number;
+  occupancy: number;              // 0-1
+}
+
+export interface MTRRevenueRange {
+  low: number;
+  mid: number;
+  high: number;
+}
+
+export interface MTREstimate {
+  monthlyRate: number;
+  furnishedPremium: number;       // multiplier over LTR, e.g. 1.35
+  occupancyRate: number;          // 0-1
+  avgStayMonths: number;
+  turnoversPerYear: number;
+  grossMonthlyRevenue: number;
+  utilityCosts: number;
+  turnoverCosts: number;          // amortized monthly
+  platformFees: number;
+  managementCosts: number;
+  netMonthlyRevenue: number;
+  furnishingCosts: FurnishingCostBreakdown;
+  demandFactors: MTRDemandFactors;
+  confidence: 'low' | 'medium' | 'high';
+  source: 'algorithm' | 'furnished-finder' | 'padsplit';
+  seasonality?: MTRSeasonalityMonth[];
+  revenueRange?: MTRRevenueRange;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+
 export interface FullAnalysisResult {
   mortgage: MortgageBreakdown;
   cashFlow: CashFlowBreakdown;
@@ -398,10 +451,12 @@ export interface FullAnalysisResult {
   taxSavings: TaxSavingsBreakdown;
   rentalEstimate: RentalEstimate;
   strEstimate?: STREstimate;
+  mtrEstimate?: MTREstimate;
   comparables?: ComparableProperty[];
   dataSources?: {
     rental: 'algorithm' | 'rentcast' | 'blended';
     str: 'algorithm' | 'airdna';
+    mtr: 'algorithm' | 'furnished-finder' | 'padsplit';
     hoa: 'zillow' | 'estimate' | 'none';
   };
 }

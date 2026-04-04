@@ -4216,6 +4216,238 @@ a:hover { color: var(--primary-dark); }
   }
 }
 
+/* ── Strategy Comparison Panel (LTR / MTR / STR) ── */
+
+.strategy-comparison {
+  margin-bottom: 1.5rem;
+}
+.strategy-comparison__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.strategy-comparison__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.strategy-comparison__card {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 1rem;
+  border-top: 3px solid var(--border);
+  position: relative;
+}
+.strategy-comparison__card--ltr { border-top-color: #3b82f6; }
+.strategy-comparison__card--mtr { border-top-color: #10b981; }
+.strategy-comparison__card--str { border-top-color: #8b5cf6; }
+.strategy-comparison__card--best {
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.5);
+}
+.strategy-comparison__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.strategy-comparison__card-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.strategy-comparison__card--ltr .strategy-comparison__card-label { color: #3b82f6; }
+.strategy-comparison__card--mtr .strategy-comparison__card-label { color: #10b981; }
+.strategy-comparison__card--str .strategy-comparison__card-label { color: #8b5cf6; }
+.strategy-comparison__best-star {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 2rem;
+  transform: rotate(15deg);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+  line-height: 1;
+  z-index: 1;
+}
+.strategy-comparison__revenue {
+  margin-bottom: 0.5rem;
+}
+.strategy-comparison__revenue-monthly {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+}
+.strategy-comparison__revenue-period {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: 0.15rem;
+}
+.strategy-comparison__revenue-annual {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+.strategy-comparison__tagline {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Comparison bars */
+.strategy-comparison__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.strategy-comparison__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.strategy-comparison__bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.strategy-comparison__bar-track {
+  flex: 1;
+  height: 14px;
+  background: var(--bg);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.strategy-comparison__bar-fill--ltr { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.strategy-comparison__bar-fill--mtr { background: linear-gradient(90deg, #10b981, #34d399); }
+.strategy-comparison__bar-fill--str { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.strategy-comparison__bar-fill {
+  height: 100%;
+  border-radius: 7px;
+  min-width: 4px;
+  transition: width 0.4s ease;
+}
+.strategy-comparison__bar-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  min-width: 70px;
+}
+
+/* At a Glance table */
+.strategy-comparison__glance {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.strategy-comparison__glance-heading {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+.strategy-comparison__glance-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.strategy-comparison__glance-th {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+}
+.strategy-comparison__glance-th:first-child {
+  text-align: left;
+}
+.strategy-comparison__glance-th--ltr { color: #3b82f6; }
+.strategy-comparison__glance-th--mtr { color: #10b981; }
+.strategy-comparison__glance-th--str { color: #8b5cf6; }
+.strategy-comparison__glance-tr:not(:last-child) .strategy-comparison__glance-label,
+.strategy-comparison__glance-tr:not(:last-child) .strategy-comparison__glance-td {
+  border-bottom: 1px solid var(--border);
+}
+.strategy-comparison__glance-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.65rem 0.75rem;
+  white-space: nowrap;
+}
+.strategy-comparison__glance-td {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  padding: 0.65rem 0.75rem;
+}
+
+/* ── MTR Section in Rental Insights ── */
+
+.rental-insights__badge--teal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.rental-insights__bar--mtr {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.rental-insights__mtr-furnishing {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-radius: 10px;
+}
+.rental-insights__mtr-furnishing strong {
+  color: var(--text);
+}
+
+.rental-insights__mtr-demand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  margin-top: 0.5rem;
+}
+.rental-insights__mtr-demand--green {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+.rental-insights__mtr-demand--yellow {
+  background: rgba(234, 179, 8, 0.12);
+  color: #eab308;
+}
+.rental-insights__mtr-demand--red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .comparison-selector__url-row {
@@ -4241,6 +4473,18 @@ a:hover { color: var(--primary-dark); }
   }
   .comparison-dashboard__actions .btn {
     flex: 1; justify-content: center;
+  }
+  .strategy-comparison__cards {
+    grid-template-columns: 1fr;
+  }
+  .strategy-comparison__cost-row,
+  .strategy-comparison__cost-data-row {
+    grid-template-columns: 1fr repeat(3, 1fr);
+    font-size: 0.68rem;
+  }
+  .rental-insights__mtr-furnishing {
+    flex-direction: column;
+    text-align: center;
   }
 }
 

@@ -134,6 +134,23 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
     definition:
       'The number of similar properties found near the subject property used to estimate rent and value. More comps (10+) means higher confidence in the estimates; fewer means limited data and wider uncertainty.',
   },
+  'furnished premium': {
+    term: 'Furnished Premium',
+    definition:
+      'The multiplier applied to unfurnished long-term rent to estimate furnished mid-term rental rates. Typically 1.2–1.5× depending on bedroom count and market.',
+    formula: 'MTR Monthly Rate = LTR Rent × Furnished Premium Multiplier',
+  },
+  'mtr demand score': {
+    term: 'MTR Demand Score',
+    definition:
+      'A composite score (0–100) indicating how suitable a property is for mid-term rentals based on bedroom count and property type. Higher scores suggest stronger demand from traveling nurses, corporate relocations, and insurance claims.',
+  },
+  'turnover costs': {
+    term: 'Turnover Costs',
+    definition:
+      'Monthly amortized cost of tenant transitions including cleaning, restocking supplies, and vacancy gaps between mid-term tenants.',
+    formula: 'Annual Turnover Expense ÷ 12',
+  },
 };
 
 /**

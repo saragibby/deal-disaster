@@ -23,6 +23,7 @@ import * as investmentAnalysisService from '../services/investmentAnalysisServic
 import * as geocodingService from '../services/geocodingService.js';
 import * as rentCastService from '../services/rentCastService.js';
 import * as airDnaService from '../services/airDnaService.js';
+import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { generatePropertySlug } from '../utils/slugify.js';
@@ -124,14 +125,19 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
+    // Mid-term rental — algorithmic estimation
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
 
-    // Attach STR estimate and data source tracking
+    // Attach STR + MTR estimates and data source tracking
     results.strEstimate = strEstimate;
+    results.mtrEstimate = mtrEstimate;
     results.dataSources = {
       rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
+      mtr: 'algorithm',
       hoa: hoaSource,
     };
 
@@ -325,6 +331,26 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
     const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
 
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, newParams);
+
+    // Re-estimate STR (preserve original source if it came from a real provider)
+    const originalSTR = row.analysis_results?.strEstimate;
+    if (originalSTR && originalSTR.source !== 'algorithm') {
+      results.strEstimate = originalSTR;
+    } else {
+      results.strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
+    }
+
+    // Mid-term rental — algorithmic re-estimation
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+    results.mtrEstimate = mtrEstimate;
+
+    // Preserve data source tracking
+    results.dataSources = {
+      rental: apiComps.length > 0 ? 'rentcast' : 'algorithm',
+      str: results.strEstimate?.source === 'airdna' ? 'airdna' : 'algorithm',
+      mtr: 'algorithm',
+      hoa: row.analysis_results?.dataSources?.hoa || 'none',
+    };
 
     // Carry over stored comparables from the original analysis
     results.comparables = row.analysis_results?.comparables || [];

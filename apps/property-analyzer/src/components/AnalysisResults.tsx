@@ -10,6 +10,7 @@ import {
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
 import RentalInsights from './RentalInsights';
+import StrategyComparison from './StrategyComparison';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
@@ -386,10 +387,17 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             </div>
           )}
 
+          <StrategyComparison
+            ltrRent={effectiveRent}
+            mtrEstimate={results.mtrEstimate}
+            strEstimate={results.strEstimate}
+          />
+
           <RentalInsights
             property={property}
             rental={rental}
             strEstimate={results.strEstimate}
+            mtrEstimate={results.mtrEstimate}
             comparables={results.comparables}
             effectiveRent={effectiveRent}
           />

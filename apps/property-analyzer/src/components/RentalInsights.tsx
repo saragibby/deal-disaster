@@ -3,6 +3,7 @@ import type {
   PropertyData,
   RentalEstimate,
   STREstimate,
+  MTREstimate,
   ComparableProperty,
 } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
@@ -17,6 +18,7 @@ interface Props {
   property: PropertyData;
   rental: RentalEstimate;
   strEstimate?: STREstimate;
+  mtrEstimate?: MTREstimate;
   comparables?: ComparableProperty[];
   effectiveRent: number;
 }
@@ -39,11 +41,12 @@ function pctStr(n: number): string {
 /*  Component                                                          */
 /* ================================================================== */
 export default function RentalInsights({
-  property, strEstimate, comparables, effectiveRent,
+  property, strEstimate, mtrEstimate, comparables, effectiveRent,
 }: Props) {
   return (
     <div className="rental-insights">
-      <STRSection strEstimate={strEstimate} ltrRent={effectiveRent} />
+      <STRSection strEstimate={strEstimate} mtrEstimate={mtrEstimate} ltrRent={effectiveRent} />
+      <MTRSection mtrEstimate={mtrEstimate} ltrRent={effectiveRent} />
       <MarketTrendChart zip={property.zip} />
       <DemandIndicators
         property={property}
@@ -67,15 +70,16 @@ export default function RentalInsights({
 /* ================================================================== */
 /*  Section A — Short-Term Rental Estimate                             */
 /* ================================================================== */
-function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRent: number }) {
+function STRSection({ strEstimate, mtrEstimate, ltrRent }: { strEstimate?: STREstimate; mtrEstimate?: MTREstimate; ltrRent: number }) {
   if (!strEstimate) return null;
   const [expanded, setExpanded] = useState(false);
 
   const { nightlyRate, occupancyRate, grossMonthlyRevenue, cleaningCosts, platformFees, netMonthlyRevenue } = strEstimate;
   const strVsLtr = ltrRent > 0 ? ((netMonthlyRevenue - ltrRent) / ltrRent) * 100 : 0;
+  const mtrNet = mtrEstimate?.netMonthlyRevenue ?? 0;
 
   // Bar widths for visual comparison
-  const maxVal = Math.max(netMonthlyRevenue, ltrRent, 1);
+  const maxVal = Math.max(netMonthlyRevenue, ltrRent, mtrNet, 1);
 
   const hasDeepDive = strEstimate.seasonality || strEstimate.revenueRange || strEstimate.marketContext;
 
@@ -102,7 +106,7 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
         <span>Platform fees {fmt(platformFees)}/mo</span>
       </div>
 
-      {/* LTR vs STR comparison bars */}
+      {/* LTR vs MTR vs STR comparison bars */}
       <div className="rental-insights__compare">
         <div className="rental-insights__bar-row">
           <span className="rental-insights__bar-label">Long-term</span>
@@ -114,6 +118,25 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
           </div>
           <span className="rental-insights__bar-value">{fmt(ltrRent)}</span>
         </div>
+        {mtrEstimate && (
+          <div className="rental-insights__bar-row">
+            <span className="rental-insights__bar-label">MTR net</span>
+            <div className="rental-insights__bar-track">
+              <div
+                className="rental-insights__bar rental-insights__bar--mtr"
+                style={{ width: `${(mtrNet / maxVal) * 100}%` }}
+              />
+            </div>
+            <span className="rental-insights__bar-value">
+              {fmt(mtrNet)}
+              {ltrRent > 0 && (
+                <span className={`rental-insights__delta ${mtrNet >= ltrRent ? 'rental-insights__delta--up' : 'rental-insights__delta--down'}`}>
+                  {pctStr(((mtrNet - ltrRent) / ltrRent) * 100)}
+                </span>
+              )}
+            </span>
+          </div>
+        )}
         <div className="rental-insights__bar-row">
           <span className="rental-insights__bar-label">STR net</span>
           <div className="rental-insights__bar-track">
@@ -152,6 +175,245 @@ function STRSection({ strEstimate, ltrRent }: { strEstimate?: STREstimate; ltrRe
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Section A2 — Mid-Term Rental Estimate                              */
+/* ================================================================== */
+function MTRSection({ mtrEstimate, ltrRent }: { mtrEstimate?: MTREstimate; ltrRent: number }) {
+  if (!mtrEstimate) return null;
+  const [expanded, setExpanded] = useState(false);
+
+  const {
+    monthlyRate, occupancyRate, grossMonthlyRevenue, netMonthlyRevenue,
+    utilityCosts, turnoverCosts, platformFees, managementCosts,
+    furnishingCosts, demandFactors, source, seasonality, revenueRange,
+  } = mtrEstimate;
+
+  const mtrVsLtr = ltrRent > 0 ? ((netMonthlyRevenue - ltrRent) / ltrRent) * 100 : 0;
+  const maxVal = Math.max(netMonthlyRevenue, ltrRent, 1);
+
+  const hasDeepDive = seasonality || revenueRange || demandFactors;
+
+  const demandColor = demandFactors.overallScore >= 75
+    ? 'rental-insights__demand-badge--green'
+    : demandFactors.overallScore >= 50
+      ? 'rental-insights__demand-badge--yellow'
+      : 'rental-insights__demand-badge--red';
+
+  return (
+    <div className="rental-insights__section">
+      <h4 className="rental-insights__heading">
+        <Building2 size={15} /> Mid-Term Rental Potential
+        <span className="rental-insights__badge rental-insights__badge--teal">
+          {source === 'algorithm' ? 'Estimate' : source === 'furnished-finder' ? 'Furnished Finder' : source.toUpperCase()}
+        </span>
+      </h4>
+
+      <div className="rental-insights__str-metrics">
+        <STRStat label="Monthly Rate" value={fmt(monthlyRate)} />
+        <STRStat label="Occupancy" value={`${Math.round(occupancyRate * 100)}%`} />
+        <STRStat label="Gross / mo" value={fmt(grossMonthlyRevenue)} />
+        <STRStat label="Net / mo" value={fmt(netMonthlyRevenue)} highlight />
+      </div>
+
+      {/* Costs breakdown */}
+      <div className="rental-insights__str-costs">
+        <span>Utilities {fmt(utilityCosts)}/mo</span>
+        <span className="rental-insights__dot">·</span>
+        <span>Turnover {fmt(turnoverCosts)}/mo</span>
+        <span className="rental-insights__dot">·</span>
+        <span>Platform fees {fmt(platformFees)}/mo</span>
+        <span className="rental-insights__dot">·</span>
+        <span>Management {fmt(managementCosts)}/mo</span>
+      </div>
+
+      {/* LTR vs MTR comparison bars */}
+      <div className="rental-insights__compare">
+        <div className="rental-insights__bar-row">
+          <span className="rental-insights__bar-label">Long-term</span>
+          <div className="rental-insights__bar-track">
+            <div
+              className="rental-insights__bar rental-insights__bar--ltr"
+              style={{ width: `${(ltrRent / maxVal) * 100}%` }}
+            />
+          </div>
+          <span className="rental-insights__bar-value">{fmt(ltrRent)}</span>
+        </div>
+        <div className="rental-insights__bar-row">
+          <span className="rental-insights__bar-label">MTR net</span>
+          <div className="rental-insights__bar-track">
+            <div
+              className="rental-insights__bar rental-insights__bar--mtr"
+              style={{ width: `${(netMonthlyRevenue / maxVal) * 100}%` }}
+            />
+          </div>
+          <span className="rental-insights__bar-value">
+            {fmt(netMonthlyRevenue)}
+            <span className={`rental-insights__delta ${mtrVsLtr >= 0 ? 'rental-insights__delta--up' : 'rental-insights__delta--down'}`}>
+              {pctStr(mtrVsLtr)}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      {/* Furnishing cost summary */}
+      <div className="rental-insights__mtr-furnishing">
+        <span>One-time cost: <strong>{fmt(furnishingCosts.totalCost)}</strong> ({furnishingCosts.quality} quality)</span>
+        <span className="rental-insights__dot">·</span>
+        <span>Amortized: <strong>{fmt(furnishingCosts.amortizedMonthly)}/mo</strong> over {furnishingCosts.usefulLifeYears} years</span>
+      </div>
+
+      {/* Demand score badge */}
+      <div className="rental-insights__mtr-demand">
+        <TermExplainer info={findExplainer('MTR Demand Score')!} />
+        <span className={`rental-insights__demand-badge ${demandColor}`}>
+          MTR Demand Score: {demandFactors.overallScore}/100
+        </span>
+      </div>
+
+      {/* Deep Dive toggle */}
+      {hasDeepDive && (
+        <>
+          <button
+            type="button"
+            className="rental-insights__toggle"
+            onClick={() => setExpanded(e => !e)}
+          >
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {expanded ? 'Hide Details' : 'Show Details'}
+          </button>
+
+          {expanded && (
+            <div className="rental-insights__deep-dive">
+              <MTRSeasonalityChart seasonality={seasonality} source={source} />
+              <MTRRevenueRange revenueRange={revenueRange} source={source} />
+              <MTRDemandBreakdown demandFactors={demandFactors} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  MTR Deep Dive — Seasonality Chart                                  */
+/* ================================================================== */
+function MTRSeasonalityChart({ seasonality, source }: { seasonality?: MTREstimate['seasonality']; source: string }) {
+  if (!seasonality || seasonality.length === 0) return null;
+
+  const maxRev = Math.max(...seasonality.map(m => m.revenue));
+  const minRev = Math.min(...seasonality.map(m => m.revenue));
+
+  const data = seasonality.map(m => ({
+    month: m.month,
+    revenue: m.revenue,
+    occupancy: Math.round(m.occupancy * 100),
+  }));
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">
+        MTR Monthly Revenue Seasonality
+        {source === 'algorithm' && (
+          <span className="rental-insights__badge rental-insights__badge--muted">Estimated</span>
+        )}
+      </h5>
+      <div className="rental-insights__seasonality-chart">
+        <ResponsiveContainer width="100%" height={140}>
+          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 10 }} interval={0} />
+            <YAxis hide domain={[0, 'auto']} />
+            <Tooltip
+              formatter={(value) => [fmt(Number(value ?? 0)), 'Revenue']}
+              contentStyle={{ fontSize: 12 }}
+            />
+            <Bar dataKey="revenue" radius={[3, 3, 0, 0]}>
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={entry.revenue === maxRev ? '#22c55e' : entry.revenue === minRev ? '#f59e0b' : '#0d9488'}
+                  opacity={0.85}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="rental-insights__seasonality-legend">
+        <span className="rental-insights__legend-item">
+          <span className="rental-insights__legend-dot" style={{ background: '#22c55e' }} /> Best month
+        </span>
+        <span className="rental-insights__legend-item">
+          <span className="rental-insights__legend-dot" style={{ background: '#f59e0b' }} /> Slowest month
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  MTR Deep Dive — Revenue Range                                      */
+/* ================================================================== */
+function MTRRevenueRange({ revenueRange, source }: { revenueRange?: MTREstimate['revenueRange']; source: string }) {
+  if (!revenueRange) return null;
+
+  const { low, mid, high } = revenueRange;
+  const range = high - low || 1;
+  const midPct = ((mid - low) / range) * 100;
+  const explainer = findExplainer('revenue range');
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">
+        MTR Revenue Range
+        {explainer && <TermExplainer info={explainer} />}
+        {source === 'algorithm' && (
+          <span className="rental-insights__badge rental-insights__badge--muted">Estimated</span>
+        )}
+      </h5>
+      <div className="rental-insights__range">
+        <div className="rental-insights__range-track">
+          <div className="rental-insights__range-fill" />
+          <div
+            className="rental-insights__range-marker"
+            style={{ left: `${midPct}%` }}
+            title={`Likely: ${fmt(mid)}/mo`}
+          />
+        </div>
+        <div className="rental-insights__range-labels">
+          <span className="rental-insights__range-label">{fmt(low)}/mo</span>
+          <span className="rental-insights__range-label rental-insights__range-label--mid">{fmt(mid)}/mo</span>
+          <span className="rental-insights__range-label">{fmt(high)}/mo</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  MTR Deep Dive — Demand Breakdown                                   */
+/* ================================================================== */
+function MTRDemandBreakdown({ demandFactors }: { demandFactors: MTREstimate['demandFactors'] }) {
+  const pillColor = (score: number) =>
+    score >= 75 ? 'rental-insights__pill--green'
+      : score >= 50 ? 'rental-insights__pill--yellow'
+        : 'rental-insights__pill--red';
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">Demand Breakdown</h5>
+      <div className="rental-insights__context-pills">
+        <span className={`rental-insights__pill ${pillColor(demandFactors.bedroomScore)}`}>
+          Bedroom Score: {demandFactors.bedroomScore}/100
+        </span>
+        <span className={`rental-insights__pill ${pillColor(demandFactors.propertyTypeScore)}`}>
+          Property Type Score: {demandFactors.propertyTypeScore}/100
+        </span>
+      </div>
     </div>
   );
 }
