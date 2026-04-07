@@ -59,6 +59,15 @@ export default function ComparisonTable({ properties }: Props) {
     return rows;
   }, [properties]);
 
+  const rentSourceLabels = useMemo(() =>
+    properties.map((p) => {
+      const src = p.analysis_results?.dataSources?.rental;
+      const conf = p.analysis_results?.rentalEstimate?.confidence;
+      const label = src === 'rentcast' ? 'RentCast' : src === 'blended' ? 'Blended' : 'Algorithmic';
+      return { label, confidence: conf || 'low' };
+    }),
+  [properties]);
+
   const demandIndicators: DemandIndicator[] = useMemo(() =>
     properties.map((p) => {
       const rent = p.analysis_results?.cashFlow?.monthlyRent || p.analysis_results?.rentalEstimate?.mid || 0;
@@ -106,6 +115,18 @@ export default function ComparisonTable({ properties }: Props) {
                 ))}
               </tr>
             ))}
+            {/* Rent Data Source */}
+            <tr>
+              <td className="comparison-dashboard__table-metric">Rent Source</td>
+              {rentSourceLabels.map((r, i) => (
+                <td key={i}>
+                  {r.label}
+                  <span className={`comparison-dashboard__demand-pill comparison-dashboard__demand-pill--${r.confidence === 'high' ? 'good' : r.confidence === 'medium' ? 'neutral' : 'poor'}`}>
+                    {r.confidence === 'high' ? 'High' : r.confidence === 'medium' ? 'Med' : 'Low'}
+                  </span>
+                </td>
+              ))}
+            </tr>
             {/* Demand Indicators */}
             <tr className="comparison-dashboard__table-section">
               <td colSpan={properties.length + 1}><strong>Rental Demand Indicators</strong></td>

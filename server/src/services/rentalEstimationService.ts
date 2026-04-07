@@ -6,7 +6,7 @@
  * and safe to call from any context (routes, scripts, game generators).
  */
 
-import type { PropertyData, RentalComp, RentalEstimate } from '@deal-platform/shared-types';
+import type { PropertyData, RentalComp, RentalEstimate, MarketStatistics } from '@deal-platform/shared-types';
 
 // ---------------------------------------------------------------------------
 // Algorithmic estimation
@@ -103,5 +103,82 @@ export function combineEstimates(
     high,
     confidence: apiComps.length >= 3 ? 'high' : 'medium',
     comps: apiComps,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Location-aware calibration for comparable properties
+// ---------------------------------------------------------------------------
+
+interface CalibrationContext {
+  /** Market statistics for the subject property's ZIP (from RentCast). */
+  marketStats?: MarketStatistics | null;
+  /** Subject property's blended rental estimate (API-backed when available). */
+  subjectRentalEstimate?: RentalEstimate;
+  /** Subject property data (used for rent-per-sqft anchoring). */
+  subjectProperty?: PropertyData;
+}
+
+/**
+ * Calibrate an algorithmic rent estimate for a comparable property using
+ * the subject property's market data and blended rent as anchors.
+ *
+ * Two calibration layers (blended together):
+ *
+ *  1. **Market-stats calibration** — if we have the area's median rent from
+ *     RentCast market stats AND the algorithmic estimate for the subject,
+ *     compute a local correction factor and apply it to the comp's estimate.
+ *
+ *  2. **Subject-anchored calibration** — use the subject's API-backed
+ *     rent-per-sqft to produce a second estimate for the comp, then blend
+ *     it 50/50 with the adjusted algorithmic estimate.
+ *
+ * Returns an adjusted `RentalEstimate` with updated confidence.
+ */
+export function calibrateEstimate(
+  compEstimate: RentalEstimate,
+  compSqft: number,
+  ctx: CalibrationContext,
+): RentalEstimate {
+  let calibratedMid = compEstimate.mid;
+  let hasCalibration = false;
+
+  // --- Layer 1: market-stats correction factor ---
+  // Compare subject's algorithmic estimate to area median rent.
+  // If the area median rent is e.g. 30% higher than the algo estimate for the
+  // subject, the algo is under-predicting for this market → scale up comps too.
+  if (ctx.marketStats?.medianRent && ctx.subjectProperty) {
+    const subjectAlgorithmic = estimateRent(ctx.subjectProperty);
+    if (subjectAlgorithmic.mid > 0) {
+      const correctionFactor = ctx.marketStats.medianRent / subjectAlgorithmic.mid;
+      // Clamp the correction to avoid extreme swings (0.5× – 2.0×)
+      const clampedFactor = Math.max(0.5, Math.min(2.0, correctionFactor));
+      calibratedMid = Math.round(calibratedMid * clampedFactor);
+      hasCalibration = true;
+    }
+  }
+
+  // --- Layer 2: subject-anchored rent-per-sqft ---
+  // If the subject has an API-backed rent estimate, derive rent/sqft and
+  // project it onto the comp's sqft, then blend 50/50 with the above.
+  if (ctx.subjectRentalEstimate && ctx.subjectProperty && compSqft > 0) {
+    const subjectSqft = ctx.subjectProperty.sqft;
+    if (subjectSqft > 0 && ctx.subjectRentalEstimate.mid > 0) {
+      const subjectRentPerSqft = ctx.subjectRentalEstimate.mid / subjectSqft;
+      const anchoredEstimate = Math.round(subjectRentPerSqft * compSqft);
+      calibratedMid = Math.round((calibratedMid + anchoredEstimate) / 2);
+      hasCalibration = true;
+    }
+  }
+
+  if (!hasCalibration) {
+    return { ...compEstimate, confidence: 'low' };
+  }
+
+  return {
+    low: Math.round(calibratedMid * 0.90),
+    mid: calibratedMid,
+    high: Math.round(calibratedMid * 1.10),
+    confidence: 'medium',
   };
 }

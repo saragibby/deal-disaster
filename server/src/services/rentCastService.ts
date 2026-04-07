@@ -37,6 +37,7 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<any>>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — rental data changes infrequently
+const MARKET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days for market stats
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -71,6 +72,15 @@ interface RentCastListing {
   latitude?: number;
   longitude?: number;
   daysOnMarket?: number;
+}
+
+export interface MarketStatistics {
+  medianRent: number;
+  averageRent: number;
+  rentGrowthPct: number;        // YoY percentage e.g. 3.5 = 3.5%
+  totalListings: number;
+  avgDaysOnMarket: number;
+  rentTrend: 'rising' | 'stable' | 'declining';
 }
 
 // ---------- public API ----------
@@ -197,6 +207,80 @@ export async function getRentalComps(
   } catch (err: any) {
     console.warn('[RentCast] Rental comps error:', err.message);
     return [];
+  }
+}
+
+/**
+ * Fetch market-level rental statistics for a ZIP code from RentCast.
+ * Cached for 7 days (market-level data is slow-moving).
+ */
+export async function getMarketStatistics(
+  zip: string,
+): Promise<MarketStatistics | null> {
+  if (!isConfigured() || !zip) return null;
+
+  const cacheKey = `rentcast:market:${zip}`;
+  const cached = getCached<MarketStatistics>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const params = new URLSearchParams({
+      zipCode: zip,
+      historyRange: '12',
+    });
+
+    const res = await fetch(`${BASE_URL}/markets?${params}`, {
+      headers: headers(),
+    });
+
+    if (!res.ok) {
+      console.warn(`[RentCast] Market stats failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const data = await res.json() as Record<string, any>;
+
+    const medianRent = data.medianRent ?? data.averageRent ?? 0;
+    const averageRent = data.averageRent ?? data.medianRent ?? 0;
+
+    // Compute rent growth from history if available
+    let rentGrowthPct = 0;
+    if (data.history && Array.isArray(data.history) && data.history.length >= 2) {
+      const latest = data.history[data.history.length - 1];
+      const oldest = data.history[0];
+      const latestRent = latest?.medianRent ?? latest?.averageRent ?? 0;
+      const oldestRent = oldest?.medianRent ?? oldest?.averageRent ?? 0;
+      if (oldestRent > 0) {
+        rentGrowthPct = Math.round(((latestRent - oldestRent) / oldestRent) * 1000) / 10;
+      }
+    } else if (data.rentGrowth != null) {
+      rentGrowthPct = typeof data.rentGrowth === 'number'
+        ? Math.round(data.rentGrowth * (Math.abs(data.rentGrowth) < 1 ? 1000 : 10)) / 10
+        : 0;
+    }
+
+    // Determine trend
+    let rentTrend: 'rising' | 'stable' | 'declining';
+    if (rentGrowthPct > 2) rentTrend = 'rising';
+    else if (rentGrowthPct < -2) rentTrend = 'declining';
+    else rentTrend = 'stable';
+
+    const result: MarketStatistics = {
+      medianRent: Math.round(medianRent),
+      averageRent: Math.round(averageRent),
+      rentGrowthPct,
+      totalListings: data.totalListings ?? data.count ?? 0,
+      avgDaysOnMarket: data.averageDaysOnMarket ?? data.avgDaysOnMarket ?? 0,
+      rentTrend,
+    };
+
+    // Cache with longer TTL for market stats
+    cache.set(cacheKey, { data: result, expiresAt: Date.now() + MARKET_CACHE_TTL_MS });
+    console.log(`[RentCast] Market stats for ${zip}: median=${result.medianRent}, trend=${result.rentTrend}`);
+    return result;
+  } catch (err: any) {
+    console.warn('[RentCast] Market stats error:', err.message);
+    return null;
   }
 }
 

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   PropertyData,
   RentalEstimate,
@@ -7,6 +8,8 @@ import type {
   ComparableProperty,
   CashFlowBreakdown,
   ROIMetrics,
+  FullAnalysisResult,
+  MarketStatistics,
 } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
@@ -14,6 +17,7 @@ import {
   TrendingUp, BarChart3, Info,
   DollarSign, Star, TrendingDown,
   CircleCheck, CircleAlert, CircleMinus,
+  Shield,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import StrategyComparison from './StrategyComparison';
@@ -33,6 +37,8 @@ interface Props {
   effectiveRent: number;
   cashFlow: CashFlowBreakdown;
   roi: ROIMetrics;
+  dataSources?: FullAnalysisResult['dataSources'];
+  marketStatistics?: MarketStatistics;
 }
 
 /* ================================================================== */
@@ -149,7 +155,7 @@ export function RentalSummaryStrip({
 /* ================================================================== */
 export default function RentalTabs({
   property, rental, strEstimate, mtrEstimate, effectiveRent,
-  cashFlow, roi,
+  cashFlow, roi, dataSources, marketStatistics,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('ltr');
 
@@ -193,6 +199,8 @@ export default function RentalTabs({
             effectiveRent={effectiveRent}
             cashFlow={cashFlow}
             roi={roi}
+            dataSources={dataSources}
+            marketStatistics={marketStatistics}
           />
         )}
         {activeTab === 'mtr' && mtrEstimate && (
@@ -200,6 +208,7 @@ export default function RentalTabs({
             mtrEstimate={mtrEstimate}
             ltrRent={effectiveRent}
             cashFlow={cashFlow}
+            dataSources={dataSources}
           />
         )}
         {activeTab === 'str' && strEstimate && (
@@ -207,6 +216,7 @@ export default function RentalTabs({
             strEstimate={strEstimate}
             ltrRent={effectiveRent}
             cashFlow={cashFlow}
+            dataSources={dataSources}
           />
         )}
       </div>
@@ -237,21 +247,35 @@ export { MarketTrendChart };
 /*  LTR Panel                                                          */
 /* ================================================================== */
 function LTRPanel({
-  rental, effectiveRent, cashFlow, roi,
+  rental, effectiveRent, cashFlow, roi, dataSources, marketStatistics,
 }: {
   rental: RentalEstimate;
   effectiveRent: number;
   cashFlow: CashFlowBreakdown;
   roi: ROIMetrics;
+  dataSources?: FullAnalysisResult['dataSources'];
+  marketStatistics?: MarketStatistics;
 }) {
   return (
     <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <h4 className="rental-insights__heading" style={{ margin: 0 }}>
+          <Home size={15} /> Long-Term Rental
+        </h4>
+        <DataSourceBadge source={dataSources?.rental} confidence={rental.confidence} />
+      </div>
+
       <div className="rental-insights__str-metrics">
         <StatBox label="Monthly Rent" value={fmt(effectiveRent)} highlight />
         <StatBox label="Confidence" value={rental.confidence} />
         <StatBox label="Range Low" value={fmt(rental.low)} />
         <StatBox label="Range High" value={fmt(rental.high)} />
       </div>
+
+      {/* Market statistics */}
+      {marketStatistics && (
+        <MarketStatsSection stats={marketStatistics} />
+      )}
 
       {/* Rental comps table */}
       {rental.comps && rental.comps.length > 0 && (
@@ -321,11 +345,12 @@ function LTRPanel({
 /*  MTR Panel                                                          */
 /* ================================================================== */
 function MTRPanel({
-  mtrEstimate, ltrRent, cashFlow,
+  mtrEstimate, ltrRent, cashFlow, dataSources,
 }: {
   mtrEstimate: MTREstimate;
   ltrRent: number;
   cashFlow: CashFlowBreakdown;
+  dataSources?: FullAnalysisResult['dataSources'];
 }) {
   const {
     monthlyRate, occupancyRate, grossMonthlyRevenue, netMonthlyRevenue,
@@ -352,9 +377,7 @@ function MTRPanel({
         <h4 className="rental-insights__heading" style={{ margin: 0 }}>
           <Building2 size={15} /> Mid-Term Rental
         </h4>
-        <span className="rental-insights__badge rental-insights__badge--teal">
-          {source === 'algorithm' ? 'Estimate' : source === 'furnished-finder' ? 'Furnished Finder' : source.toUpperCase()}
-        </span>
+        <DataSourceBadge source={dataSources?.mtr || source} confidence={mtrEstimate.confidence} />
         <span className={`rental-tabs__delta ${mtrVsLtr >= 0 ? 'rental-tabs__delta--up' : 'rental-tabs__delta--down'}`}>
           {pctStr(mtrVsLtr)} vs LTR
         </span>
@@ -402,6 +425,26 @@ function MTRPanel({
           </div>
         </div>
 
+        {/* Nearby institutions (hospitals, military bases, universities, etc.) */}
+        {demandFactors.nearbyInstitutions && demandFactors.nearbyInstitutions.length > 0 && (
+          <div className="rental-insights__deep-section">
+            <h5 className="rental-insights__deep-heading">
+              <Building2 size={13} /> Nearby Institutions
+            </h5>
+            <div className="rental-insights__institutions-grid">
+              {demandFactors.nearbyInstitutions.map((inst, i) => (
+                <div key={i} className="rental-insights__institution-row">
+                  <span className="rental-insights__institution-emoji">{inst.emoji}</span>
+                  <span className="rental-insights__institution-name">{inst.name}</span>
+                  {inst.miles > 0 && (
+                    <span className="rental-insights__institution-miles">{inst.miles} mi</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Seasonality chart */}
         <SeasonalityChart
           seasonality={seasonality}
@@ -448,11 +491,12 @@ function MTRPanel({
 /*  STR Panel                                                          */
 /* ================================================================== */
 function STRPanel({
-  strEstimate, ltrRent, cashFlow,
+  strEstimate, ltrRent, cashFlow, dataSources,
 }: {
   strEstimate: STREstimate;
   ltrRent: number;
   cashFlow: CashFlowBreakdown;
+  dataSources?: FullAnalysisResult['dataSources'];
 }) {
   const {
     nightlyRate, occupancyRate, grossMonthlyRevenue, cleaningCosts, platformFees,
@@ -470,9 +514,7 @@ function STRPanel({
         <h4 className="rental-insights__heading" style={{ margin: 0 }}>
           <Sparkles size={15} /> Short-Term Rental
         </h4>
-        <span className="rental-insights__badge rental-insights__badge--purple">
-          {source === 'algorithm' ? 'Estimate' : source.toUpperCase()}
-        </span>
+        <DataSourceBadge source={dataSources?.str || source} confidence={strEstimate.confidence} />
         <span className={`rental-tabs__delta ${strVsLtr >= 0 ? 'rental-tabs__delta--up' : 'rental-tabs__delta--down'}`}>
           {pctStr(strVsLtr)} vs LTR
         </span>
@@ -525,6 +567,7 @@ function STRPanel({
             </div>
           </div>
         )}
+
       </div>
 
       {/* STR Cash Flow */}
@@ -560,6 +603,151 @@ function STRPanel({
 /* ================================================================== */
 /*  Shared Sub-components                                              */
 /* ================================================================== */
+
+const SOURCE_LABELS: Record<string, string> = {
+  rentcast: 'RentCast',
+  airdna: 'AirDNA',
+  blended: 'Blended',
+  algorithm: 'Estimated',
+  'furnished-finder': 'Furnished Finder',
+};
+
+function DataSourceBadge({ source, confidence }: { source?: string; confidence?: string | number }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  if (!source && !confidence) return null;
+
+  const reposition = () => {
+    if (!tooltipRef.current || !triggerRef.current) return;
+    const node = tooltipRef.current;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const tooltipHeight = node.offsetHeight;
+    node.style.top = `${triggerRect.top - tooltipHeight - 10}px`;
+    node.style.left = `${triggerRect.left + triggerRect.width / 2 - 150}px`;
+    node.style.opacity = '1';
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+          tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const label = source ? (SOURCE_LABELS[source] || source) : '';
+  const confLevel = typeof confidence === 'string'
+    ? confidence
+    : typeof confidence === 'number'
+      ? (confidence >= 80 ? 'high' : confidence >= 50 ? 'medium' : 'low')
+      : null;
+  const dotColor = confLevel === 'high' ? '#22c55e' : confLevel === 'medium' ? '#f59e0b' : confLevel === 'low' ? '#ef4444' : '#94a3b8';
+  const explainer = confLevel ? findExplainer(`confidence ${confLevel}`) : undefined;
+  return (
+    <span
+      ref={triggerRef}
+      className="rental-insights__badge rental-insights__badge--source"
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', position: 'relative' }}
+      onClick={() => setOpen(o => !o)}
+    >
+      <Shield size={11} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
+      {label}
+      {open && explainer && createPortal(
+        <div
+          ref={tooltipRef}
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            opacity: 0,
+            zIndex: 10000,
+            width: 300,
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            padding: '14px 16px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)',
+            textTransform: 'none' as const,
+            letterSpacing: 'normal',
+            textAlign: 'left' as const,
+          }}
+        >
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#2563eb', marginBottom: 6 }}>{explainer.term}</div>
+          <p style={{ fontSize: '0.78rem', lineHeight: 1.5, color: '#334155', margin: 0 }}>{explainer.definition}</p>
+          {/* Pointer arrow */}
+          <div style={{
+            position: 'absolute',
+            bottom: -6,
+            left: '50%',
+            marginLeft: -6,
+            width: 0,
+            height: 0,
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderTop: '6px solid #ffffff',
+            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.06))',
+          }} />
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
+function MarketStatsSection({ stats }: { stats: MarketStatistics }) {
+  const trendIcon = stats.rentTrend === 'rising'
+    ? <TrendingUp size={13} style={{ color: '#22c55e' }} />
+    : stats.rentTrend === 'declining'
+      ? <TrendingDown size={13} style={{ color: '#ef4444' }} />
+      : <CircleMinus size={13} style={{ color: '#94a3b8' }} />;
+  const trendLabel = stats.rentTrend === 'rising' ? 'Rising' : stats.rentTrend === 'declining' ? 'Declining' : 'Stable';
+
+  return (
+    <div className="rental-insights__deep-section" style={{ marginTop: '1rem' }}>
+      <h5 className="rental-insights__deep-heading">
+        <BarChart3 size={13} /> Market Statistics
+      </h5>
+      <div className="rental-insights__context-pills">
+        <span className="rental-insights__pill">
+          {trendIcon} Rent trend: {trendLabel}
+        </span>
+        {stats.medianRent != null && (
+          <span className="rental-insights__pill">Median rent: {fmt(stats.medianRent)}</span>
+        )}
+        {stats.rentGrowthPct != null && (
+          <span className="rental-insights__pill">
+            {stats.rentGrowthPct >= 0 ? '+' : ''}{stats.rentGrowthPct.toFixed(1)}% YoY
+          </span>
+        )}
+        {stats.totalListings != null && (
+          <span className="rental-insights__pill">{stats.totalListings.toLocaleString()} listings</span>
+        )}
+        {stats.avgDaysOnMarket != null && (
+          <span className="rental-insights__pill">{stats.avgDaysOnMarket}d avg on market</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   const explainer = findExplainer(label);

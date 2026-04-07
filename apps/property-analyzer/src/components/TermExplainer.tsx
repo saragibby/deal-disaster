@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Info } from 'lucide-react';
 
 export interface TermDefinition {
@@ -237,6 +238,28 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
     definition:
       'Your down payment plus estimated closing costs (~3% of purchase price). This is the total cash you need to close the deal.',
   },
+  'confidence high': {
+    term: 'High Confidence',
+    definition:
+      'This estimate is backed by 3+ rental comps or property-level market data from a verified source like RentCast or AirDNA. It closely reflects real market conditions.',
+  },
+  'confidence medium': {
+    term: 'Medium Confidence',
+    definition:
+      'This estimate is supported by 1-2 rental comps or ZIP-level market data. It\'s a reasonable estimate but may vary from actual rents in your specific location.',
+  },
+  'confidence low': {
+    term: 'Low Confidence',
+    definition:
+      'This estimate is algorithmically generated without external market data. Treat it as a rough guide — actual rents could differ significantly. Adding API keys (RentCast, AirDNA) or searching in markets with better data coverage will improve accuracy.',
+  },
+  recoup: {
+    term: 'Time to Recoup',
+    definition:
+      'The number of months it takes for your accumulated monthly cash flow to equal your total cash invested (down payment, closing costs, rehab, etc.).',
+    formula: 'Total Cash Invested ÷ Monthly Cash Flow',
+    note: 'Only shown when monthly cash flow is positive. A shorter recoup period means you recover your out-of-pocket investment faster.',
+  },
 };
 
 /**
@@ -259,13 +282,40 @@ export function findExplainer(label: string): TermDefinition | undefined {
  */
 export default function TermExplainer({ info }: { info: TermDefinition }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const reposition = () => {
+    if (!tooltipRef.current || !triggerRef.current) return;
+    const node = tooltipRef.current;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const tooltipHeight = node.offsetHeight;
+    node.style.top = `${triggerRect.top - tooltipHeight - 10}px`;
+    node.style.left = `${triggerRect.left + triggerRect.width / 2 - 150}px`;
+    node.style.opacity = '1';
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+          tooltipRef.current && !tooltipRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
@@ -274,7 +324,7 @@ export default function TermExplainer({ info }: { info: TermDefinition }) {
   }, [open]);
 
   return (
-    <div className="term-explainer" ref={ref}>
+    <div className="term-explainer" ref={triggerRef}>
       <button
         type="button"
         className="term-explainer__btn"
@@ -288,26 +338,58 @@ export default function TermExplainer({ info }: { info: TermDefinition }) {
         <Info size={14} />
       </button>
 
-      {open && (
-        <div className="term-explainer__tooltip">
-          <div className="term-explainer__header">{info.term}</div>
-          <p className="term-explainer__body">{info.definition}</p>
+      {open && createPortal(
+        <div
+          ref={tooltipRef}
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            opacity: 0,
+            zIndex: 10000,
+            width: 300,
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            padding: '14px 16px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)',
+            textTransform: 'none' as const,
+            letterSpacing: 'normal',
+            textAlign: 'left' as const,
+          }}
+        >
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#2563eb', marginBottom: 6 }}>{info.term}</div>
+          <p style={{ fontSize: '0.78rem', lineHeight: 1.5, color: '#334155', margin: 0 }}>{info.definition}</p>
           {info.note && (
-            <p className="term-explainer__body" style={{ fontStyle: 'italic' }}>{info.note}</p>
+            <p style={{ fontSize: '0.78rem', lineHeight: 1.5, color: '#334155', margin: '6px 0 0', fontStyle: 'italic' }}>{info.note}</p>
           )}
           {info.formula && (
-            <div className="term-explainer__formula">
-              <span className="term-explainer__formula-label">Formula:</span>{' '}
+            <div style={{ marginTop: 8, fontSize: '0.75rem', color: '#64748b' }}>
+              <span style={{ fontWeight: 600 }}>Formula:</span>{' '}
               <code>{info.formula}</code>
             </div>
           )}
           {info.whyReserve && (
-            <div className="term-explainer__why">
-              <span className="term-explainer__why-label">Why set money aside:</span>{' '}
+            <div style={{ marginTop: 8, fontSize: '0.75rem', color: '#64748b' }}>
+              <span style={{ fontWeight: 600 }}>Why set money aside:</span>{' '}
               {info.whyReserve}
             </div>
           )}
-        </div>
+          {/* Pointer arrow */}
+          <div style={{
+            position: 'absolute',
+            bottom: -6,
+            left: '50%',
+            marginLeft: -6,
+            width: 0,
+            height: 0,
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderTop: '6px solid #ffffff',
+            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.06))',
+          }} />
+        </div>,
+        document.body,
       )}
     </div>
   );

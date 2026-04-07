@@ -348,12 +348,15 @@ export interface ComparableProperty {
   bathrooms: number;
   sqft: number;
   lotSize?: number;
+  yearBuilt?: number;
   homeStatus?: string;
   homeType?: string;
   photo?: string;
   estimatedRent: number;
   pricePerSqft: number;
   rentPerSqft: number;
+  rentConfidence?: 'low' | 'medium' | 'high';
+  rentSource?: 'algorithm' | 'market-calibrated';
   latitude?: number;
   longitude?: number;
   zillowUrl?: string;
@@ -393,10 +396,17 @@ export interface STREstimate {
 
 // ── Mid-Term Rental (MTR) Types ──────────────────────────────────────────
 
+export interface NearbyInstitution {
+  name: string;
+  emoji: string;
+  miles: number;
+}
+
 export interface MTRDemandFactors {
   bedroomScore: number;           // 0-100 — 2-3BR ideal for MTR
   propertyTypeScore: number;      // 0-100 — SFH & townhouse preferred
   overallScore: number;           // 0-100 — weighted composite
+  nearbyInstitutions?: NearbyInstitution[];  // hospitals, bases, universities within ~10mi
 }
 
 export type FurnishingQuality = 'budget' | 'standard' | 'premium';
@@ -444,6 +454,15 @@ export interface MTREstimate {
 
 // ─────────────────────────────────────────────────────────────────────────
 
+export interface MarketStatistics {
+  medianRent: number;
+  averageRent: number;
+  rentGrowthPct: number;        // YoY percentage e.g. 3.5 = 3.5%
+  totalListings: number;
+  avgDaysOnMarket: number;
+  rentTrend: 'rising' | 'stable' | 'declining';
+}
+
 export interface FullAnalysisResult {
   mortgage: MortgageBreakdown;
   cashFlow: CashFlowBreakdown;
@@ -453,6 +472,7 @@ export interface FullAnalysisResult {
   strEstimate?: STREstimate;
   mtrEstimate?: MTREstimate;
   comparables?: ComparableProperty[];
+  marketStatistics?: MarketStatistics;
   dataSources?: {
     rental: 'algorithm' | 'rentcast' | 'blended';
     str: 'algorithm' | 'airdna';

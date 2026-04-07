@@ -31,9 +31,16 @@ import { generatePropertySlug } from '../utils/slugify.js';
 const router = Router();
 
 // ── Helper: enrich similar properties with rent estimates ────────────────
-function enrichComparables(comps: ComparableProperty[]): ComparableProperty[] {
+function enrichComparables(
+  comps: ComparableProperty[],
+  subjectProperty?: PropertyData,
+  subjectRentalEstimate?: import('@deal-platform/shared-types').RentalEstimate,
+  marketStats?: import('@deal-platform/shared-types').MarketStatistics | null,
+): ComparableProperty[] {
+  const hasCalibration = !!(marketStats?.medianRent || subjectRentalEstimate);
+
   return comps.map(comp => {
-    // Build a minimal PropertyData to feed the rent estimator
+    // Build PropertyData with all available fields from the Zillow response
     const fakePropData: PropertyData = {
       zpid: comp.zpid,
       address: comp.address,
@@ -44,16 +51,29 @@ function enrichComparables(comps: ComparableProperty[]): ComparableProperty[] {
       bedrooms: comp.bedrooms,
       bathrooms: comp.bathrooms,
       sqft: comp.sqft,
-      yearBuilt: 0,
+      yearBuilt: comp.yearBuilt || 0,
+      propertyType: comp.homeType || undefined,
+      latitude: comp.latitude,
+      longitude: comp.longitude,
     };
 
-    const rental = rentalEstimationService.estimateRent(fakePropData);
+    const algorithmic = rentalEstimationService.estimateRent(fakePropData);
+
+    // Calibrate using subject's market data and blended rent when available
+    const rental = rentalEstimationService.calibrateEstimate(
+      algorithmic,
+      comp.sqft,
+      { marketStats, subjectRentalEstimate, subjectProperty },
+    );
+
     const rentPerSqft = comp.sqft > 0 ? Math.round((rental.mid / comp.sqft) * 100) / 100 : 0;
 
     return {
       ...comp,
       estimatedRent: rental.mid,
       rentPerSqft,
+      rentConfidence: rental.confidence,
+      rentSource: hasCalibration ? 'market-calibrated' as const : 'algorithm' as const,
     };
   });
 }
@@ -80,6 +100,20 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 
     // HOA fee: prefer API data, then estimate by property type
     let hoaSource: 'zillow' | 'estimate' | 'none' = 'none';
+
+    // Early geocode of subject property (cache-first, needed for proximity scoring)
+    if (!property.latitude || !property.longitude) {
+      try {
+        const coords = await geocodingService.geocodeAddress(
+          property.address, property.city, property.state, property.zip,
+        );
+        if (coords) {
+          property.latitude = coords.lat;
+          property.longitude = coords.lng;
+        }
+      } catch { /* non-fatal */ }
+    }
+
     if (userParams?.monthlyHoa == null) {
       if (property.hoaFee) {
         params.monthlyHoa = property.hoaFee;
@@ -125,8 +159,30 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
-    // Mid-term rental — algorithmic estimation
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+    // Mid-term rental — algorithmic estimation with proximity scoring
+    let proximityBoost = 0;
+    let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
+    if (property.latitude && property.longitude) {
+      try {
+        const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
+        proximityBoost = proximity.boost;
+        nearbyInstitutions = proximity.nearby;
+      } catch (err: any) {
+        console.warn('[analyzer/run] Proximity scoring failed (non-fatal):', err.message);
+      }
+    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost);
+    if (nearbyInstitutions.length > 0) {
+      mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
+    }
+
+    // Market statistics — non-blocking, for rent trend display
+    let marketStatistics = null;
+    try {
+      marketStatistics = await rentCastService.getMarketStatistics(property.zip);
+    } catch (err: any) {
+      console.warn('[analyzer/run] Market stats failed (non-fatal):', err.message);
+    }
 
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
@@ -134,6 +190,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     // Attach STR + MTR estimates and data source tracking
     results.strEstimate = strEstimate;
     results.mtrEstimate = mtrEstimate;
+    if (marketStatistics) results.marketStatistics = marketStatistics;
     results.dataSources = {
       rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
@@ -145,43 +202,46 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     let comparables: ComparableProperty[] = [];
     try {
       const rawComps = await propertyDataService.getSimilarProperties(zpid);
-      comparables = enrichComparables(rawComps);
+
+      // Geocode all addresses (subject + comps) before enrichment
+      // so lat/lng are available for per-comp estimation
+      const allAddresses = [
+        { address: property.address, city: property.city, state: property.state, zip: property.zip },
+        ...rawComps.map(c => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
+      ];
+
+      try {
+        const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
+
+        // Attach to subject property
+        const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
+        const subjectCoords = coordsMap.get(subjectKey);
+        if (subjectCoords) {
+          property.latitude = subjectCoords.lat;
+          property.longitude = subjectCoords.lng;
+        }
+
+        // Attach to comparable properties before enrichment
+        for (const comp of rawComps) {
+          const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
+          const compCoords = coordsMap.get(compKey);
+          if (compCoords) {
+            comp.latitude = compCoords.lat;
+            comp.longitude = compCoords.lng;
+          }
+        }
+      } catch (err: any) {
+        console.warn('[analyzer/run] Geocoding failed (non-fatal):', err.message);
+      }
+
+      // Enrich comps with calibrated rent estimates using subject's market data
+      comparables = enrichComparables(rawComps, property, rentalEstimate, marketStatistics);
     } catch (err: any) {
       console.warn('[analyzer/run] Failed to fetch comparables:', err.message);
     }
 
     // Attach comparables to results
     results.comparables = comparables;
-
-    // Geocode all addresses (subject + comps) — cache-first, non-blocking
-    try {
-      const allAddresses = [
-        { address: property.address, city: property.city, state: property.state, zip: property.zip },
-        ...comparables.map(c => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
-      ];
-
-      const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
-
-      // Attach to subject property
-      const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
-      const subjectCoords = coordsMap.get(subjectKey);
-      if (subjectCoords) {
-        property.latitude = subjectCoords.lat;
-        property.longitude = subjectCoords.lng;
-      }
-
-      // Attach to comparable properties
-      for (const comp of comparables) {
-        const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
-        const compCoords = coordsMap.get(compKey);
-        if (compCoords) {
-          comp.latitude = compCoords.lat;
-          comp.longitude = compCoords.lng;
-        }
-      }
-    } catch (err: any) {
-      console.warn('[analyzer/run] Geocoding failed (non-fatal):', err.message);
-    }
 
     // Persist to DB (upsert — re-analysing same property overwrites the old entry)
     const slug = generatePropertySlug(property.address, property.zip);

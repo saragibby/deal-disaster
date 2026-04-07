@@ -374,6 +374,9 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             ltrRent={effectiveRent}
             mtrEstimate={results.mtrEstimate}
             strEstimate={results.strEstimate}
+            rentalEstimate={rental}
+            dataSources={results.dataSources}
+            marketStatistics={results.marketStatistics}
           />
           <DemandIndicators
             property={property}
@@ -490,6 +493,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
           effectiveRent={effectiveRent}
           cashFlow={cashFlow}
           roi={roi}
+          dataSources={results.dataSources}
+          marketStatistics={results.marketStatistics}
         />
       </div>
 

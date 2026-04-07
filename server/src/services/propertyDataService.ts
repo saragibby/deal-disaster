@@ -310,6 +310,7 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
           bathrooms: Number(d.bathrooms) || 0,
           sqft,
           lotSize: d.lotSize ? Number(d.lotSize) : undefined,
+          yearBuilt: d.yearBuilt ? Number(d.yearBuilt) : undefined,
           homeStatus: d.homeStatus || undefined,
           homeType: d.homeType || undefined,
           photo: d.miniCardPhotos?.[0]?.url || d.imgSrc || undefined,

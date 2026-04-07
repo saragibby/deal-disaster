@@ -36,6 +36,18 @@ import type {
 } from '@deal-platform/shared-types';
 
 // ---------------------------------------------------------------------------
+// Proximity cache (in-memory, 7-day TTL)
+// ---------------------------------------------------------------------------
+
+interface ProximityCacheEntry {
+  boost: number;
+  nearby: NearbyInstitution[];
+  expiresAt: number;
+}
+const proximityCache = new Map<string, ProximityCacheEntry>();
+const PROXIMITY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
 // Main estimator
 // ---------------------------------------------------------------------------
 
@@ -51,6 +63,7 @@ import type {
 export function estimateMTR(
   property: PropertyData,
   rentalEstimate: RentalEstimate,
+  proximityBoost: number = 0,
 ): MTREstimate {
   const { bedrooms, sqft, propertyType } = property;
   const ltrRent = rentalEstimate.mid;
@@ -137,6 +150,14 @@ export function estimateMTR(
   // Furnishing costs (standard quality by default)
   const furnishingCosts = estimateFurnishingCosts(bedrooms, 'standard');
 
+  // Demand scoring
+  const demandFactors = scoreMTRDemand(property, proximityBoost);
+
+  // Boost occupancy slightly if near demand drivers
+  if (proximityBoost > 5) {
+    occupancy = Math.min(0.97, occupancy + 0.02);
+  }
+
   // --- 5. Revenue --------------------------------------------------------
   const grossMonthlyRevenue = Math.round(monthlyRate * occupancy);
   const netMonthlyRevenue = grossMonthlyRevenue
@@ -145,9 +166,6 @@ export function estimateMTR(
     - monthlyPlatformFees
     - managementCosts
     - furnishingCosts.amortizedMonthly;
-
-  // Demand scoring
-  const demandFactors = scoreMTRDemand(property);
 
   return {
     monthlyRate,
@@ -227,11 +245,9 @@ export function estimateFurnishingCosts(
 /**
  * Score how suitable a property is for MTR based on its characteristics.
  *
- * Uses only property-level data (no geocoding API calls).  Proximity-based
- * scoring (hospitals, military bases, etc.) can be layered on in a future
- * iteration via the geocoding service.
+ * Uses property-level data plus optional proximity boost.
  */
-export function scoreMTRDemand(property: PropertyData): MTRDemandFactors {
+export function scoreMTRDemand(property: PropertyData, proximityBoost: number = 0): MTRDemandFactors {
   const { bedrooms, propertyType } = property;
 
   // Bedroom suitability: 2-3BR is the sweet spot for MTR
@@ -253,7 +269,7 @@ export function scoreMTRDemand(property: PropertyData): MTRDemandFactors {
   else if (type.includes('multi') || type.includes('duplex'))     propertyTypeScore = 55;
   else                                                            propertyTypeScore = 65;
 
-  const overallScore = Math.round(bedroomScore * 0.5 + propertyTypeScore * 0.5);
+  const overallScore = Math.min(100, Math.round(bedroomScore * 0.5 + propertyTypeScore * 0.5 + proximityBoost));
 
   return {
     bedroomScore,
@@ -291,4 +307,144 @@ export function buildMTRSeasonality(
       occupancy: Math.round(adjOccupancy * 100) / 100,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Proximity scoring — hospitals, military bases, universities
+// ---------------------------------------------------------------------------
+
+const GOOGLE_PLACES_URL = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
+const SEARCH_RADIUS_METERS = 16000; // ~10 miles
+
+interface NearbyResult {
+  name: string;
+  types: string[];
+  geometry?: { location: { lat: number; lng: number } };
+}
+
+interface NearbyInstitution {
+  name: string;
+  emoji: string;
+  miles: number;
+}
+
+/** Haversine distance in miles */
+function haversineDistanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Query Google Places API for MTR-relevant institutions near the property.
+ * Searches: hospitals, military bases, universities, and government buildings.
+ * Returns a demand boost (0-15 points) and list of nearby institutions.
+ * Results cached for 7 days.
+ */
+export async function getProximityBoost(
+  lat: number,
+  lng: number,
+): Promise<{ boost: number; nearby: NearbyInstitution[] }> {
+  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cached = proximityCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return { boost: cached.boost, nearby: cached.nearby };
+  }
+
+  const apiKey = process.env.GOOGLE_GEOCODING_API_KEY || '';
+  if (!apiKey) return { boost: 0, nearby: [] };
+
+  const nearby: NearbyInstitution[] = [];
+  let boost = 0;
+
+  // Each search: { params, emoji, label (for logging), maxResults, boostFn }
+  const searches: {
+    params: Record<string, string>;
+    emoji: string;
+    max: number;
+    boostFn: (count: number) => number;
+  }[] = [
+    {
+      params: { type: 'hospital' },
+      emoji: '🏥',
+      max: 3,
+      boostFn: (n) => Math.min(10, 6 + (n - 1) * 3),
+    },
+    {
+      params: { keyword: 'military base' },
+      emoji: '🎖️',
+      max: 2,
+      boostFn: (n) => Math.min(8, 5 + (n - 1) * 3),
+    },
+    {
+      params: { type: 'university' },
+      emoji: '🎓',
+      max: 3,
+      boostFn: (n) => Math.min(8, 5 + (n - 1) * 2),
+    },
+    {
+      params: { keyword: 'corporate office park' },
+      emoji: '🏢',
+      max: 2,
+      boostFn: (n) => Math.min(5, 3 + (n - 1) * 2),
+    },
+    {
+      params: { keyword: 'government building' },
+      emoji: '🏛️',
+      max: 2,
+      boostFn: (n) => Math.min(5, 3 + (n - 1) * 2),
+    },
+  ];
+
+  try {
+    const results = await Promise.all(
+      searches.map(async (search) => {
+        const params = new URLSearchParams({
+          location: `${lat},${lng}`,
+          radius: String(SEARCH_RADIUS_METERS),
+          key: apiKey,
+          ...search.params,
+        });
+        const res = await fetch(`${GOOGLE_PLACES_URL}?${params}`);
+        if (!res.ok) return { items: [] as NearbyInstitution[], boost: 0 };
+        const data = await res.json() as { results?: NearbyResult[] };
+        const places = (data.results || []);
+        if (places.length === 0) return { items: [] as NearbyInstitution[], boost: 0 };
+        const items = places.slice(0, search.max).map(p => {
+          const plat = p.geometry?.location?.lat;
+          const plng = p.geometry?.location?.lng;
+          const miles = (plat != null && plng != null)
+            ? Math.round(haversineDistanceMiles(lat, lng, plat, plng) * 10) / 10
+            : 0;
+          return { name: p.name, emoji: search.emoji, miles };
+        });
+        // Sort closest first
+        items.sort((a, b) => a.miles - b.miles);
+        return { items, boost: search.boostFn(places.length) };
+      }),
+    );
+
+    for (const r of results) {
+      nearby.push(...r.items);
+      boost += r.boost;
+    }
+
+    // Cap total boost at 15
+    boost = Math.min(15, boost);
+  } catch (err: any) {
+    console.warn('[MTR] Proximity scoring failed (non-fatal):', err.message);
+  }
+
+  // Sort all results by distance
+  nearby.sort((a, b) => a.miles - b.miles);
+
+  proximityCache.set(cacheKey, { boost, nearby, expiresAt: Date.now() + PROXIMITY_CACHE_TTL });
+  if (nearby.length > 0) {
+    console.log(`[MTR] Proximity boost: +${boost} (${nearby.map(n => `${n.emoji} ${n.name} ${n.miles}mi`).join(', ')})`);
+  }
+  return { boost, nearby };
 }

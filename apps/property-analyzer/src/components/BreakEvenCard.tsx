@@ -1,5 +1,6 @@
 import type { CashFlowBreakdown, ROIMetrics } from '@deal-platform/shared-types';
 import { ShieldCheck, Clock, TrendingDown } from 'lucide-react';
+import TermExplainer, { findExplainer } from './TermExplainer';
 
 interface Props {
   cashFlow: CashFlowBreakdown;
@@ -106,7 +107,8 @@ export default function BreakEvenCard({ cashFlow, roi, vacancyPct }: Props) {
       <div className="break-even__block">
         <div className="break-even__header">
           <Clock size={16} />
-          <span className="break-even__label">Months to Recoup</span>
+          <span className="break-even__label">Time to Recoup</span>
+          {findExplainer('recoup') && <TermExplainer info={findExplainer('recoup')!} />}
         </div>
         <div className="break-even__value" style={{ color: recoupColor }}>
           {recoupLabel}

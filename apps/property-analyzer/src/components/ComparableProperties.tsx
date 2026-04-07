@@ -304,7 +304,23 @@ export default function ComparableProperties({ comparables, subject, subjectRent
                 <td>{comp.bathrooms || '—'}</td>
                 <td>{comp.sqft?.toLocaleString() || '—'}</td>
                 <td>{comp.pricePerSqft > 0 ? fmt(comp.pricePerSqft) : '—'}</td>
-                <td>{comp.estimatedRent > 0 ? fmt(comp.estimatedRent) : '—'}</td>
+                <td>
+                  {comp.estimatedRent > 0 ? (
+                    <span className="comps__rent-cell">
+                      {fmt(comp.estimatedRent)}
+                      {comp.rentConfidence && (
+                        <span
+                          className={`comps__confidence comps__confidence--${comp.rentConfidence}`}
+                          title={comp.rentSource === 'market-calibrated'
+                            ? 'Calibrated using local market data'
+                            : 'Algorithmic estimate based on property price'}
+                        >
+                          {comp.rentConfidence === 'high' ? '●' : comp.rentConfidence === 'medium' ? '◐' : '○'}
+                        </span>
+                      )}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td>
                   <StatusBadge status={comp.homeStatus} />
                 </td>

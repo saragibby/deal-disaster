@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, Legend,
-  ResponsiveContainer, CartesianGrid, ReferenceLine, Line,
+  ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot, Line,
 } from 'recharts';
 import type { CashFlowBreakdown, MortgageBreakdown, ROIMetrics } from '@deal-platform/shared-types';
+import TermExplainer, { findExplainer } from './TermExplainer';
 
 interface Props {
   purchasePrice: number;
@@ -276,12 +277,30 @@ export default function WealthProjection({
             fill="none"
           />
           {showRecoup && (
-            <ReferenceLine
-              x={`Year ${recoupYearIndex}`}
-              stroke="#f59e0b"
-              strokeDasharray="5 5"
-              label={{ value: 'Recoup', position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }}
-            />
+            <>
+              <ReferenceLine
+                x={`Year ${recoupYearIndex}`}
+                stroke="#f59e0b"
+                strokeDasharray="5 5"
+                strokeWidth={2}
+              />
+              <ReferenceDot
+                x={`Year ${recoupYearIndex}`}
+                y={data[recoupYearIndex].total}
+                r={6}
+                fill="#f59e0b"
+                stroke="#fff"
+                strokeWidth={2}
+                label={{
+                  value: `Recoup — Yr ${recoupYearIndex}`,
+                  position: 'top',
+                  offset: 14,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  fill: '#92400e',
+                }}
+              />
+            </>
           )}
         </AreaChart>
       </ResponsiveContainer>
@@ -300,7 +319,10 @@ export default function WealthProjection({
           </span>
         </div>
         <div className="wealth-projection__metric">
-          <span className="wealth-projection__metric-label">Time to Recoup</span>
+          <span className="wealth-projection__metric-label">
+            Time to Recoup
+            {findExplainer('recoup') && <TermExplainer info={findExplainer('recoup')!} />}
+          </span>
           <span className={`wealth-projection__metric-value ${recoupColorClass}`}>
             {recoupDisplay}
           </span>
