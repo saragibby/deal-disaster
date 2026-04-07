@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { api, useAuth } from '@deal-platform/shared-auth';
+import { api } from '@deal-platform/shared-auth';
 import type {
   PropertyAnalysis,
   AnalysisParams,
@@ -21,8 +21,6 @@ interface PropertyAnalyzerProps {
 }
 
 export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }: PropertyAnalyzerProps = {}) {
-  const { user } = useAuth();
-  const isAdmin = user?.is_admin === true;
   const { id: analysisSlug } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,7 +30,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
   const [result, setResult] = useState<PropertyAnalysis | null>(null);
   const [wasLoading, setWasLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'analyze' | 'history' | 'compare'>(
-    location.pathname.endsWith('/compare') && isAdmin ? 'compare' : 'analyze'
+    location.pathname.endsWith('/compare') ? 'compare' : 'analyze'
   );
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
@@ -148,15 +146,13 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
         >
           📋 History
         </button>
-        {isAdmin && (
-          <button
-            className={`analyzer__tab ${activeTab === 'compare' ? 'analyzer__tab--active' : ''}`}
-            onClick={() => { setActiveTab('compare'); navigate('/compare', { replace: true }); }}
-          >
-            <GitCompareArrows size={16} />
-            Compare
-          </button>
-        )}
+        <button
+          className={`analyzer__tab ${activeTab === 'compare' ? 'analyzer__tab--active' : ''}`}
+          onClick={() => { setActiveTab('compare'); navigate('/compare', { replace: true }); }}
+        >
+          <GitCompareArrows size={16} />
+          Compare
+        </button>
       </div>
 
       {activeTab === 'analyze' && (
