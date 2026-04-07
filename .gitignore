@@ -28,3 +28,7 @@ playwright-report/
 
 # Database backups
 *.dump
+
+# Environment files
+.env
+server/.env
