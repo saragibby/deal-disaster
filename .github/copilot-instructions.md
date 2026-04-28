@@ -40,7 +40,7 @@ npx playwright test -g "should show login form"   # Single test by name
 npm run test:seed              # Seed E2E test user
 ```
 
-Tests auto-start three dev servers (backend :3002, dashboard :5200, game :5201). Email tests require [MailPit](https://mailpit.axllent.org/) on localhost:1025.
+Tests auto-start three dev servers (backend :3002, dashboard :5200, game :5201). Email tests require [MailPit](https://mailpit.axllent.org/) on localhost:1025. Global setup (`e2e/global-setup.ts`) seeds a test user and clears the Mailpit inbox before each run.
 
 ## Architecture
 
@@ -49,20 +49,20 @@ Tests auto-start three dev servers (backend :3002, dashboard :5200, game :5201).
 ```
 packages/          → Shared libraries (build first)
   shared-types/    → TypeScript interfaces for the entire platform
-  shared-auth/     → AuthProvider context, ApiService (all API calls), SSO helpers
-  shared-ui/       → AppShell layout, AskWill chatbot, Footer, GameCard
+  shared-auth/     → AuthProvider, useAuth hook, ApiService (all API calls), SSO helpers
+  shared-ui/       → AppShell layout, AskWill chatbot, Footer, GameCard (components only)
 
 apps/              → Three React + Vite + TypeScript frontends
-  dashboard/       → Portal hub: game nav, leaderboards, resources, admin (route: /)
-  deal-or-disaster/→ Foreclosure evaluation game with timed challenges (route: /deal-or-disaster)
-  property-analyzer/→ Investment analysis: ROI, comps, maps, PDF export (route: /property-analyzer)
+  dashboard/       → Portal hub: game nav, leaderboards, resources, admin (port :5200, route: /)
+  deal-or-disaster/→ Foreclosure evaluation game with timed challenges (port :5201, route: /deal-or-disaster)
+  property-analyzer/→ Investment analysis: ROI, comps, maps, PDF export (port :5202, route: /property-analyzer)
 
 server/            → Express + PostgreSQL backend (no ORM, raw SQL via pg)
-  src/routes/      → 10 route files (auth, game, chat, portal, property, analyzer, etc.)
+  src/routes/      → Route files (auth, game, chat, portal, property, analyzer, etc.)
   src/services/    → Business logic (chat, property data, email, foreclosure generation, AI)
-  src/middleware/   → JWT auth (authenticateToken, authenticateOptional) and admin auth
-  src/db/          → Connection pool and table setup/migrations
-  src/scripts/     → Admin CLI tools (makeAdmin, generateNewCase, etc.)
+  src/middleware/   → JWT auth (authenticateToken, authenticateOptional) and requireAdmin
+  src/db/          → Connection pool, table setup, and migrations (SQL files)
+  src/scripts/     → Admin CLI tools (makeAdmin, generateNewCase, etc.) — run via `npm run <script>` in server/
 
 e2e/               → Playwright E2E tests (auth flows, SSO, email verification)
 
@@ -79,12 +79,14 @@ All three frontend apps share one auth context and one API service from `shared-
 4. Services query PostgreSQL directly (raw SQL, no ORM)
 5. Responses flow back through the component tree via `useState` / context updates
 
+For long-running operations (e.g., chat), the server uses **SSE streaming**: set `Content-Type: text/event-stream` headers, send chunks via `res.write('data: ...\n\n')`, and end with `data: [DONE]`.
+
 ### Authentication
 
 - **Email/password**: Register → email verification (24h token) → login → JWT
 - **OAuth**: Google and Microsoft via Passport.js → JWT
 - **Cross-app SSO**: Dashboard appends token + user as URL params → child app injects into localStorage
-- **Middleware**: `authenticateToken()` requires valid JWT; `authenticateOptional()` validates if present but doesn't reject anonymous requests
+- **Middleware**: `authenticateToken()` requires valid JWT; `authenticateOptional()` validates if present but doesn't reject anonymous requests; `requireAdmin` gates admin-only endpoints
 - **Token storage**: localStorage (token + user JSON), auto-logout on 401/403
 
 ### Production Serving
@@ -98,11 +100,25 @@ Deployed to Heroku via `heroku-postbuild` script + `Procfile`.
 
 ## Key Conventions
 
-- **TypeScript strict mode** across the entire stack. All shared types live in `packages/shared-types/src/index.ts`.
-- **No ORM** — the server uses raw SQL with the `pg` library. Database setup is in `server/src/db/setup.ts` with dynamic table creation.
-- **All API calls go through `ApiService`** in `shared-auth`. Do not create per-app API clients. The service handles auth headers, token refresh, and streaming.
+### TypeScript & Modules
+- **TypeScript strict mode** and **ES modules** (`"type": "module"`) across the entire stack.
+- All shared types live in `packages/shared-types/src/index.ts`. Import from `@deal-platform/shared-types`.
+- Shared packages must build before apps: `shared-types` → `shared-auth` → `shared-ui`. The root `build:packages` script handles this order.
+
+### Server Patterns
+- **No ORM** — raw SQL with the `pg` library. Always use parameterized queries: `pool.query('SELECT * FROM users WHERE id = $1', [id])`.
+- **Route files** (`server/src/routes/`) handle request parsing, validation, and responses. Business logic belongs in `server/src/services/`.
+- **Inline validation** at route entry — check required fields with `if (!field)` and return `400` immediately. No separate validation library.
+- **Error responses** use `{ error: 'message' }` format. Standard status codes: `400` (bad input), `401/403` (auth), `409` (conflict/duplicate), `500` (unexpected). All route handlers wrap logic in `try/catch`.
+- **Route typing**: Routes define scoped request interfaces extending `AuthRequest` (e.g., `ChatRequest extends AuthRequest`). Client timezone is sent via the `X-User-Timezone` header.
+- **Database migrations** are SQL files in `server/src/db/migrations/`. Index naming convention: `idx_<table>_<column>`.
+
+### Frontend Patterns
+- **All API calls go through `ApiService`** in `shared-auth`. Do not create per-app API clients.
 - **State management is intentionally simple**: React Context for auth (`AuthProvider`), `useState` for everything else. No Redux or external state library.
-- **Shared packages must build before apps** — `shared-types` first, then `shared-auth` (depends on types), then `shared-ui` (depends on both). The root `build:packages` script handles this order.
-- **Route files in `server/src/routes/`** handle request parsing and responses. Business logic belongs in `server/src/services/`.
+- **CSS**: One `.css` file per component (not CSS modules). App-specific styles live alongside their components.
 - **Environment variables**: Frontend uses `VITE_` prefix (e.g., `VITE_API_URL`). Backend env is in `server/.env`. See `server/.env.example` for required variables.
-- **E2E test helpers** (`e2e/helpers.ts`) provide `loginViaAPI()` and `registerUserViaAPI()` to bypass UI for test setup. Use these instead of driving the login form in non-auth tests.
+
+### Testing Conventions
+- **E2E test helpers** (`e2e/helpers.ts`) provide `loginViaAPI()`, `registerUserViaAPI()`, and `clearAuth()` to bypass UI for test setup. Use these instead of driving the login form in non-auth tests.
+- Tests run sequentially (`workers: 1`, `fullyParallel: false`) against Chromium only.

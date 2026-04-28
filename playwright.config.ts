@@ -39,5 +39,11 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30000,
     },
+    {
+      command: 'npm run dev:analyzer',
+      url: 'http://localhost:5202',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
   ],
 });
