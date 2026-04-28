@@ -93,7 +93,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) {
-      setError('Please enter a Zillow URL.');
+      setError('Please enter a property address or URL.');
       return;
     }
 
@@ -163,7 +163,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
               <input
                 type="text"
                 className="analyzer__url-input"
-                placeholder="https://www.zillow.com/homedetails/..."
+                placeholder="Enter an address or paste a link from Zillow, Redfin, Realtor.com, or Trulia"
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAnalyze()}

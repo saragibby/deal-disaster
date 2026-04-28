@@ -14,11 +14,11 @@ test.describe('Property Analyzer', () => {
     await expect(page.locator('.page-title', { hasText: 'Property Analyzer' })).toBeVisible({ timeout: 15000 });
   });
 
-  test('shows URL input field with Zillow placeholder', async ({ page }) => {
+  test('shows URL input field with property placeholder', async ({ page }) => {
     await expect(page.locator('.page-title')).toBeVisible({ timeout: 15000 });
     const input = page.locator('.analyzer__url-input');
     await expect(input).toBeVisible();
-    await expect(input).toHaveAttribute('placeholder', /zillow\.com/i);
+    await expect(input).toHaveAttribute('placeholder', /address.*link|link.*address/i);
   });
 
   test('shows analyze button', async ({ page }) => {
@@ -32,6 +32,13 @@ test.describe('Property Analyzer', () => {
     await expect(page.locator('.analyzer__tab', { hasText: 'Analyze' })).toBeVisible();
     await expect(page.locator('.analyzer__tab', { hasText: 'History' })).toBeVisible();
     await expect(page.locator('.analyzer__tab', { hasText: 'Compare' })).toBeVisible();
+  });
+
+  test('disables analyze button when input is empty', async ({ page }) => {
+    await expect(page.locator('.page-title')).toBeVisible({ timeout: 15000 });
+    const input = page.locator('.analyzer__url-input');
+    await input.fill('');
+    await expect(page.locator('.analyzer__submit-btn')).toBeDisabled();
   });
 
   test('shows error for invalid URL', async ({ page }) => {

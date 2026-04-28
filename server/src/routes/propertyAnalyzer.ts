@@ -17,6 +17,7 @@ import { Router, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
 import * as propertyDataService from '../services/propertyDataService.js';
+import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
 import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
@@ -84,11 +85,11 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
   try {
     const { url, params: userParams } = req.body;
     if (!url) {
-      return res.status(400).json({ error: 'A Zillow URL is required.' });
+      return res.status(400).json({ error: 'Please enter a property address or URL.' });
     }
 
-    const zpid = propertyDataService.parseZillowUrl(url);
-    const property = await propertyDataService.getPropertyByZpid(zpid);
+    const { property, source, sourceUrl } = await resolvePropertyInput(url);
+    const zpid = property.zpid || '';
 
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
@@ -201,7 +202,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
     let comparables: ComparableProperty[] = [];
     try {
-      const rawComps = await propertyDataService.getSimilarProperties(zpid);
+      const rawComps = zpid ? await propertyDataService.getSimilarProperties(zpid) : [];
 
       // Geocode all addresses (subject + comps) before enrichment
       // so lat/lng are available for per-comp estimation
@@ -247,11 +248,13 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     const slug = generatePropertySlug(property.address, property.zip);
     const insertResult = await pool.query(
       `INSERT INTO property_analyses
-        (user_id, slug, zillow_url, zpid, property_data, analysis_params, analysis_results, rental_comps)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (user_id, slug, zillow_url, zpid, source_url, source_type, property_data, analysis_params, analysis_results, rental_comps)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (user_id, slug) DO UPDATE SET
         zillow_url       = EXCLUDED.zillow_url,
         zpid             = EXCLUDED.zpid,
+        source_url       = EXCLUDED.source_url,
+        source_type      = EXCLUDED.source_type,
         property_data    = EXCLUDED.property_data,
         analysis_params  = EXCLUDED.analysis_params,
         analysis_results = EXCLUDED.analysis_results,
@@ -261,8 +264,10 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       [
         req.userId,
         slug,
-        url,
+        sourceUrl || url,
         zpid,
+        sourceUrl || url,
+        source,
         JSON.stringify(property),
         JSON.stringify(params),
         JSON.stringify(results),
@@ -274,8 +279,10 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 
     res.json({
       slug: saved.slug,
-      zillow_url: url,
+      zillow_url: sourceUrl || url,
       zpid,
+      source_url: sourceUrl || url,
+      source_type: source,
       property_data: property,
       analysis_params: params,
       analysis_results: results,
@@ -473,6 +480,8 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       slug: saved.slug,
       zillow_url: row.zillow_url,
       zpid: row.zpid,
+      source_url: row.source_url || row.zillow_url,
+      source_type: row.source_type || 'zillow',
       property_data: property,
       analysis_params: newParams,
       analysis_results: results,

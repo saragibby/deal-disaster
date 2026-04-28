@@ -105,12 +105,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
   const handleAddUrl = useCallback(async () => {
     const trimmed = url.trim();
     if (!trimmed) {
-      setUrlError('Please enter a Zillow URL.');
-      return;
-    }
-
-    if (!trimmed.includes('zillow.com')) {
-      setUrlError('Please enter a valid Zillow URL.');
+      setUrlError('Please enter a property address or URL.');
       return;
     }
 
@@ -235,13 +230,13 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
           <Plus size={18} /> Add Property by URL
         </h3>
         <p className="comparison-selector__section-desc">
-          Paste a Zillow listing URL to analyze and add it to your comparison
+          Paste a property URL or address to analyze and add it to your comparison
         </p>
         <div className="comparison-selector__url-row">
           <input
             type="text"
             className="analyzer__url-input"
-            placeholder="https://www.zillow.com/homedetails/..."
+            placeholder="Enter an address or paste a link"
             value={url}
             onChange={e => { setUrl(e.target.value); setUrlError(null); }}
             onKeyDown={e => e.key === 'Enter' && handleAddUrl()}

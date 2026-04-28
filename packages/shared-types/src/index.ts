@@ -487,6 +487,8 @@ export interface PropertyAnalysis {
   user_id: number;
   zillow_url: string;
   zpid?: string;
+  source_url?: string;
+  source_type?: 'zillow' | 'redfin' | 'realtor' | 'trulia' | 'address';
   property_data: PropertyData;
   analysis_params: AnalysisParams;
   analysis_results: FullAnalysisResult;
