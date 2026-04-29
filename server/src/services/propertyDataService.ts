@@ -117,7 +117,7 @@ export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
 
   // Enrich with area market data (DB-cached, shared across users, weekly refresh)
   if ((!property.rentalMarketTrends || !property.housingMarket) && property.city && property.state) {
-    const areaData = await getAreaMarketData(property.city, property.state);
+    const areaData = await getAreaMarketData(property.city, property.state, property.zip);
     if (!property.rentalMarketTrends) property.rentalMarketTrends = areaData.rentalMarket;
     if (!property.housingMarket) property.housingMarket = areaData.housingMarket;
   }
@@ -207,7 +207,7 @@ export async function getPropertyByAddress(
 
   // Enrich with area market data (DB-cached, shared across users, weekly refresh)
   if ((!property.rentalMarketTrends || !property.housingMarket) && property.city && property.state) {
-    const areaData = await getAreaMarketData(property.city, property.state);
+    const areaData = await getAreaMarketData(property.city, property.state, property.zip);
     if (!property.rentalMarketTrends) property.rentalMarketTrends = areaData.rentalMarket;
     if (!property.housingMarket) property.housingMarket = areaData.housingMarket;
   }

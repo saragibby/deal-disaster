@@ -119,12 +119,22 @@ async function fetchHousingMarketFromApi(searchQuery: string): Promise<HousingMa
     const host = RAPIDAPI_HOST();
     const url = `https://${host}/housing_market?search_query=${encodeURIComponent(searchQuery)}`;
     const res = await fetch(url, { headers: rapidHeaders() });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[areaMarketService] housing_market HTTP ${res.status} for "${searchQuery}"`);
+      return null;
+    }
 
     const data = await res.json() as any;
+
+    // API returns 200 with error messages for unknown regions
+    if (data.message && data.message.toLowerCase().includes('error')) {
+      console.warn(`[areaMarketService] housing_market API error for "${searchQuery}": ${data.message}`);
+      return null;
+    }
+
     const overview = data.market_overview;
     const analytics = data.market_analytics;
-    if (!overview) return null;
+    if (!overview || Object.keys(overview).length === 0) return null;
 
     const zhviTimeSeries: Array<{ date: string; value: number }> = [];
     if (Array.isArray(analytics?.zhviRange)) {
@@ -162,9 +172,19 @@ async function fetchRentalMarketFromApi(searchQuery: string): Promise<RentalMark
     const host = RAPIDAPI_HOST();
     const url = `https://${host}/rental_market?search_query=${encodeURIComponent(searchQuery)}`;
     const res = await fetch(url, { headers: rapidHeaders() });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[areaMarketService] rental_market HTTP ${res.status} for "${searchQuery}"`);
+      return null;
+    }
 
     const data = await res.json() as any;
+
+    // API returns 200 with error messages for unknown regions
+    if (data.message && data.message.toLowerCase().includes('error')) {
+      console.warn(`[areaMarketService] rental_market API error for "${searchQuery}": ${data.message}`);
+      return null;
+    }
+
     const trends = data.rental_market_trends;
     if (!trends?.summary) return null;
 
@@ -216,7 +236,7 @@ export interface AreaMarketData {
  * New API results are inserted as a new row (snapshot) so historical
  * data accumulates for long-term analysis.
  */
-export async function getAreaMarketData(city: string, state: string): Promise<AreaMarketData> {
+export async function getAreaMarketData(city: string, state: string, zip?: string): Promise<AreaMarketData> {
   const areaKey = normalizeAreaKey(city, state);
   const searchQuery = `${city} ${state}`;
 
@@ -238,10 +258,18 @@ export async function getAreaMarketData(city: string, state: string): Promise<Ar
     }
 
     // 3. Stale or missing — fetch fresh from API (both in parallel)
-    const [housing, rental] = await Promise.all([
+    let [housing, rental] = await Promise.all([
       fetchHousingMarketFromApi(searchQuery),
       fetchRentalMarketFromApi(searchQuery),
     ]);
+
+    // 3b. If city+state failed and we have a ZIP, retry with ZIP as search query
+    if (!housing && !rental && zip) {
+      [housing, rental] = await Promise.all([
+        fetchHousingMarketFromApi(zip),
+        fetchRentalMarketFromApi(zip),
+      ]);
+    }
 
     // Persist as new snapshot row
     const areaName = housing?.areaName || rental?.areaName || searchQuery;
@@ -258,10 +286,16 @@ export async function getAreaMarketData(city: string, state: string): Promise<Ar
   } catch (err) {
     // DB unavailable — fall through to direct API call
     console.warn(`[areaMarketService] DB error, falling back to API:`, (err as Error).message);
-    const [housing, rental] = await Promise.all([
+    let [housing, rental] = await Promise.all([
       fetchHousingMarketFromApi(searchQuery),
       fetchRentalMarketFromApi(searchQuery),
     ]);
+    if (!housing && !rental && zip) {
+      [housing, rental] = await Promise.all([
+        fetchHousingMarketFromApi(zip),
+        fetchRentalMarketFromApi(zip),
+      ]);
+    }
     return {
       housingMarket: housing ?? undefined,
       rentalMarket: rental ?? undefined,
