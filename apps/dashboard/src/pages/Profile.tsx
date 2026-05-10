@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import type { UserStats } from '@deal-platform/shared-types';
 import { useTheme } from '../contexts/ThemeContext';
-import { User, Mail, Trophy, Flame, Target, TrendingUp, Sun, Moon, Settings, Bell, Shield, Pencil, Check, X, Lock } from 'lucide-react';
+import { User, Mail, Trophy, Flame, Target, TrendingUp, Sun, Moon, Settings, Bell, Shield, Pencil, Check, X, Lock, BrainCircuit, FileText } from 'lucide-react';
 
 export default function Profile() {
   const { isAuthenticated, user, updateUser, loading } = useAuth();
@@ -14,6 +14,9 @@ export default function Profile() {
   const [nameValue, setNameValue] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState('');
+  const [aiInsightsOptIn, setAiInsightsOptIn] = useState(false);
+  const [weeklyInsightsOptIn, setWeeklyInsightsOptIn] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
 
   const isEmailUser = !user?.oauth_provider || user.oauth_provider === 'email';
 
@@ -24,6 +27,10 @@ export default function Profile() {
       return;
     }
     api.getUserStats().then(setStats).catch(console.error);
+    api.getUserProfile().then((data: any) => {
+      setAiInsightsOptIn(data.user?.ai_insights_email_opt_in || false);
+      setWeeklyInsightsOptIn(data.user?.weekly_insights_email_opt_in || false);
+    }).catch(console.error);
   }, [isAuthenticated, loading, navigate]);
 
   if (loading || !user) return null;
@@ -55,6 +62,40 @@ export default function Profile() {
       setNameError(err.message || 'Failed to save');
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const handleToggleAiInsights = async () => {
+    const newValue = !aiInsightsOptIn;
+    setAiInsightsOptIn(newValue);
+    setNotifSaving(true);
+    try {
+      await api.updateProfile({
+        username: user.username || user.name?.replace(/\s+/g, '_').toLowerCase() || 'user',
+        ai_insights_email_opt_in: newValue,
+      });
+      updateUser({ ...user, ai_insights_email_opt_in: newValue });
+    } catch {
+      setAiInsightsOptIn(!newValue);
+    } finally {
+      setNotifSaving(false);
+    }
+  };
+
+  const handleToggleWeeklyInsights = async () => {
+    const newValue = !weeklyInsightsOptIn;
+    setWeeklyInsightsOptIn(newValue);
+    setNotifSaving(true);
+    try {
+      await api.updateProfile({
+        username: user.username || user.name?.replace(/\s+/g, '_').toLowerCase() || 'user',
+        weekly_insights_email_opt_in: newValue,
+      });
+      updateUser({ ...user, weekly_insights_email_opt_in: newValue });
+    } catch {
+      setWeeklyInsightsOptIn(!newValue);
+    } finally {
+      setNotifSaving(false);
     }
   };
 
@@ -184,16 +225,49 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="settings-group settings-group--disabled">
+        <div className="settings-group">
           <h3 className="settings-group__title">Notifications</h3>
           <div className="settings-row">
             <div className="settings-row__label">
-              <Bell size={18} />
+              <BrainCircuit size={18} />
               <div>
-                <span className="settings-row__name">Email Notifications</span>
-                <span className="settings-row__desc">Coming soon</span>
+                <span className="settings-row__name">AI Insights Email</span>
+                <span className="settings-row__desc">Receive AI-powered market insights and property analysis tips</span>
               </div>
             </div>
+            <button
+              className={`theme-toggle ${aiInsightsOptIn ? 'theme-toggle--light' : ''}`}
+              onClick={handleToggleAiInsights}
+              disabled={notifSaving}
+              aria-label={`${aiInsightsOptIn ? 'Disable' : 'Enable'} AI insights email`}
+            >
+              <span className="theme-toggle__track">
+                <Bell size={12} className="theme-toggle__icon theme-toggle__icon--light" />
+                <X size={12} className="theme-toggle__icon theme-toggle__icon--dark" />
+                <span className="theme-toggle__thumb" />
+              </span>
+            </button>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__label">
+              <FileText size={18} />
+              <div>
+                <span className="settings-row__name">Weekly Tax Insights</span>
+                <span className="settings-row__desc">Receive weekly tax tips and insights from TaxDedux</span>
+              </div>
+            </div>
+            <button
+              className={`theme-toggle ${weeklyInsightsOptIn ? 'theme-toggle--light' : ''}`}
+              onClick={handleToggleWeeklyInsights}
+              disabled={notifSaving}
+              aria-label={`${weeklyInsightsOptIn ? 'Disable' : 'Enable'} weekly tax insights email`}
+            >
+              <span className="theme-toggle__track">
+                <Bell size={12} className="theme-toggle__icon theme-toggle__icon--light" />
+                <X size={12} className="theme-toggle__icon theme-toggle__icon--dark" />
+                <span className="theme-toggle__thumb" />
+              </span>
+            </button>
           </div>
         </div>
 
