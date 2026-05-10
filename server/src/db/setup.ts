@@ -17,8 +17,6 @@ export async function setupDatabase() {
         phone_number VARCHAR(20),
         sms_opt_in BOOLEAN DEFAULT FALSE,
         email_newsletter_opt_in BOOLEAN DEFAULT FALSE,
-        ai_insights_email_opt_in BOOLEAN DEFAULT FALSE,
-        weekly_insights_email_opt_in BOOLEAN DEFAULT FALSE,
         email_verified BOOLEAN DEFAULT FALSE,
         verification_token VARCHAR(255),
         verification_token_expires TIMESTAMP,

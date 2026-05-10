@@ -85,8 +85,6 @@ export interface User {
   is_admin?: boolean;
   onboarding_completed?: boolean;
   oauth_provider?: string;
-  ai_insights_email_opt_in?: boolean;
-  weekly_insights_email_opt_in?: boolean;
 }
 
 export interface AuthState {

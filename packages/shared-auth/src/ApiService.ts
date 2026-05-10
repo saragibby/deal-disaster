@@ -123,7 +123,7 @@ export class ApiService {
     return response.json();
   }
 
-  async updateProfile(data: { name?: string; username?: string; phone_number?: string; sms_opt_in?: boolean; email_newsletter_opt_in?: boolean; ai_insights_email_opt_in?: boolean; weekly_insights_email_opt_in?: boolean }) {
+  async updateProfile(data: { name?: string; username?: string; phone_number?: string; sms_opt_in?: boolean; email_newsletter_opt_in?: boolean }) {
     const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
       method: 'PUT',
       headers: this.getHeaders(true),

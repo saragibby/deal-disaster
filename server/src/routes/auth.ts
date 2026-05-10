@@ -439,7 +439,7 @@ router.get('/user', authenticateToken, async (req: AuthRequest, res: Response) =
 router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, ai_insights_email_opt_in, weekly_insights_email_opt_in, oauth_provider, is_admin FROM users WHERE id = $1',
+      'SELECT id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, is_admin FROM users WHERE id = $1',
       [req.userId]
     );
 
@@ -457,7 +457,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res: Response
 // Update user profile settings
 router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, username, phone_number, sms_opt_in, email_newsletter_opt_in, ai_insights_email_opt_in, weekly_insights_email_opt_in } = req.body;
+    const { name, username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
 
     // Validate username is required
     if (!username || username.trim() === '') {
@@ -509,12 +509,10 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
            phone_number = $3, 
            sms_opt_in = $4, 
            email_newsletter_opt_in = $5,
-           ai_insights_email_opt_in = $6,
-           weekly_insights_email_opt_in = $7,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8 
-       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, ai_insights_email_opt_in, weekly_insights_email_opt_in, oauth_provider`,
-      [nameUpdate, username || null, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, ai_insights_email_opt_in || false, weekly_insights_email_opt_in || false, req.userId]
+       WHERE id = $6 
+       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider`,
+      [nameUpdate, username || null, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
     );
 
     if (result.rows.length === 0) {
@@ -531,7 +529,7 @@ router.put('/profile', authenticateToken, async (req: AuthRequest, res: Response
 // Complete onboarding
 router.post('/complete-onboarding', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, phone_number, sms_opt_in, email_newsletter_opt_in, ai_insights_email_opt_in, weekly_insights_email_opt_in } = req.body;
+    const { username, phone_number, sms_opt_in, email_newsletter_opt_in } = req.body;
 
     // Validate username is required
     if (!username || username.trim() === '') {
@@ -570,13 +568,11 @@ router.post('/complete-onboarding', authenticateToken, async (req: AuthRequest, 
            phone_number = $2,
            sms_opt_in = $3,
            email_newsletter_opt_in = $4,
-           ai_insights_email_opt_in = $5,
-           weekly_insights_email_opt_in = $6,
            onboarding_completed = TRUE,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
-       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, ai_insights_email_opt_in, weekly_insights_email_opt_in, oauth_provider, onboarding_completed`,
-      [username, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, ai_insights_email_opt_in || false, weekly_insights_email_opt_in || false, req.userId]
+       WHERE id = $5
+       RETURNING id, email, name, username, avatar, phone_number, sms_opt_in, email_newsletter_opt_in, oauth_provider, onboarding_completed`,
+      [username, phone_number || null, sms_opt_in || false, email_newsletter_opt_in || false, req.userId]
     );
 
     if (result.rows.length === 0) {
