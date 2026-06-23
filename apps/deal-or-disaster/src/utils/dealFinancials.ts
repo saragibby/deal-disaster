@@ -83,6 +83,17 @@ export function classifyRoi(roi: number): DealClassification {
 }
 
 /**
+ * The model's verdict on whether buying a case is the financially correct call.
+ * A deal is "buy-worthy" exactly when the model classifies it GOOD (ROI at/above
+ * `GOOD_ROI_THRESHOLD`). This is the single source of truth for decision scoring
+ * — never the authored `isGoodDeal` flag, which can drift from the real
+ * economics of a specific case. Mirrors the "trueGood" test in `archetypes.ts`.
+ */
+export function dealIsBuyWorthy(deal: DealFinancials): boolean {
+  return deal.classification === 'GOOD';
+}
+
+/**
  * Whether the player has uncovered the property's redemption-period risk. The
  * redemption carrying cost only hits the live (discovery-gated) P&L once a
  * redemption-related document has actually been inspected.

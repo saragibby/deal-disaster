@@ -1234,6 +1234,92 @@ body {
   }
 }
 
+/* Sticky context bar — appears on scroll, keeps property/score/time visible */
+.game-sticky-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  color: var(--text-light);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid var(--border);
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.game-sticky-bar.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.game-sticky-bar__address {
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.game-sticky-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.game-sticky-bar__score {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.game-sticky-bar__timer {
+  font-size: 1.05rem;
+  font-weight: 800;
+  background: var(--primary);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 50px;
+  white-space: nowrap;
+}
+
+.game-sticky-bar__timer.urgent {
+  background: var(--danger);
+  animation: pulse 1s infinite;
+}
+
+@media (max-width: 640px) {
+  .game-sticky-bar {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .game-sticky-bar__address {
+    font-size: 0.9rem;
+  }
+  .game-sticky-bar__meta {
+    gap: 8px;
+  }
+  .game-sticky-bar__score {
+    font-size: 0.85rem;
+  }
+  .game-sticky-bar__timer {
+    font-size: 0.9rem;
+    padding: 5px 12px;
+  }
+}
+
 /* Value Grid */
 .value-grid {
   display: grid;

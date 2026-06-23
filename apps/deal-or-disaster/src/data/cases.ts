@@ -86,6 +86,14 @@ export const propertyCases: PropertyCase[] = [
         costLow: 35000,
         costHigh: 35000,
         impact: 'Active $35,000 judgment lien you must clear'
+      },
+      {
+        id: 'rf-001-4',
+        description: 'Garage is crammed with the previous owner\'s abandoned home-gym gear and a sad deflated hot tub. Looks like a nightmare, but it\'s a single dumpster haul.',
+        severity: 'red-herring',
+        hiddenIn: 'Listing Photos',
+        discovered: false,
+        impact: 'No material cost — one junk-haul day clears it out'
       }
     ]
   },
@@ -171,6 +179,24 @@ export const propertyCases: PropertyCase[] = [
         costLow: 3000,
         costHigh: 5000,
         impact: 'If passed to owners, ~$3,000–$5,000 per unit'
+      },
+      {
+        id: 'rf-002-5',
+        description: 'Seller pre-paid this year\'s HOA dues and left a transferable 2-year warranty on last year\'s new water heater and HVAC — both convey to you at closing.',
+        severity: 'low',
+        hiddenIn: 'Closing Disclosure',
+        discovered: false,
+        costLow: -3500,
+        costHigh: -2500,
+        impact: 'Prepaid dues + transferable warranty save you ~$2,500–$3,500'
+      },
+      {
+        id: 'rf-002-6',
+        description: 'HOA newsletter has a bold red warning about "unauthorized garden gnomes." The prior owner left a small army of them on the patio. Purely cosmetic.',
+        severity: 'red-herring',
+        hiddenIn: 'HOA Newsletter',
+        discovered: false,
+        impact: 'No material cost — just relocate the gnomes'
       }
     ]
   },
@@ -190,9 +216,9 @@ export const propertyCases: PropertyCase[] = [
     occupancyStatus: 'occupied',
     hoaFees: 425,
     propertyType: 'Condo',
-    beds: 5,
-    baths: 3,
-    sqft: 2650,
+    beds: 3,
+    baths: 2.5,
+    sqft: 1950,
     yearBuilt: 2012,
     description: 'Luxury high-rise condo with breathtaking views and some equally breathtaking "settling" cracks that the listing agent insists are "totally normal for a 13-year-old building." Previous owner installed a wine room because nothing says "sound investment" like custom shelving in a building with visible structural issues. The master suite features floor-to-ceiling windows perfect for watching your equity drain away. Marble floors throughout have a fun slight slope toward the northeast corner - makes for interesting dinner parties when wine glasses slowly migrate across the table!',
     photos: ['🏙️ View', '💎 Master suite', '🍽️ Dining', '⛰️ Balcony'],
@@ -435,6 +461,24 @@ export const propertyCases: PropertyCase[] = [
         hiddenIn: 'Title Easements',
         discovered: false,
         impact: 'Utility easement limits landscaping'
+      },
+      {
+        id: 'rf-005-5',
+        description: 'The roof was fully replaced six months ago (that\'s what the mechanics lien paid for) and carries a transferable 10-year materials warranty — no roof spend for you near-term.',
+        severity: 'low',
+        hiddenIn: 'Contractor Warranty Docs',
+        discovered: false,
+        costLow: -6000,
+        costHigh: -4000,
+        impact: 'Transferable new-roof warranty saves ~$4,000–$6,000 near-term'
+      },
+      {
+        id: 'rf-005-6',
+        description: 'Pool pump screeches like a banshee and the listing wails that the "pool needs work." A tech confirms it just needs a $120 capacitor and a filter clean.',
+        severity: 'red-herring',
+        hiddenIn: 'Seller Disclosure',
+        discovered: false,
+        impact: 'No material cost — cheap pump capacitor fix'
       }
     ]
   },
@@ -522,6 +566,14 @@ export const propertyCases: PropertyCase[] = [
         hiddenIn: 'Title Search - Federal Liens',
         discovered: false,
         impact: 'IRS lien survives — $47,500 inherited'
+      },
+      {
+        id: 'rf-006-5',
+        description: 'Backyard shed is full of mysterious unlabeled buckets that look ominous. Lab results: just old pool chlorine and dried-up paint. Spooky, not toxic.',
+        severity: 'red-herring',
+        hiddenIn: 'Environmental Report',
+        discovered: false,
+        impact: 'No material cost — ordinary household chemicals'
       }
     ]
   },
@@ -597,6 +649,16 @@ export const propertyCases: PropertyCase[] = [
         hiddenIn: 'HOA Violation Records',
         discovered: false,
         impact: 'Prior party-rental noise complaints on file'
+      },
+      {
+        id: 'rf-007-4',
+        description: 'The unit qualifies for the city\'s first-time landlord energy rebate and the seller already installed the qualifying smart thermostat and LED retrofit — the rebate transfers to you.',
+        severity: 'low',
+        hiddenIn: 'City Rebate Program Docs',
+        discovered: false,
+        costLow: -2500,
+        costHigh: -1500,
+        impact: 'Transferable energy rebate puts ~$1,500–$2,500 back in your pocket'
       }
     ]
   },
@@ -699,6 +761,14 @@ export const propertyCases: PropertyCase[] = [
         hiddenIn: 'Court Records',
         discovered: false,
         impact: 'Ongoing custody disputes may bring further claims'
+      },
+      {
+        id: 'rf-008-5',
+        description: 'The backyard basketball court has a dramatic crack down the middle that looks expensive. It\'s surface-level asphalt cracking — a weekend of crack-filler and paint, not a structural issue.',
+        severity: 'red-herring',
+        hiddenIn: 'Drive-By Inspection',
+        discovered: false,
+        impact: 'No material cost — cosmetic court crack-fill'
       }
     ]
   },

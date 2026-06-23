@@ -259,7 +259,7 @@ export class ForeclosureScenarioGenerator {
       // Remove any emoji from the description if present
       const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
       
-      return `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${propertyType} in ${location}, built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}${conditionContext}Professional MLS listing photo, natural daylight, high-resolution camera. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
+      return `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${scenario.beds}-bedroom, ${scenario.baths}-bathroom ${propertyType} of about ${scenario.sqft.toLocaleString()} square feet in ${location}, built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}${conditionContext}Professional MLS listing photo, natural daylight, high-resolution camera. The home's size, room proportions and architectural style should match a ${scenario.sqft.toLocaleString()} sq ft ${propertyType}. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
     });
 
     const imageUrls: string[] = [];
@@ -354,10 +354,10 @@ Required JSON structure:
   "zipCode": "5-digit zip code",
   "propertyType": "VARY THIS across scenarios. Choose ONE that fits the story from: Single Family Home, Condo, Townhouse, Multi-Family, Duplex, Manufactured/Mobile Home, Bungalow, Ranch, Cottage, Cabin, or Loft",
   "auctionType": "the listing category for this property - VARY THIS across scenarios for realism. Choose ONE that best fits the situation from EXACTLY these values: 'Bank Owned', '2nd Chance Foreclosure', 'Short Sale', 'Foreclosure Homes', 'Non-Bank Owned'. Do not always pick the same one.",
-  "beds": number of bedrooms (1-5),
-  "baths": number of bathrooms (1-4),
-  "sqft": square footage (800-4000),
-  "yearBuilt": year built (1950-2020),
+  "beds": number of bedrooms — realistic for the propertyType and value. Condo / Loft / Cottage / Cabin / Bungalow: 1-3; Townhouse / Duplex / Ranch: 2-4; Single Family Home: 3-5; Multi-Family: 4-8 total. Higher-value homes in the same area generally have more beds.,
+  "baths": number of bathrooms in 0.5 steps — typically between beds-1 and beds+0.5 (never more than beds+1). A 3-bed home is usually 1.5-3 baths.,
+  "sqft": square footage — MUST be consistent with beds, propertyType and value: roughly 350-700 sqft per bedroom. Condos, Cabins, Cottages and Manufactured/Mobile homes stay compact (rarely above ~1,800-2,000 sqft); Single-Family and Multi-Family run larger. Keep price-per-sqft believable for the city/state market (estimatedValue ÷ sqft should land roughly $120-$600 per sqft depending on the metro).,
+  "yearBuilt": year built (1900-2024) — plausible for the propertyType and story. Lofts are often converted older buildings (1900-1960); new subdivisions are 2000+. If red flags mention asbestos, lead paint, knob-and-tube wiring or dated systems, lean older.,
   "auctionPrice": auction price in dollars,
   "estimatedValue": estimated market value in dollars,
   "estimatedRepairs": estimated repair costs in dollars (use the midpoint of the range),
@@ -398,7 +398,8 @@ Required JSON structure:
       "correctChoice": 1,
       "answerExplanation": "Unrecorded easements create title clouds that must be cleared before selling. A title attorney will need to draft proper documentation and get all parties to sign, typically costing $2K-$4K. This is a common oversight in older properties."
     },
-    ... generate ${difficulty === 'hard' ? '3-4 diverse, interconnected issues + 1-2 red herrings' : difficulty === 'medium' ? '2-3 varied issues + 1 red herring' : '2 straightforward issues + 0-1 red herring'} with this SAME structure
+    ... generate ${difficulty === 'hard' ? '3-4 diverse, interconnected issues + 1-2 red herrings' : difficulty === 'medium' ? '2-3 varied issues + 1 red herring' : '2 straightforward issues + 0-1 red herring'} with this SAME structure.
+    ALSO: every scenario MUST include at least ONE no-impact red-herring (severity 'red-herring', costLow/costHigh 0), and for roughly HALF of scenarios include exactly ONE "money-saver" item — a transferable home warranty, an assumable seller credit, a paid-off / forgiven balance, or a tax abatement — modeled as a NEGATIVE cost (e.g. costLow:-3500, costHigh:-2500) so it LOWERS the buyer's total investment. A money-saver uses a normal severity ('low' or 'medium'), NEVER 'red-herring', and its impact text should describe the savings (e.g. 'Transferable 2-year warranty saves ~$2,500-$3,500 in near-term repairs').
   ],
   
   EACH RED FLAG MUST HAVE ALL THESE FIELDS:
@@ -415,9 +416,9 @@ Required JSON structure:
         - Miscellaneous: Fire damage, water damage, pest infestation (termites, bedbugs), vandalism, stripped property
         
         For ${difficulty} difficulty: 
-        - Easy: 2 issues + 0-1 red herring
-        - Medium: 2-3 issues + 1 red herring  
-        - Hard: 3-4 issues + 1-2 red herrings
+        - Easy: 2 issues + 1 red herring (+ optionally 1 money-saver)
+        - Medium: 2-3 issues + 1 red herring (+ sometimes 1 money-saver)
+        - Hard: 3-4 issues + 1-2 red herrings (+ sometimes 1 money-saver)
         
         OUTPUT FORMAT: Just the category name (e.g., 'Structural', 'Environmental', 'Title')",
       "description": "Tell a mini-story about this issue! Not just 'foundation problems' but 'Previous owner's DIY basement expansion undermined the foundation, causing a 3-inch crack from floor to ceiling that neighbors say has been growing for two years'",
@@ -449,8 +450,8 @@ Required JSON structure:
         CRITICAL: Use DIFFERENT dollar ranges than what appears in your answer choices below! If choice B says '$12k-$20k', the impact should say something like '$10,000-$25,000' or '$8,000-$15,000' to avoid giving away the answer.
         
         DO NOT include words like 'Hint', 'Impact', 'Estimated', etc. - just the dollar amount and explanation.",
-      "costLow": REQUIRED numeric low-end remediation cost in dollars matching the impact range (e.g. 2000). Use 0 for a red-herring. DO NOT count costs that are already represented as a survivable lien below (set 0 to avoid double-counting).,
-      "costHigh": REQUIRED numeric high-end remediation cost in dollars matching the impact range (e.g. 4000). Use 0 for a red-herring.,
+      "costLow": REQUIRED numeric low-end remediation cost in dollars matching the impact range (e.g. 2000). Use 0 for a red-herring. Use a NEGATIVE number for a money-saver credit/warranty/abatement (e.g. -3500). DO NOT count costs that are already represented as a survivable lien below (set 0 to avoid double-counting).,
+      "costHigh": REQUIRED numeric high-end remediation cost in dollars matching the impact range (e.g. 4000). Use 0 for a red-herring. Use a NEGATIVE number for a money-saver (e.g. -2500, where costHigh is the smaller saving).,
       "question": "Create a multiple choice question testing understanding of THIS specific issue. Examples:
         - For liens: 'This IRS tax lien will...' or 'The mechanics lien from ABC Roofing means...'
         - For structural: 'The foundation crack repair will likely cost...' or 'This structural issue affects the property value by...'
@@ -491,7 +492,8 @@ CRITICAL REQUIREMENTS:
 14. Make each property feel unique with its own character and problems
 15. Remember: A well-maintained property can still be a terrible deal due to liens, title issues, or market factors!
 16. SENIOR vs JUNIOR: junior liens (2nd mortgage, HELOC, most judgments) are WIPED at sale, while super-priority liens (property/IRS tax, HOA super-lien, mechanics, code enforcement, environmental, child support) SURVIVE and the buyer inherits them. Set survivesForeclosure accordingly and teach this nuance in at least one quiz.
-17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in isGoodDeal.`;
+17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in isGoodDeal.
+18. REALISTIC DIMENSIONS: beds, baths, sqft and yearBuilt must be internally consistent and believable for the propertyType, the city/state market, and the estimatedValue (see the field notes above). No 5-bedroom condos, no 4,000 sqft cabins, no 600 sqft homes worth $600k — sanity-check beds ↔ baths ↔ sqft ↔ value before returning.`;
   }
 
   /**
@@ -625,6 +627,28 @@ CRITICAL REQUIREMENTS:
       throw new Error(`Invalid scenario: yearBuilt must be an integer 1800-${currentYear + 1} (got ${scenario.yearBuilt})`);
     }
 
+    // Coherence safety net: the prompt is the primary driver of realistic
+    // dimensions, but nudge any off-model values back into a believable shape so
+    // a "5-bed / 2,650 sqft condo" can never slip through. We clamp rather than
+    // reject to avoid wasting a generation.
+    const typeKey = (scenario.propertyType || '').toLowerCase();
+    const isCompactType =
+      typeKey === 'condo' || typeKey === 'loft' || typeKey === 'cabin' ||
+      typeKey === 'cottage' || typeKey.includes('mobile') || typeKey.includes('manufactured');
+    // Compact property types rarely have 4+ bedrooms.
+    if (isCompactType && scenario.beds > 3) {
+      scenario.beds = 3;
+    }
+    // Baths rarely exceed beds + 1 in real listings.
+    if (scenario.baths > scenario.beds + 1) {
+      scenario.baths = scenario.beds + 1;
+    }
+    // Square footage should track bedroom count (~350-750 sqft per bed), with a
+    // tighter ceiling for compact property types.
+    const minSqft = scenario.beds * 350;
+    const maxSqft = Math.min(scenario.beds * 750, isCompactType ? 2000 : Number.POSITIVE_INFINITY);
+    scenario.sqft = Math.round(Math.min(Math.max(scenario.sqft, minSqft), maxSqft) / 10) * 10;
+
     // Core financials must be positive, finite numbers.
     const positiveNumber = (value: unknown): boolean =>
       typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -667,13 +691,29 @@ CRITICAL REQUIREMENTS:
       }
     }
 
-    // Validate/normalize each red flag's remediation cost.
+    // Validate/normalize each red flag's remediation cost. Costs are normally
+    // positive (money you spend), but a money-saver (transferable warranty,
+    // assumable credit, paid-off balance, tax abatement) is modeled as a
+    // NEGATIVE cost that lowers total investment, so negatives are allowed
+    // within a sane floor.
+    const MAX_SAVING = 200000; // largest credit we'll accept, in dollars
     for (const flag of scenario.redFlags) {
-      if (flag.costLow !== undefined && (typeof flag.costLow !== 'number' || !Number.isFinite(flag.costLow) || flag.costLow < 0)) {
+      if (
+        flag.costLow !== undefined &&
+        (typeof flag.costLow !== 'number' || !Number.isFinite(flag.costLow) || flag.costLow < -MAX_SAVING)
+      ) {
         throw new Error(`Invalid scenario: red flag "${flag.type}" has an invalid costLow (${flag.costLow})`);
       }
-      if (flag.costHigh !== undefined && (typeof flag.costHigh !== 'number' || !Number.isFinite(flag.costHigh) || flag.costHigh < 0)) {
+      if (
+        flag.costHigh !== undefined &&
+        (typeof flag.costHigh !== 'number' || !Number.isFinite(flag.costHigh) || flag.costHigh < -MAX_SAVING)
+      ) {
         throw new Error(`Invalid scenario: red flag "${flag.type}" has an invalid costHigh (${flag.costHigh})`);
+      }
+      // A red-herring is purely no-impact; it must never carry a money-saver
+      // value (that would be silently dropped by the red-herring cost filter).
+      if (flag.severity === 'red-herring' && ((flag.costLow ?? 0) < 0 || (flag.costHigh ?? 0) < 0)) {
+        throw new Error(`Invalid scenario: red-herring "${flag.type}" cannot carry a negative (money-saving) cost`);
       }
     }
 

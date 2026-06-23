@@ -78,23 +78,35 @@ biases the prompt, and the validation gate re-derives the honest archetype from 
 economics so the label can never contradict the math. Scheduler picks a random archetype per
 day. (Mirror `alarmScore` kept in sync client/server.)
 
-### 2. Live, discovery-gated running P&L ✅ DONE
+### 2. Live, discovery-gated running P&L ❌ TRIED & REMOVED
 Show a running profit/loss panel during play that only includes costs the player has
 **actually discovered** (use `computeDeal(caseData, { discoveredOnly: true })`). The full
 true economics are revealed in the post-decision breakdown. This teaches that hidden costs
 change the math.
 
-**Shipped:** Sticky `Running P&L` side rail in `CaseDisplay.tsx` (`.running-pnl`), computed
-from `computeDeal(propertyCase, { discoveredOnly: true })`. Line items: resale (ARV), auction,
-repairs, surviving liens, occupancy, inspected issues (with an `X/Y` inspected count),
-redemption carry, closing → running net + ROI (color-coded). Footer note nudges the player to
-pull more documents to sharpen the estimate. Collapses above the case on ≤1024px.
+**Outcome:** Built as a sticky `Running P&L` side rail, then reworked into an interactive
+"scratch pad" (player adds figures via `+ Scratch pad` pills), then **removed entirely** by a
+design decision. The live rail did the player's reasoning for them, and a partial,
+discovery-gated estimate that swings (e.g. +$21k → −$21k once a hidden lien is uncovered) read
+as more confusing than instructive. The case is now a clean single column with **no live money
+tally** — players reason it out and see the full math only in the post-decision Financial
+Analysis. The `computeDeal(..., { discoveredOnly: true })` option still exists in
+`dealFinancials.ts` but is no longer used by any UI.
 
-### 3. Scoring tied to the model, not an answer key
+### 3. Scoring tied to the model, not an answer key ✅ DONE
 Re-derive scoring from `computeDeal()` ROI/classification rather than the stored
 `isGoodDeal` flag, so the points always match the actual economics of the specific case.
 (The validation gate already keeps stored vs. computed consistent, so this is a clean
 follow-up.)
+
+**Shipped:** `dealIsBuyWorthy(deal)` in `dealFinancials.ts` is now the single source of truth
+for decision scoring — a case is buy-worthy exactly when the model classifies it `GOOD`
+(ROI ≥ `GOOD_ROI_THRESHOLD`), mirroring the "trueGood" test already used by `archetypes.ts`.
+`App.tsx` `handleDecision` and the `ResultModal` "Why This Scoring" footer both branch on this
+verdict instead of the authored `isGoodDeal` flag. Verified all 18 static cases score identically
+(0 mismatches, no marginal edge cases), so the change is consistent today and self-correcting if a
+future case's authored flag ever drifts from its real economics. The deprecated, unused
+`ScoringGuideDisplay` was left untouched.
 
 ### 4. "Issues found X of Y" indicator
 Persistent indicator of how many red flags / documents the player has uncovered, to signal
@@ -134,6 +146,57 @@ property facts. Future extensions:
 - Ensure the surviving-lien set implied by `correctDecision` matches the lien data.
 - Add archetype targeting (item 1) so generation produces a balanced mix.
 - Log rejected scenarios for prompt-quality monitoring.
+
+### 9. Single market-value resale anchor ✅ DONE
+Beginners should reason about **one** headline number, not two. The old model used a separate,
+lower `actualValue` (ARV) as the resale price while *also* subtracting repairs/liens —
+effectively double-counting damage and contradicting the on-screen value labels.
+
+**Shipped:** `computeDeal()` now uses `propertyValue` (market value) as the single resale
+anchor; `actualValue` is deprecated (kept only for back-compat, forced equal to `propertyValue`).
+Every cost that sinks a deal is an explicit, inspectable line item (surviving liens, repairs,
+issue costs, occupancy, redemption, closing) — never a hidden lower resale value. All 18 static
+cases were rebalanced so traps lose money through *visible* items; `ResultModal` collapsed its
+two value rows into one "Market Value (Resale)"; and the AI generator + validation gate force
+`actualValue = estimatedValue` so generated cases follow the same one-number model.
+
+### 10. Due-diligence budget + no-impact / money-saver investigation items ✅ DONE
+Investigation should be a real resource decision, and not every finding should be bad news —
+some red flags should be harmless noise and a few should actually *save* the buyer money, so
+players learn to investigate thoughtfully rather than treating every document as a landmine.
+
+**Shipped:**
+- **Budget scales with the case, not a magic number.** `dueDiligenceBudget(itemCount, difficulty)`
+  in `App.tsx` caps inspections at a fraction of the available investigation items —
+  easy = all items, medium ≈ 75%, hard ≈ 50% (min 1, never more than the item count). This
+  replaced the old fixed `{ easy: 4, medium: 3, hard: 2 }` budget. The `CaseDisplay` meter
+  ("Due diligence: X of Y left") and `tryInvestigate()` both read from it.
+- **Money-savers** are modeled as a **negative** `costLow`/`costHigh` on a normal
+  (non-red-herring) flag, so `computeDeal()` nets them straight out of total investment with no
+  special-casing. The server validation now permits negative costs (down to a −$200k floor) and
+  forbids a `red-herring` from carrying a saving. `dealFinancials.ts` ↔ `foreclosureGenerator.ts`
+  stay mirrored.
+- **No-impact items** are `severity: 'red-herring'` flags with no cost; quizzes auto-derive via
+  `quizGenerator.ts`, which gained a money-saver template ("it saves about $X — subtract it from
+  your costs").
+- **UI frames savings as good news**, not issues: `CaseDisplay` shows "💰 Good News:" /
+  "💡 Estimated Savings:" for money-savers and `ResultModal` adds a "Credits & Savings" row when
+  net issue costs are negative.
+- **Generator prompt** now requires ≥1 no-impact red-herring and asks ~half of scenarios to
+  include one transferable-warranty / assumable-credit style money-saver as a negative cost.
+- **Static cases retrofitted:** no-impact items added to cases 001, 002, 005, 006, 008;
+  money-savers added to GOOD cases 002, 005, 007. Verified **0 classification flips** across all
+  18 cases (money-savers nudge GOOD ROIs up without rescuing any trap).
+
+### 11. Property-dimension realism + sticky case header ✅ DONE
+**Shipped (dimensions):** The generator prompt and validation gate now enforce coherent
+beds/baths/sq ft/year-built combinations (and matching image prompts), with a coherence safety
+net; the 18 static cases were audited for realistic dimensions (e.g. case-003 corrected to
+3 bed / 2.5 bath / 1,950 sq ft).
+
+**Shipped (sticky header):** A `game-sticky-bar` appears on scroll (past ~220px) showing the
+property address, current points, and the live timer (turning urgent under 60s), so the key
+context stays visible while reading a long case. Styled in `App.css` with a mobile breakpoint.
 
 ---
 

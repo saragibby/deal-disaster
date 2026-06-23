@@ -56,6 +56,16 @@ function getSourceHint(hiddenIn: string): string {
   return 'Background records on this property — pull them to surface issues hidden from the listing.';
 }
 
+/**
+ * A "money-saver" is an investigation finding that *reduces* the buyer's cost —
+ * a transferable warranty, an assumable credit, a paid-off balance, a tax
+ * abatement — modeled as a negative remediation cost. We surface these with
+ * positive, good-news framing instead of the usual "issue" treatment.
+ */
+function isMoneySaver(flag: RedFlag): boolean {
+  return (flag.costLow ?? 0) < 0 || (flag.costHigh ?? 0) < 0;
+}
+
 interface CaseDisplayProps {
   propertyCase: PropertyCase;
   timeRemaining: number;
@@ -529,13 +539,13 @@ export default function CaseDisplay({
 
             <div className="modal-content">
               <div className="flag-description">
-                <h4>⚠️ Issue Found:</h4>
+                <h4>{isMoneySaver(selectedFlag) ? '💰 Good News:' : '⚠️ Issue Found:'}</h4>
                 <p>{selectedFlag.description}</p>
               </div>
 
               {showHelp && selectedFlag.impact && (
                 <div className="flag-impact">
-                  <p><strong>💡 Estimated Impact:</strong></p>
+                  <p><strong>{isMoneySaver(selectedFlag) ? '💡 Estimated Savings:' : '💡 Estimated Impact:'}</strong></p>
                   <p>{selectedFlag.impact}</p>
                 </div>
               )}

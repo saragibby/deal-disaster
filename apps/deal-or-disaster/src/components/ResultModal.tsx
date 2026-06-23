@@ -1,6 +1,6 @@
 import { ScoreResult, PropertyCase } from '../types';
 import { useState } from 'react';
-import { computeDeal, formatPct, lienSurvives, issueCost } from '../utils/dealFinancials';
+import { computeDeal, dealIsBuyWorthy, formatPct, lienSurvives, issueCost } from '../utils/dealFinancials';
 
 interface ResultModalProps {
   result: ScoreResult | null;
@@ -37,6 +37,9 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
   // Single canonical financial model — every figure below renders from this so
   // the banner, calculator, and scoring footer can never disagree.
   const deal = computeDeal(caseData);
+  // The scoring rationale below keys off the model's verdict (not the authored
+  // `isGoodDeal` flag) so it always agrees with the points actually awarded.
+  const dealIsGood = dealIsBuyWorthy(deal);
   const { closingCosts, totalInvestment, netProfit, issueCosts, occupancyCost, redemptionCost } = deal;
 
   const classificationLabel =
@@ -103,6 +106,12 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <div className="analysis-row">
                     <span>Issue &amp; Remediation Costs:</span>
                     <span>${issueCosts.toLocaleString()}</span>
+                  </div>
+                )}
+                {issueCosts < 0 && (
+                  <div className="analysis-row">
+                    <span>Credits &amp; Savings:</span>
+                    <span>−${Math.abs(issueCosts).toLocaleString()}</span>
                   </div>
                 )}
                 {occupancyCost > 0 && (
@@ -309,7 +318,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                 const roiText = formatPct(deal.roi);
                 const lossText = `$${Math.abs(netProfit).toLocaleString()}`;
                 const profitText = `$${netProfit.toLocaleString()}`;
-                if (decision === 'BUY' && caseData.isGoodDeal) {
+                if (decision === 'BUY' && dealIsGood) {
                   return (
                     <div className="math-explanation">
                       <p><strong>Bought a GOOD deal:</strong></p>
@@ -317,7 +326,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                     </div>
                   );
                 }
-                if (decision === 'BUY' && !caseData.isGoodDeal) {
+                if (decision === 'BUY' && !dealIsGood) {
                   return (
                     <div className="math-explanation">
                       <p><strong>Bought a BAD deal:</strong></p>
@@ -325,7 +334,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                     </div>
                   );
                 }
-                if (decision === 'WALK_AWAY' && !caseData.isGoodDeal) {
+                if (decision === 'WALK_AWAY' && !dealIsGood) {
                   return (
                     <div className="math-explanation">
                       <p><strong>Walked away from a BAD deal:</strong></p>
@@ -333,7 +342,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                     </div>
                   );
                 }
-                if (decision === 'WALK_AWAY' && caseData.isGoodDeal) {
+                if (decision === 'WALK_AWAY' && dealIsGood) {
                   return (
                     <div className="math-explanation">
                       <p><strong>Walked away from a GOOD deal:</strong></p>

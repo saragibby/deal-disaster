@@ -72,6 +72,36 @@ export function deriveQuiz(flag: RedFlag): RedFlag {
     };
   }
 
+  // Template M — money-saver: a discovery that *reduces* the deal's cost (a
+  // transferable warranty, an assumable credit, a paid-off balance, an
+  // abatement). Modeled as a negative cost, so teach the player to bank it.
+  if (
+    (typeof flag.costLow === 'number' && flag.costLow < 0) ||
+    (typeof flag.costHigh === 'number' && flag.costHigh < 0)
+  ) {
+    const lowSave = Math.abs(flag.costHigh ?? flag.costLow ?? 0);
+    const highSave = Math.abs(flag.costLow ?? flag.costHigh ?? 0);
+    const correct =
+      lowSave === highSave
+        ? `It saves about $${Math.round(lowSave).toLocaleString()} — subtract it from your costs`
+        : `It saves about ${formatRange(lowSave, highSave)} — subtract it from your costs`;
+    const { choices, correctChoice } = assemble(flag.id, correct, [
+      'Ignore it — credits never transfer to the buyer',
+      'Add it to your costs as a new expense',
+      "It's too good to be true — treat it as a trap",
+    ]);
+    return {
+      ...flag,
+      question: 'How should this finding affect your numbers?',
+      choices,
+      correctChoice,
+      answerExplanation:
+        flag.answerExplanation ??
+        flag.impact ??
+        'This is real money in your favor — credits, warranties and abatements lower your total investment, so bank the savings.',
+    };
+  }
+
   // Template A — cost estimation: build dollar-range choices around the truth.
   if (typeof flag.costLow === 'number' && typeof flag.costHigh === 'number' && flag.costHigh > 0) {
     const low = flag.costLow;

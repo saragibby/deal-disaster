@@ -12,7 +12,7 @@ import ChallengeCalendar from './components/ChallengeCalendar';
 import { AskWill } from '@deal-platform/shared-ui';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
-import { computeDeal, formatPct } from './utils/dealFinancials';
+import { computeDeal, dealIsBuyWorthy, formatPct } from './utils/dealFinancials';
 import { withDerivedQuizzes } from './utils/quizGenerator';
 import { api } from './services/api';
 import { buildAppUrl } from '@deal-platform/shared-auth';
@@ -28,8 +28,19 @@ const CASE_TIME_LIMIT = 300; // 5 minutes in seconds
 // a risk-free escape, and forces a final BUY / WALK_AWAY commitment at the gavel.
 const INVESTIGATE_TIME_COST = 45; // seconds removed from the clock per inspection
 const INVESTIGATE_FEE = 5; // points charged per inspection
-const DUE_DILIGENCE_BUDGET: Record<string, number> = { easy: 4, medium: 3, hard: 2 };
-const DEFAULT_DUE_DILIGENCE_BUDGET = 3;
+
+// How much of the available investigation set a player may inspect, scaled by
+// difficulty. Easy lets you pull every item on the case; harder cases ration
+// due diligence so you must choose which records are worth the time/fee. The
+// budget can never exceed the number of items actually present.
+const DUE_DILIGENCE_FRACTION: Record<string, number> = { easy: 1, medium: 0.75, hard: 0.5 };
+const DEFAULT_DUE_DILIGENCE_FRACTION = 0.75;
+
+function dueDiligenceBudget(itemCount: number, difficulty?: string): number {
+  if (itemCount <= 0) return 0;
+  const fraction = DUE_DILIGENCE_FRACTION[difficulty ?? 'medium'] ?? DEFAULT_DUE_DILIGENCE_FRACTION;
+  return Math.min(itemCount, Math.max(1, Math.ceil(itemCount * fraction)));
+}
 
 function getInitialAuth() {
   try {
@@ -90,6 +101,9 @@ function App() {
   });
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
+  // Reveal a compact sticky bar (property, score, time) once the player scrolls
+  // past the case header, so the key context stays visible during a long case.
+  const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [completedCaseIds, setCompletedCaseIds] = useState<string[]>([]);
   const [userStats, setUserStats] = useState({
     lifetimePoints: 0,
@@ -265,6 +279,18 @@ function App() {
 
     return () => clearInterval(timer);
   }, [gameStarted, currentCase, result]);
+
+  // Toggle the sticky context bar based on scroll position while a case is open.
+  useEffect(() => {
+    if (!gameStarted || !currentCase) {
+      setShowStickyHeader(false);
+      return;
+    }
+    const onScroll = () => setShowStickyHeader(window.scrollY > 220);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [gameStarted, currentCase]);
 
   const startGame = () => {
     setGameStarted(true);
@@ -478,7 +504,7 @@ function App() {
   // is what gives investigation a real cost.
   const tryInvestigate = (): boolean => {
     if (!currentCase) return false;
-    const budget = DUE_DILIGENCE_BUDGET[currentCase.difficulty ?? 'medium'] ?? DEFAULT_DUE_DILIGENCE_BUDGET;
+    const budget = dueDiligenceBudget(currentCase.redFlags.length, currentCase.difficulty);
     if (investigationsUsedRef.current >= budget) return false;
     if (timeRemaining < INVESTIGATE_TIME_COST) return false;
     investigationsUsedRef.current += 1;
@@ -564,11 +590,15 @@ function App() {
     let explanation = '';
     // Single canonical model so the banner agrees with the result calculator.
     const deal = computeDeal(currentCase);
+    // Correctness is derived from the live financial model, not the authored
+    // `isGoodDeal` answer key, so the points always match this case's real
+    // economics (ROI / classification from `computeDeal`).
+    const dealIsGood = dealIsBuyWorthy(deal);
     const undiscoveredFlags = currentCase.redFlags.filter((f) => !f.discovered && f.severity !== 'red-herring');
     const missedSevereFlags = currentCase.redFlags.filter((f) => !f.discovered && (f.severity === 'severe' || f.severity === 'high'));
 
     if (decision === 'BUY') {
-      if (currentCase.isGoodDeal) {
+      if (dealIsGood) {
         points = 100;
         message = '✅ Excellent Decision!';
         explanation = `This was a solid deal! After all costs you'd net approximately $${deal.netProfit.toLocaleString()} (ROI ${formatPct(deal.roi)}).`;
@@ -587,7 +617,7 @@ function App() {
         }
       }
     } else if (decision === 'WALK_AWAY') {
-      if (!currentCase.isGoodDeal) {
+      if (!dealIsGood) {
         points = 50;
         message = '👍 Smart Move!';
         explanation = `Good instincts! You avoided a loss of about $${Math.abs(deal.netProfit).toLocaleString()}. ${undiscoveredFlags.length > 0 ? undiscoveredFlags[0].description : 'There were hidden issues that would have cost you.'}`;
@@ -625,9 +655,9 @@ function App() {
     const newScore = {
       points: score.points + points,
       casesSolved: score.casesSolved + 1,
-      goodDeals: score.goodDeals + (decision === 'BUY' && currentCase.isGoodDeal ? 1 : 0),
-      badDealsAvoided: score.badDealsAvoided + (decision === 'WALK_AWAY' && !currentCase.isGoodDeal ? 1 : 0),
-      mistakes: score.mistakes + ((decision === 'BUY' && !currentCase.isGoodDeal) || (decision === 'WALK_AWAY' && currentCase.isGoodDeal) ? 1 : 0),
+      goodDeals: score.goodDeals + (decision === 'BUY' && dealIsGood ? 1 : 0),
+      badDealsAvoided: score.badDealsAvoided + (decision === 'WALK_AWAY' && !dealIsGood ? 1 : 0),
+      mistakes: score.mistakes + ((decision === 'BUY' && !dealIsGood) || (decision === 'WALK_AWAY' && dealIsGood) ? 1 : 0),
       redFlagsFound: score.redFlagsFound,
     };
 
@@ -898,6 +928,20 @@ function App() {
       </header>
 
       {currentCase && (
+        <div className={`game-sticky-bar ${showStickyHeader ? 'is-visible' : ''}`} aria-hidden={!showStickyHeader}>
+          <span className="game-sticky-bar__address" title={currentCase.address}>
+            🏠 {currentCase.address}
+          </span>
+          <div className="game-sticky-bar__meta">
+            <span className="game-sticky-bar__score">⭐ {score.points.toLocaleString()} pts</span>
+            <span className={`game-sticky-bar__timer ${timeRemaining < 60 ? 'urgent' : ''}`}>
+              ⏱️ {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {currentCase && (
         <>
           <CaseDisplay
             propertyCase={currentCase}
@@ -905,7 +949,7 @@ function App() {
             onRedFlagClick={handleRedFlagClick}
             onRedFlagAnswer={handleRedFlagAnswer}
             onTryInvestigate={tryInvestigate}
-            investigationBudget={DUE_DILIGENCE_BUDGET[currentCase.difficulty ?? 'medium'] ?? DEFAULT_DUE_DILIGENCE_BUDGET}
+            investigationBudget={dueDiligenceBudget(currentCase.redFlags.length, currentCase.difficulty)}
             investigationsUsed={investigationsUsed}
             investigationTimeCost={INVESTIGATE_TIME_COST}
             investigationFee={INVESTIGATE_FEE}
