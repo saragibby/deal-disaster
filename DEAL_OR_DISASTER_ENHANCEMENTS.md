@@ -61,18 +61,34 @@ row, and the quiz dialog lost its title emoji with a slightly larger option font
 
 ## Part 2 — Gameplay & Content Enhancements
 
-### 1. Three archetypes per difficulty
+### 1. Three archetypes per difficulty ✅ DONE
 For each difficulty, deliberately author/generate three case shapes:
 - **Clear buy** — obviously profitable once issues are checked.
 - **Clear trap** — surviving liens / severe issues sink an attractive-looking spread.
 - **Misdirection** — looks like a trap but is actually fine (or vice versa) to reward real
   analysis over pattern-matching the headline numbers.
 
-### 2. Live, discovery-gated running P&L
+**Shipped:** `CaseArchetype` type + classifier in `apps/deal-or-disaster/src/utils/archetypes.ts`
+(`deriveArchetype`/`deriveDifficulty` via an `alarmScore` that measures scary-but-survivable
+noise — wiped junior liens, red herrings, scary-but-cheap issues, occupancy). All 18 static
+cases now carry explicit `difficulty` + `archetype` tags (every difficulty×archetype combo
+covered). `getRandomCase()` round-robins the three archetypes for a balanced mix. Server
+generator (`foreclosureGenerator.ts`) takes an `archetype` target → `getArchetypeGuidance()`
+biases the prompt, and the validation gate re-derives the honest archetype from the final
+economics so the label can never contradict the math. Scheduler picks a random archetype per
+day. (Mirror `alarmScore` kept in sync client/server.)
+
+### 2. Live, discovery-gated running P&L ✅ DONE
 Show a running profit/loss panel during play that only includes costs the player has
 **actually discovered** (use `computeDeal(caseData, { discoveredOnly: true })`). The full
 true economics are revealed in the post-decision breakdown. This teaches that hidden costs
 change the math.
+
+**Shipped:** Sticky `Running P&L` side rail in `CaseDisplay.tsx` (`.running-pnl`), computed
+from `computeDeal(propertyCase, { discoveredOnly: true })`. Line items: resale (ARV), auction,
+repairs, surviving liens, occupancy, inspected issues (with an `X/Y` inspected count),
+redemption carry, closing → running net + ROI (color-coded). Footer note nudges the player to
+pull more documents to sharpen the estimate. Collapses above the case on ≤1024px.
 
 ### 3. Scoring tied to the model, not an answer key
 Re-derive scoring from `computeDeal()` ROI/classification rather than the stored

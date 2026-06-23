@@ -55,7 +55,7 @@ async function regenerateChallenge(dateString: string) {
     console.log('🏗️  Generating new challenge...\n');
 
     // Generate new challenge
-    const scenario = await foreclosureGenerator.generateScenario(difficulty, dateString);
+    const scenario = await foreclosureGenerator.generateScenario(difficulty, undefined, dateString);
 
     console.log(`✅ Generated new property:`);
     console.log(`   Address: ${scenario.address}, ${scenario.city}, ${scenario.state}`);

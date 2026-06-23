@@ -122,7 +122,12 @@ export function computeDeal(
   const { discoveredOnly = false } = options;
 
   const preForeclosureValue = caseData.propertyValue;
-  const resaleValue = caseData.actualValue;
+  // Single resale anchor: the property's market value. We deliberately do NOT
+  // use a separate, lower "after issues" valuation (the old `actualValue`) —
+  // every cost that erodes the deal is an explicit, inspectable line item
+  // (repairs, surviving liens, occupancy, redemption, issue costs) so beginners
+  // only ever reason about one headline number.
+  const resaleValue = caseData.propertyValue;
   const baseRepairs = caseData.repairEstimate;
   const closingCosts = Math.round(caseData.auctionPrice * CLOSING_RATE);
 

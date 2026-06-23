@@ -25,8 +25,8 @@ test.describe('Deal or Disaster - Welcome Page', () => {
     await expect(page.locator('.welcome-page')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.how-to-play')).toBeVisible();
     await expect(page.locator('text=Review the Case')).toBeVisible();
-    await expect(page.locator('text=Find Red Flags')).toBeVisible();
-    await expect(page.locator('text=Make Your Decision')).toBeVisible();
+    await expect(page.locator('text=Run Due Diligence')).toBeVisible();
+    await expect(page.locator('text=Commit at the Gavel')).toBeVisible();
   });
 
   test('shows play buttons', async ({ page }) => {
@@ -122,7 +122,7 @@ test.describe('Deal or Disaster - Lien / Issue Library', () => {
     await expect(page.locator('.redemption-note')).toContainText('Redemption period');
 
     // Occupancy line shows the occupant type and the cost to clear possession.
-    await expect(page.locator('text=Occupied — former owner')).toBeVisible();
+    await expect(page.locator('.property-info-table')).toContainText('Owner-occupied');
     await expect(page.locator('.occupancy-cost')).toContainText('to clear');
 
     // At least one lien is flagged as surviving the sale.

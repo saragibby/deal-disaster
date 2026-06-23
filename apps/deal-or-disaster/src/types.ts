@@ -17,6 +17,12 @@ export type LienCategory =
 
 export type OccupantType = 'vacant' | 'owner' | 'tenant' | 'squatter';
 
+/**
+ * The three deliberate "shapes" a case can take, used to guarantee gameplay
+ * variety. See `utils/archetypes.ts` for the derivation rules.
+ */
+export type CaseArchetype = 'clear-buy' | 'clear-trap' | 'misdirection';
+
 export interface Lien {
   type: string;
   holder: string;
@@ -81,9 +87,14 @@ export interface PropertyCase {
   // Flows into the P&L once discovered.
   redemptionCost?: number;
   hoaFees?: number;
-  actualValue: number; // true value after all issues considered
+  actualValue: number; // DEPRECATED — no longer used for scoring/display. The
+  // resale anchor is now `propertyValue` (one market-value number). Kept only
+  // for back-compat with stored/generated payloads; set it equal to propertyValue.
   isGoodDeal: boolean;
   difficulty?: 'easy' | 'medium' | 'hard';
+  // Deliberate case shape (clear-buy / clear-trap / misdirection). When omitted,
+  // it is derived from the financial model in `utils/archetypes.ts`.
+  archetype?: CaseArchetype;
   correctDecision?: 'BUY' | 'INVESTIGATE' | 'WALK_AWAY';
   decisionExplanation?: string;
   // Additional property details
@@ -105,7 +116,7 @@ export type DealClassification = 'GOOD' | 'MARGINAL' | 'BAD';
 // render from this object so the numbers can never disagree.
 export interface DealFinancials {
   preForeclosureValue: number; // estimated value before foreclosure (propertyValue)
-  resaleValue: number; // realistic after-repair resale value / ARV (actualValue)
+  resaleValue: number; // resale anchor used by the model = market value (propertyValue)
   closingRate: number; // e.g. 0.025
   closingCosts: number; // auctionPrice * closingRate
   baseRepairs: number; // repairEstimate

@@ -57,7 +57,13 @@ interface ForeclosureScenario {
   hiddenIssues: string[];
   correctDecision: 'BUY' | 'WALK_AWAY';
   explanation: string;
+  // Deliberate case shape, derived from the final economics in the validation
+  // gate so it always reflects the real numbers (see deriveArchetype below).
+  archetype?: CaseArchetype;
 }
+
+/** The three deliberate case shapes the generator can target. */
+type CaseArchetype = 'clear-buy' | 'clear-trap' | 'misdirection';
 
 export class ForeclosureScenarioGenerator {
   private client: OpenAI;
@@ -116,8 +122,12 @@ export class ForeclosureScenarioGenerator {
     return `\n\nIMPORTANT: DO NOT use these recently used locations: ${excluded}. Choose a DIFFERENT city and state to ensure variety.`;
   }
 
-  async generateScenario(difficulty: 'easy' | 'medium' | 'hard' = 'medium', challengeDate?: string): Promise<ForeclosureScenario> {
-    const prompt = this.buildPrompt(difficulty);
+  async generateScenario(
+    difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+    archetype?: CaseArchetype,
+    challengeDate?: string
+  ): Promise<ForeclosureScenario> {
+    const prompt = this.buildPrompt(difficulty, archetype);
     const MAX_ATTEMPTS = 3;
     let lastError: unknown;
 
@@ -320,13 +330,16 @@ export class ForeclosureScenarioGenerator {
     return scenario.photos;
   }
 
-  private buildPrompt(difficulty: string): string {
+  private buildPrompt(difficulty: string, archetype?: CaseArchetype): string {
     const lienGuidance = this.getLienGuidanceForDifficulty(difficulty);
     const excludedLocations = this.getExcludedLocationsText();
     const propertyCondition = this.getPropertyConditionGuidance();
     const issueCatalog = formatIssueCatalogForPrompt();
+    const archetypeGuidance = this.getArchetypeGuidance(archetype);
 
     return `Generate a realistic and ENTERTAINING foreclosure auction scenario as a JSON object. Make the story funny and engaging while providing subtle clues about the deal quality.${excludedLocations}
+
+CASE SHAPE (this is the most important constraint — the whole scenario must serve it): ${archetypeGuidance}
 
 PROPERTY CONDITION VARIETY: ${propertyCondition}
 
@@ -351,7 +364,7 @@ Required JSON structure:
   "estimatedRepairsMin": minimum repair cost estimate in dollars (realistic low-end estimate),
   "estimatedRepairsMax": maximum repair cost estimate in dollars (realistic high-end estimate with unforeseen issues),
   "monthlyRent": potential monthly rent in dollars,
-  "actualValue": true value after all hidden costs/issues (can be lower than estimatedValue if bad deal),
+  "actualValue": MUST equal estimatedValue. The market value is the single resale anchor; do NOT lower it for a bad deal. A bad deal must lose money through explicit, inspectable costs (surviving liens, repairs, red-flag issue costs, occupancyCost, redemptionCost) — never through a secret lower resale value.,
   "isGoodDeal": boolean (true if profitable after ALL costs considered),
   "occupancyStatus": "vacant", "occupied", or "unknown",
   "occupant": "who is in the property: 'vacant', 'owner' (former owner still living there), 'tenant' (has a lease), or 'squatter'. Pick a NON-vacant occupant for some cases so eviction risk is in play.",
@@ -471,14 +484,32 @@ CRITICAL REQUIREMENTS:
 7. For well-maintained properties, issues should be HIDDEN (title problems, liens, zoning issues, not cosmetic damage)
 8. For harder difficulties, make issues interact (e.g., water damage + mold + code violations)
 9. Include realistic liens (tax liens, IRS liens, mechanics liens survive foreclosure!)
-10. Ensure math adds up: auctionPrice + estimatedRepairs + surviving liens + red flag costs + occupancyCost + redemptionCost = total cost vs actualValue
+10. Ensure math adds up: auctionPrice + estimatedRepairs + surviving liens + red flag costs + occupancyCost + redemptionCost + closing = total cost, compared against estimatedValue (the resale anchor). A bad deal is one whose total cost exceeds estimatedValue.
 11. Photo descriptions MUST match the property condition - pristine homes get pristine photos!
 12. Drop clues in the story without giving away the answer
 13. Use realistic numbers for 2025 market conditions
 14. Make each property feel unique with its own character and problems
 15. Remember: A well-maintained property can still be a terrible deal due to liens, title issues, or market factors!
 16. SENIOR vs JUNIOR: junior liens (2nd mortgage, HELOC, most judgments) are WIPED at sale, while super-priority liens (property/IRS tax, HOA super-lien, mechanics, code enforcement, environmental, child support) SURVIVE and the buyer inherits them. Set survivesForeclosure accordingly and teach this nuance in at least one quiz.
-17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in actualValue/isGoodDeal.`;
+17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in isGoodDeal.`;
+  }
+
+  /**
+   * Bias the generator toward one of the three deliberate case shapes. The
+   * final stored archetype is re-derived from the economics in the validation
+   * gate, so this only steers generation — it can never mislabel a case.
+   */
+  private getArchetypeGuidance(archetype?: CaseArchetype): string {
+    switch (archetype) {
+      case 'clear-buy':
+        return 'CLEAR BUY — a genuinely profitable deal that is clean and obvious. After ALL costs (auction + repairs + surviving liens + occupancy + redemption + closing) the market value still clears a healthy profit. Keep the picture low-noise: no red herrings, few or no surviving (super-priority) liens, no scary-but-cheap distractions, ideally vacant. isGoodDeal=true, correctDecision="BUY". The lesson is rewarding confident action on a sound deal.';
+      case 'clear-trap':
+        return 'CLEAR TRAP — the listing spread (estimatedValue − auctionPrice − repairs) looks attractive, but surviving liens and/or severe hidden issues push total cost ABOVE the market value, so it LOSES money. isGoodDeal=false, correctDecision="WALK_AWAY". The danger must be real (super-priority liens that survive, a severe structural/environmental issue, a long redemption window), not cosmetic. The lesson is that a pretty spread can be a trap.';
+      case 'misdirection':
+        return 'MISDIRECTION — a genuinely PROFITABLE deal (isGoodDeal=true, correctDecision="BUY") that is buried under alarming-but-survivable noise so it LOOKS like a trap. Include at least 1-2 red herrings, junior liens that get WIPED at the sale (survivesForeclosure=false), and/or a non-vacant occupant, while keeping the surviving (super-priority) liens and real remediation costs modest so the deal still clears a clear profit. The lesson is: do not pattern-match scary documents — do the math.';
+      default:
+        return 'Pick whichever of the three shapes best fits an entertaining story: a CLEAR BUY (clean, profitable, obvious), a CLEAR TRAP (attractive spread but surviving liens / severe issues make it a loss), or a MISDIRECTION (truly profitable but smothered in scary-but-survivable noise). Make the economics internally consistent.';
+    }
   }
 
   private getPropertyConditionGuidance(): string {
@@ -543,7 +574,11 @@ CRITICAL REQUIREMENTS:
     scenario.estimatedValue = Math.round(scenario.estimatedValue);
     scenario.estimatedRepairs = Math.round(scenario.estimatedRepairs);
     scenario.monthlyRent = Math.round(scenario.monthlyRent);
-    scenario.actualValue = Math.round(scenario.actualValue);
+    // Single resale anchor: the market value. We deliberately force actualValue
+    // to equal estimatedValue so a bad deal can only lose money through explicit
+    // costs (liens/repairs/issues/occupancy/redemption), never a hidden lower
+    // resale value. The `actualValue` field is retained only for back-compat.
+    scenario.actualValue = scenario.estimatedValue;
     if (scenario.hoaFees) {
       scenario.hoaFees = Math.round(scenario.hoaFees);
     }
@@ -698,12 +733,23 @@ CRITICAL REQUIREMENTS:
     const profitable = deal.netProfit > 0;
     if (scenario.isGoodDeal !== profitable) {
       throw new Error(
-        `Inconsistent scenario: isGoodDeal=${scenario.isGoodDeal} but computed net profit is $${deal.netProfit.toLocaleString()} (resale $${scenario.actualValue.toLocaleString()} - total cost $${deal.totalInvestment.toLocaleString()})`
+        `Inconsistent scenario: isGoodDeal=${scenario.isGoodDeal} but computed net profit is $${deal.netProfit.toLocaleString()} (resale $${scenario.estimatedValue.toLocaleString()} - total cost $${deal.totalInvestment.toLocaleString()})`
       );
     }
     // With only BUY / WALK_AWAY as terminal options, the correct call is fully
     // determined by profitability. Derive it so it can never contradict the math.
     scenario.correctDecision = profitable ? 'BUY' : 'WALK_AWAY';
+
+    // Re-derive the case shape from the final economics so the stored archetype
+    // always reflects the real numbers (the prompt only *biases* generation):
+    //  - a loss is a clear-trap;
+    //  - a profitable deal drowning in scary-but-survivable noise is a
+    //    misdirection; an otherwise clean profitable deal is a clear-buy.
+    scenario.archetype = !profitable
+      ? 'clear-trap'
+      : this.alarmScore(scenario) >= 3
+        ? 'misdirection'
+        : 'clear-buy';
 
     return scenario;
   }
@@ -713,6 +759,34 @@ CRITICAL REQUIREMENTS:
    * KEEP IN SYNC with apps/deal-or-disaster/src/utils/dealFinancials.ts.
    */
   private readonly CLOSING_RATE = 0.025;
+
+  /**
+   * Mirror of the frontend alarmScore() in apps/.../utils/archetypes.ts: how
+   * much scary-but-survivable noise a case carries. Used to distinguish a
+   * clean clear-buy from a noisy misdirection. KEEP IN SYNC with the client.
+   */
+  private alarmScore(scenario: ForeclosureScenario): number {
+    const redHerrings = scenario.redFlags.filter((f) => f.severity === 'red-herring').length;
+
+    const wipedLiens = scenario.liens.filter((l) =>
+      typeof l.survivesForeclosure === 'boolean'
+        ? !l.survivesForeclosure
+        : !this.lienSurvives(l.type, l.notes)
+    ).length;
+
+    const scaryButCheap = scenario.redFlags.filter((f) => {
+      if (f.severity !== 'high' && f.severity !== 'severe') return false;
+      const low = f.costLow ?? f.costHigh ?? 0;
+      const high = f.costHigh ?? f.costLow ?? 0;
+      return (low + high) / 2 < 8000;
+    }).length;
+
+    const occupied =
+      (scenario.occupant != null && scenario.occupant !== 'vacant') ||
+      scenario.occupancyStatus === 'occupied';
+
+    return redHerrings + wipedLiens + scaryButCheap + (occupied ? 1 : 0);
+  }
 
   private lienSurvives(type: string, notes?: string): boolean {
     const text = `${type} ${notes ?? ''}`.toLowerCase();
@@ -748,7 +822,9 @@ CRITICAL REQUIREMENTS:
     const occupancyCost = scenario.occupancyCost ?? 0;
     const redemptionCost = scenario.redemptionCost ?? 0;
     const totalInvestment = scenario.auctionPrice + scenario.estimatedRepairs + issueCosts + survivingLiens + occupancyCost + redemptionCost + closingCosts;
-    const netProfit = scenario.actualValue - totalInvestment;
+    // Resale anchor is the market value (single number). actualValue is forced
+    // equal to estimatedValue in validateAndNormalizeScenario.
+    const netProfit = scenario.estimatedValue - totalInvestment;
     const roi = totalInvestment > 0 ? netProfit / totalInvestment : 0;
     return { netProfit: Math.round(netProfit), roi, totalInvestment: Math.round(totalInvestment) };
   }

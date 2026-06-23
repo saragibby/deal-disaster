@@ -1,8 +1,17 @@
-import { PropertyCase } from '../types';
+import { CaseArchetype, PropertyCase } from '../types';
+import { deriveArchetype, deriveDifficulty } from '../utils/archetypes';
+
+// Round-robin pointer over the three archetypes (see getRandomCase below).
+const ARCHETYPE_ROTATION: CaseArchetype[] = ['clear-buy', 'clear-trap', 'misdirection'];
+let archetypeCursor = 0;
+
+const pickRandom = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 export const propertyCases: PropertyCase[] = [
   {
     id: 'case-001',
+    difficulty: 'medium',
+    archetype: 'clear-trap',
     address: '1428 Elm Street',
     city: 'Phoenix',
     state: 'AZ',
@@ -10,7 +19,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 350000,
     auctionPrice: 180000,
     repairEstimate: 45000,
-    actualValue: 200000, // IRS lien will eat profit
+    actualValue: 350000,
     isGoodDeal: false,
     occupancyStatus: 'vacant',
     propertyType: 'Single Family Home',
@@ -82,6 +91,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-002',
+    difficulty: 'medium',
+    archetype: 'clear-buy',
     address: '742 Evergreen Terrace',
     city: 'Las Vegas',
     state: 'NV',
@@ -165,6 +176,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-003',
+    difficulty: 'easy',
+    archetype: 'clear-trap',
     address: '221B Baker Street',
     city: 'Henderson',
     state: 'NV',
@@ -172,7 +185,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 425000,
     auctionPrice: 210000,
     repairEstimate: 28000,
-    actualValue: 150000, // Superpriority HOA lien disaster
+    actualValue: 425000,
     isGoodDeal: false,
     occupancyStatus: 'occupied',
     hoaFees: 425,
@@ -200,9 +213,9 @@ export const propertyCases: PropertyCase[] = [
       {
         type: 'HOA Superpriority Lien',
         holder: 'Baker Street Condos HOA',
-        amount: 47500,
+        amount: 95000,
         priority: 0,
-        notes: 'Last 9 months of unpaid fees + assessments. Nevada law gives superpriority status.'
+        notes: 'Back dues plus the superpriority portion of an emergency structural special assessment. Nevada law gives this superpriority status, so it survives the sale.'
       },
       {
         type: 'HOA Regular Lien',
@@ -215,11 +228,11 @@ export const propertyCases: PropertyCase[] = [
     redFlags: [
       {
         id: 'rf-003-1',
-        description: 'HOA Superpriority Lien in Nevada! First $47.5k survives foreclosure. You inherit this debt on top of your purchase price.',
+        description: 'HOA Superpriority Lien in Nevada! The first $95k (back dues + emergency structural special assessment) survives foreclosure. You inherit this debt on top of your purchase price.',
         severity: 'high',
         hiddenIn: 'HOA Lien - Fine Print',
         discovered: false,
-        impact: 'Superpriority HOA lien survives — $47,500 inherited'
+        impact: 'Superpriority HOA lien survives — $95,000 inherited'
       },
       {
         id: 'rf-003-2',
@@ -233,13 +246,13 @@ export const propertyCases: PropertyCase[] = [
       },
       {
         id: 'rf-003-3',
-        description: 'Building envelope study reveals foundation settling issues - structural repair estimates $40k-60k',
+        description: 'Building envelope study reveals serious foundation settling — structural repair estimates $75k-115k',
         severity: 'high',
         hiddenIn: 'HOA Building Report',
         discovered: false,
-        costLow: 40000,
-        costHigh: 60000,
-        impact: 'Foundation structural repairs $40,000–$60,000'
+        costLow: 75000,
+        costHigh: 115000,
+        impact: 'Foundation structural repairs $75,000–$115,000'
       },
       {
         id: 'rf-003-4',
@@ -255,6 +268,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-004',
+    difficulty: 'medium',
+    archetype: 'clear-trap',
     address: '4160 Government Way',
     city: 'Tucson',
     state: 'AZ',
@@ -262,7 +277,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 195000,
     auctionPrice: 95000,
     repairEstimate: 22000,
-    actualValue: 165000, // Code enforcement nightmare
+    actualValue: 195000,
     isGoodDeal: false,
     occupancyStatus: 'vacant', propertyType: 'Single Family Home',
     beds: 3,
@@ -344,6 +359,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-005',
+    difficulty: 'medium',
+    archetype: 'clear-buy',
     address: '1313 Mockingbird Lane',
     city: 'Scottsdale',
     state: 'AZ',
@@ -423,6 +440,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-006',
+    difficulty: 'hard',
+    archetype: 'clear-trap',
     address: '777 Lucky Lane',
     city: 'Phoenix',
     state: 'AZ',
@@ -430,7 +449,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 385000,
     auctionPrice: 195000,
     repairEstimate: 45000,
-    actualValue: 215000, // Meth lab contamination not disclosed
+    actualValue: 385000,
     isGoodDeal: false,
     occupancyStatus: 'vacant',
     propertyType: 'Single Family Home',
@@ -488,13 +507,13 @@ export const propertyCases: PropertyCase[] = [
       },
       {
         id: 'rf-006-3',
-        description: 'Police records show DEA raid at property 8 months ago. Property flagged as potential meth lab - requires $50k+ specialized cleanup.',
+        description: 'Police records show DEA raid at property 8 months ago. Property flagged as a former meth lab - certified decontamination runs $90k-$120k.',
         severity: 'high',
         hiddenIn: 'Police Records',
         discovered: false,
-        costLow: 50000,
-        costHigh: 60000,
-        impact: 'Meth contamination cleanup $50,000–$60,000'
+        costLow: 90000,
+        costHigh: 120000,
+        impact: 'Meth contamination cleanup $90,000–$120,000'
       },
       {
         id: 'rf-006-4',
@@ -508,6 +527,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-007',
+    difficulty: 'easy',
+    archetype: 'clear-buy',
     address: '3456 Cactus Garden Circle',
     city: 'Tempe',
     state: 'AZ',
@@ -581,6 +602,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-008',
+    difficulty: 'hard',
+    archetype: 'clear-trap',
     address: '2121 Baby Mama Boulevard',
     city: 'Mesa',
     state: 'AZ',
@@ -588,7 +611,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 425000,
     auctionPrice: 225000,
     repairEstimate: 28000,
-    actualValue: 145000, // Multiple child support liens that survive!
+    actualValue: 425000,
     isGoodDeal: false,
     occupancyStatus: 'unknown',
     propertyType: 'Single Family Home',
@@ -681,6 +704,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-009',
+    difficulty: 'medium',
+    archetype: 'clear-buy',
     address: '888 Sinkholes Street',
     city: 'Chandler',
     state: 'AZ',
@@ -756,6 +781,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-010',
+    difficulty: 'hard',
+    archetype: 'clear-buy',
     address: '456 Whisper Woods Drive',
     city: 'Austin',
     state: 'TX',
@@ -831,6 +858,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-011',
+    difficulty: 'hard',
+    archetype: 'misdirection',
     address: '555 Maple Ridge Lane',
     city: 'Portland',
     state: 'OR',
@@ -911,6 +940,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-012',
+    difficulty: 'medium',
+    archetype: 'clear-buy',
     address: '2828 Renovation Road',
     city: 'Denver',
     state: 'CO',
@@ -985,6 +1016,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-013',
+    difficulty: 'hard',
+    archetype: 'clear-trap',
     address: '999 Litigation Lane',
     city: 'Miami',
     state: 'FL',
@@ -992,7 +1025,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 320000,
     auctionPrice: 165000,
     repairEstimate: 22000,
-    actualValue: 240000,
+    actualValue: 320000,
     isGoodDeal: false,
     occupancyStatus: 'occupied',
     hoaFees: 425,
@@ -1049,18 +1082,20 @@ export const propertyCases: PropertyCase[] = [
       },
       {
         id: 'rf-013-3',
-        description: 'Building has concrete spalling issues - major repair project starting next year',
+        description: 'Building has severe concrete spalling — a building-wide structural restoration special assessment of $70k-110k has been levied',
         severity: 'high',
         hiddenIn: 'Engineering Report',
         discovered: false,
-        costLow: 25000,
-        costHigh: 40000,
-        impact: 'Concrete spalling repair $25,000–$40,000'
+        costLow: 70000,
+        costHigh: 110000,
+        impact: 'Concrete restoration special assessment $70,000–$110,000'
       }
     ]
   },
   {
     id: 'case-014',
+    difficulty: 'easy',
+    archetype: 'clear-buy',
     address: '1776 Freedom Drive',
     city: 'Nashville',
     state: 'TN',
@@ -1135,6 +1170,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-015',
+    difficulty: 'easy',
+    archetype: 'clear-buy',
     address: '3030 Starter Home Street',
     city: 'Raleigh',
     state: 'NC',
@@ -1208,6 +1245,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-016',
+    difficulty: 'easy',
+    archetype: 'misdirection',
     address: '88 Marigold Court',
     city: 'Columbus',
     state: 'OH',
@@ -1291,6 +1330,8 @@ export const propertyCases: PropertyCase[] = [
   },
   {
     id: 'case-017',
+    difficulty: 'medium',
+    archetype: 'clear-trap',
     address: '2207 Persimmon Lane',
     city: 'Birmingham',
     state: 'AL',
@@ -1298,7 +1339,7 @@ export const propertyCases: PropertyCase[] = [
     propertyValue: 290000,
     auctionPrice: 165000,
     repairEstimate: 25000,
-    actualValue: 255000,
+    actualValue: 290000,
     isGoodDeal: false,
     occupancyStatus: 'occupied',
     occupant: 'owner',
@@ -1376,14 +1417,16 @@ export const propertyCases: PropertyCase[] = [
         severity: 'high',
         hiddenIn: 'Structural Inspection',
         discovered: false,
-        costLow: 18000,
-        costHigh: 26000,
-        impact: 'Foundation stabilization $18,000–$26,000'
+        costLow: 45000,
+        costHigh: 65000,
+        impact: 'Foundation stabilization $45,000–$65,000'
       }
     ]
   },
   {
     id: 'case-018',
+    difficulty: 'medium',
+    archetype: 'misdirection',
     address: '514 Cottonwood Drive',
     city: 'Wichita',
     state: 'KS',
@@ -1477,8 +1520,33 @@ export const propertyCases: PropertyCase[] = [
   }
 ];
 
-export const getRandomCase = (excludeIds: string[] = []): PropertyCase => {
-  const availableCases = propertyCases.filter(c => !excludeIds.includes(c.id));
-  const randomIndex = Math.floor(Math.random() * availableCases.length);
-  return JSON.parse(JSON.stringify(availableCases[randomIndex])); // Deep clone to reset discovered flags
+export const getRandomCase = (
+  excludeIds: string[] = [],
+  options: { difficulty?: 'easy' | 'medium' | 'hard' } = {}
+): PropertyCase => {
+  const { difficulty } = options;
+
+  let pool = propertyCases.filter((c) => !excludeIds.includes(c.id));
+  // Once every case has been seen, reset to the full set so play continues.
+  if (pool.length === 0) pool = [...propertyCases];
+
+  // Honor a difficulty preference when it leaves something to pick from.
+  const byDifficulty = difficulty ? pool.filter((c) => deriveDifficulty(c) === difficulty) : pool;
+  const working = byDifficulty.length > 0 ? byDifficulty : pool;
+
+  // Round-robin across the three archetypes so consecutive cases vary in shape
+  // (clear buy → clear trap → misdirection) instead of repeating one type and
+  // letting the player pattern-match the headline numbers.
+  for (let i = 0; i < ARCHETYPE_ROTATION.length; i++) {
+    const target = ARCHETYPE_ROTATION[(archetypeCursor + i) % ARCHETYPE_ROTATION.length];
+    const matches = working.filter((c) => deriveArchetype(c) === target);
+    if (matches.length > 0) {
+      archetypeCursor = (archetypeCursor + i + 1) % ARCHETYPE_ROTATION.length;
+      return JSON.parse(JSON.stringify(pickRandom(matches))); // deep clone resets discovered flags
+    }
+  }
+
+  // No archetype matched (shouldn't happen) — fall back to any available case.
+  archetypeCursor = (archetypeCursor + 1) % ARCHETYPE_ROTATION.length;
+  return JSON.parse(JSON.stringify(pickRandom(working)));
 };

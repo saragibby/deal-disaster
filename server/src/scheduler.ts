@@ -47,8 +47,18 @@ async function generateDailyChallenge(date?: string): Promise<void> {
     const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
     console.log(`Selected difficulty: ${difficulty}`);
 
+    // Random case-shape selection so the daily mix stays balanced across the
+    // three archetypes (the generator re-derives the final label from the math).
+    const archetypes: ('clear-buy' | 'clear-trap' | 'misdirection')[] = [
+      'clear-buy',
+      'clear-trap',
+      'misdirection',
+    ];
+    const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
+    console.log(`Selected case shape: ${archetype}`);
+
     // Generate scenario using OpenAI
-    const scenario = await foreclosureGenerator.generateScenario(difficulty, targetDate);
+    const scenario = await foreclosureGenerator.generateScenario(difficulty, archetype, targetDate);
 
     // Store in database
     await pool.query(

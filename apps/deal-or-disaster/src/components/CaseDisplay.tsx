@@ -205,7 +205,7 @@ export default function CaseDisplay({
       {activeTab === 'announcement' ? (
         <ForeclosureAnnouncement caseId={propertyCase.id} propertyData={propertyCase} />
       ) : (
-        <>
+        <div className="case-content">
           <div className="case-header">
             <div className="header-top">
               <div className="address-section">
@@ -500,7 +500,7 @@ export default function CaseDisplay({
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Red Flag Decision Modal */}

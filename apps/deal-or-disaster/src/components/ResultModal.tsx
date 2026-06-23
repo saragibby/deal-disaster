@@ -126,12 +126,8 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
               <div className="column">
                 <h4>📈 Property Value</h4>
                 <div className="analysis-row">
-                  <span>Pre-Foreclosure Est. Value:</span>
-                  <span>${caseData.propertyValue.toLocaleString()}</span>
-                </div>
-                <div className="analysis-row">
-                  <span>Realistic Resale Value (ARV):</span>
-                  <span>${caseData.actualValue.toLocaleString()}</span>
+                  <span>Market Value (Resale):</span>
+                  <span>${deal.resaleValue.toLocaleString()}</span>
                 </div>
 
                 {caseData.liens && caseData.liens.some(lienSurvives) && (
