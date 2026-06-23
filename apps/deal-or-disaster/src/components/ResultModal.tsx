@@ -75,7 +75,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
               <div className="column">
                 <h4>💰 Investment Costs</h4>
                 <div className="analysis-row">
-                  <span>Auction Price:</span>
+                  <span>Starting Bid:</span>
                   <span>${caseData.auctionPrice.toLocaleString()}</span>
                 </div>
                 <div className="analysis-row">
@@ -274,7 +274,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                       <p className="advice">💡 <em>Tip: When there are title issues or major unknowns, INVESTIGATE allows you to gather more information before committing.</em></p>
                     )}
                     {result.userDecision === 'BUY' && caseData.correctDecision === 'WALK_AWAY' && (
-                      <p className="advice">💡 <em>Tip: Some properties have too many red flags or costs that make them unprofitable even at auction price.</em></p>
+                      <p className="advice">💡 <em>Tip: Some properties have too many red flags or costs that make them unprofitable even at the starting bid.</em></p>
                     )}
                     {result.userDecision === 'WALK_AWAY' && caseData.correctDecision === 'BUY' && (
                       <p className="advice">💡 <em>Tip: This was a solid deal despite some issues. Calculate total costs including all liens before walking away.</em></p>

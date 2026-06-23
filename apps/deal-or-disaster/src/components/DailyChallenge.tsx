@@ -268,7 +268,7 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
                 <div className="info-item">
                   <span className="info-icon">💰</span>
                   <div className="info-content">
-                    <span className="info-label">Auction Price</span>
+                    <span className="info-label">Starting Bid</span>
                     <span className="info-value">
                       ${challenge.property_data.auctionPrice.toLocaleString()}
                     </span>

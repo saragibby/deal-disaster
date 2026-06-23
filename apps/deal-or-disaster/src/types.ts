@@ -53,6 +53,10 @@ export interface PropertyCase {
   decisionExplanation?: string;
   // Additional property details
   propertyType?: string;
+  // Listing category shown on the listing, one of: "Bank Owned",
+  // "2nd Chance Foreclosure", "Short Sale", "Foreclosure Homes",
+  // "Non-Bank Owned". Defaults to "2nd Chance Foreclosure".
+  auctionType?: string;
   beds?: number;
   baths?: number;
   sqft?: number;

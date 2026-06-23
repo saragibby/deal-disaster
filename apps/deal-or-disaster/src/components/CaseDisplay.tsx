@@ -26,6 +26,26 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
     }).format(amount);
   };
 
+  // Repairs on a foreclosure can only be guessed from the outside (no interior
+  // access, sold as-is), so we always present a range. Use the explicit
+  // min/max when provided; otherwise derive an asymmetric band around the
+  // point estimate (surprises skew higher), rounded to clean $500 increments.
+  const getRepairRange = () => {
+    const roundTo500 = (n: number) => Math.round(n / 500) * 500;
+    let low = propertyCase.repairEstimateMin;
+    let high = propertyCase.repairEstimateMax;
+    if (!low || !high || low > high) {
+      low = roundTo500(propertyCase.repairEstimate * 0.85);
+      high = roundTo500(propertyCase.repairEstimate * 1.3);
+    }
+    return { low, high };
+  };
+
+  const formatRepairRange = () => {
+    const { low, high } = getRepairRange();
+    return `${formatCurrency(low)} - ${formatCurrency(high)}`;
+  };
+
   const toggleLien = (index: number) => {
     const newExpanded = new Set(expandedLiens);
     if (newExpanded.has(index)) {
@@ -71,7 +91,12 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
     setShowHelp(false);
   };
 
-  const spreadBeforeCosts = propertyCase.propertyValue - propertyCase.auctionPrice - propertyCase.repairEstimate;
+  // Spread before costs mirrors the repair range: the conservative (minimum)
+  // spread assumes the high end of repairs, the optimistic spread assumes the
+  // low end. We color by the conservative spread so the worst case is honest.
+  const repairRange = getRepairRange();
+  const spreadConservative = propertyCase.propertyValue - propertyCase.auctionPrice - repairRange.high;
+  const spreadOptimistic = propertyCase.propertyValue - propertyCase.auctionPrice - repairRange.low;
 
   return (
     <div className="case-display">
@@ -97,8 +122,16 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
           <div className="case-header">
             <div className="header-top">
               <div className="address-section">
+                <span className="listing-tag">🔨 {propertyCase.auctionType || '2nd Chance Foreclosure'}</span>
                 <h2>{propertyCase.address}</h2>
                 <p className="location">{propertyCase.city}, {propertyCase.state} {propertyCase.zip}</p>
+                <div className="property-specs">
+                  {propertyCase.beds != null && <span>{propertyCase.beds} Beds</span>}
+                  {propertyCase.baths != null && <span>{propertyCase.baths} Baths</span>}
+                  {propertyCase.sqft != null && <span>{propertyCase.sqft.toLocaleString()} Sq. Ft.</span>}
+                  {propertyCase.yearBuilt != null && <span>Built {propertyCase.yearBuilt}</span>}
+                  {propertyCase.propertyType && <span>{propertyCase.propertyType}</span>}
+                </div>
               </div>
               <div className="header-badges">
                 <button
@@ -138,20 +171,16 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
                 <span className="amount">{formatCurrency(propertyCase.propertyValue)}</span>
               </div>
               <div className="value-item highlight">
-                <span className="label">Auction Price</span>
+                <span className="label">Starting Bid</span>
                 <span className="amount">{formatCurrency(propertyCase.auctionPrice)}</span>
               </div>
               <div className="value-item">
                 <span className="label">Repair Estimate</span>
-                <span className="amount">
-                  {propertyCase.repairEstimateMin && propertyCase.repairEstimateMax
-                    ? `${formatCurrency(propertyCase.repairEstimateMin)} - ${formatCurrency(propertyCase.repairEstimateMax)}`
-                    : formatCurrency(propertyCase.repairEstimate)}
-                </span>
+                <span className="amount">{formatRepairRange()}</span>
               </div>
-              <div className={`value-item ${spreadBeforeCosts > 0 ? 'profit' : 'loss'}`}>
+              <div className={`value-item ${spreadConservative > 0 ? 'profit' : 'loss'}`}>
                 <span className="label">Spread Before Costs</span>
-                <span className="amount">{formatCurrency(spreadBeforeCosts)}</span>
+                <span className="amount">{`${formatCurrency(spreadConservative)} - ${formatCurrency(spreadOptimistic)}`}</span>
               </div>
             </div>
           </div>
@@ -162,6 +191,10 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
               <p>{propertyCase.description}</p>
               <p><strong>Occupancy:</strong> {propertyCase.occupancyStatus}</p>
               {propertyCase.hoaFees && <p><strong>HOA Fees:</strong> {formatCurrency(propertyCase.hoaFees)}/month</p>}
+              <p className="listing-disclaimer">
+                ⚠️ Sold <strong>as-is</strong> · Cash only · No interior access · No inspection or financing
+                contingencies. Buyer assumes all liens that survive the foreclosure sale.
+              </p>
             </div>
 
             <div className="detail-section">
@@ -180,54 +213,57 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
             </div>
 
             <div className="detail-section lien-section">
-              <h3>📄 Lien Stack (Click to review carefully)</h3>
-              <div className="lien-list">
+              <h3>📄 Lien Stack (Tap a card to flip for details)</h3>
+              <div className="lien-grid">
                 {propertyCase.liens.map((lien, index) => {
-                  const isExpanded = expandedLiens.has(index);
+                  const isFlipped = expandedLiens.has(index);
                   return (
                     <div
                       key={index}
-                      className={`lien-item ${isExpanded ? 'expanded' : ''}`}
+                      className={`lien-card ${isFlipped ? 'flipped' : ''}`}
                       onClick={() => toggleLien(index)}
                       role="button"
                       tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && toggleLien(index)}
+                      aria-pressed={isFlipped}
+                      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleLien(index)}
                     >
-                      <div className="lien-header">
-                        <span className="lien-priority">Priority {lien.priority}</span>
-                        <span className="lien-type">{lien.type}</span>
-                        <span className="expand-indicator">{isExpanded ? '▼' : '▶'}</span>
-                      </div>
-                      <div className="lien-details">
-                        <span className="lien-holder">{lien.holder}</span>
-                        <span className="lien-amount">{formatCurrency(lien.amount)}</span>
-                      </div>
-                      {isExpanded && (
-                        <div className="lien-expanded-details">
-                          <div className="detail-row">
-                            <span className="detail-label">Lien Type:</span>
-                            <span className="detail-value">{lien.type}</span>
+                      <div className="lien-card-inner">
+                        <div className="lien-card-face lien-card-front">
+                          <div className="lien-header">
+                            <span className="lien-priority">Priority {lien.priority}</span>
+                            <span className="flip-hint" aria-hidden="true">⟳</span>
                           </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Holder:</span>
-                            <span className="detail-value">{lien.holder}</span>
+                          <span className="lien-type">{lien.type}</span>
+                          <div className="lien-details">
+                            <span className="lien-holder">{lien.holder}</span>
+                            <span className="lien-amount">{formatCurrency(lien.amount)}</span>
                           </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Amount:</span>
-                            <span className="detail-value">{formatCurrency(lien.amount)}</span>
-                          </div>
-                          <div className="detail-row">
-                            <span className="detail-label">Priority Position:</span>
-                            <span className="detail-value">{lien.priority}</span>
-                          </div>
-                          {lien.notes && (
-                            <div className="detail-row full-width">
-                              <span className="detail-label">⚠️ Important Notes:</span>
-                              <span className="detail-value">{lien.notes}</span>
-                            </div>
-                          )}
+                          <span className="flip-cta">Tap for details</span>
                         </div>
-                      )}
+                        <div className="lien-card-face lien-card-back">
+                          <div className="lien-back-rows">
+                            <div className="detail-row">
+                              <span className="detail-label">Lien Type:</span>
+                              <span className="detail-value">{lien.type}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Holder:</span>
+                              <span className="detail-value">{lien.holder}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Amount:</span>
+                              <span className="detail-value">{formatCurrency(lien.amount)}</span>
+                            </div>
+                            {lien.notes && (
+                              <div className="detail-row full-width note-row">
+                                <span className="detail-label">⚠️ Important Notes:</span>
+                                <span className="detail-value">{lien.notes}</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="flip-cta">Tap to flip back</span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -235,39 +271,53 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
             </div>
 
             <div className="detail-section red-flags-section">
-              <h3>🔍 Property Investigation (Click documents to review)</h3>
+              <h3>🔍 Property Investigation (Click a document to review)</h3>
               <div className="red-flags">
-                {propertyCase.redFlags.map((flag: RedFlag) => (
-                  <button
-                    key={flag.id}
-                    className={`red-flag-btn ${flag.discovered ? 'discovered' : ''} ${flag.userAnswer !== undefined ? (flag.userAnswer === flag.correctChoice ? 'correct' : 'incorrect') : ''}`}
-                    onClick={() => handleFlagClick(flag)}
-                    disabled={flag.discovered}
-                  >
-                    <div className="flag-content">
-                      <div className="flag-main">
-                        <span className="flag-location">{flag.hiddenIn}</span>
-                        {flag.discovered && flag.userAnswer !== undefined && flag.answerExplanation && (
-                          <p className="flag-explanation">{flag.answerExplanation}</p>
-                        )}
-                      </div>
-                      {flag.discovered && flag.userAnswer !== undefined && (
-                        <div className="flag-result">
-                          <span className="result-points">
-                            {flag.userAnswer === flag.correctChoice 
-                              ? `+${(flag.severity === 'high' || flag.severity === 'severe') ? '75' : '50'} pts` 
-                              : '-25 pts'}
-                          </span>
+                {propertyCase.redFlags.map((flag: RedFlag) => {
+                  const answered = flag.discovered && flag.userAnswer !== undefined;
+                  const isCorrect = flag.userAnswer === flag.correctChoice;
+                  return (
+                    <div
+                      key={flag.id}
+                      className={`flag-card ${flag.discovered ? 'flipped' : ''} ${answered ? (isCorrect ? 'correct' : 'incorrect') : ''}`}
+                      onClick={() => handleFlagClick(flag)}
+                      role="button"
+                      tabIndex={flag.discovered ? -1 : 0}
+                      aria-disabled={flag.discovered}
+                      onKeyDown={(e) =>
+                        !flag.discovered && (e.key === 'Enter' || e.key === ' ') && handleFlagClick(flag)
+                      }
+                    >
+                      <div className="flag-card-inner">
+                        <div className="flag-card-face flag-card-front">
+                          <span className="flag-doc-icon" aria-hidden="true">📄</span>
+                          <span className="flag-location">{flag.hiddenIn}</span>
+                          <span className="flip-cta">Click to review</span>
                         </div>
-                      )}
+                        <div className="flag-card-face flag-card-back">
+                          <span className="flag-back-title">{flag.hiddenIn}</span>
+                          {answered ? (
+                            <>
+                              {flag.answerExplanation && (
+                                <p className="flag-explanation">{flag.answerExplanation}</p>
+                              )}
+                              <span className="flag-points">
+                                {isCorrect
+                                  ? `+${flag.severity === 'high' || flag.severity === 'severe' ? '75' : '50'} pts`
+                                  : '-25 pts'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flag-revealed">{flag.description}</span>
+                              <span className="flag-points">+25 pts</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {flag.discovered && flag.userAnswer === undefined && (
-                      <span className="flag-revealed">
-                        ⚠️ {flag.description} (+25 pts)
-                      </span>
-                    )}
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

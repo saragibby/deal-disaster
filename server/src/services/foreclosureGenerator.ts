@@ -9,6 +9,7 @@ interface ForeclosureScenario {
   state: string;
   zipCode: string;
   propertyType: string;
+  auctionType: string;
   beds: number;
   baths: number;
   sqft: number;
@@ -327,7 +328,8 @@ Required JSON structure:
   "city": "real US city name - MUST BE DIFFERENT from recently used locations",
   "state": "two-letter state code - MUST BE DIFFERENT from recently used locations",
   "zipCode": "5-digit zip code",
-  "propertyType": "Single Family Home, Condo, Townhouse, or Multi-Family",
+  "propertyType": "VARY THIS across scenarios. Choose ONE that fits the story from: Single Family Home, Condo, Townhouse, Multi-Family, Duplex, Manufactured/Mobile Home, Bungalow, Ranch, Cottage, Cabin, or Loft",
+  "auctionType": "the listing category for this property - VARY THIS across scenarios for realism. Choose ONE that best fits the situation from EXACTLY these values: 'Bank Owned', '2nd Chance Foreclosure', 'Short Sale', 'Foreclosure Homes', 'Non-Bank Owned'. Do not always pick the same one.",
   "beds": number of bedrooms (1-5),
   "baths": number of bathrooms (1-4),
   "sqft": square footage (800-4000),
@@ -536,6 +538,26 @@ CRITICAL REQUIREMENTS:
       scenario.hoaFees = Math.round(scenario.hoaFees);
     }
 
+    // Repairs on a foreclosure can only be guessed from the outside, so we
+    // present a range. Normalize the AI's min/max to clean $500 increments and
+    // guarantee they bracket the point estimate (min <= estimate <= max). If
+    // the model omitted or gave a degenerate range, derive an asymmetric band
+    // around the estimate (surprises skew higher).
+    const roundTo500 = (n: number) => Math.round(n / 500) * 500;
+    let repairsMin = scenario.estimatedRepairsMin;
+    let repairsMax = scenario.estimatedRepairsMax;
+    const validBand =
+      typeof repairsMin === 'number' && Number.isFinite(repairsMin) && repairsMin > 0 &&
+      typeof repairsMax === 'number' && Number.isFinite(repairsMax) && repairsMax > repairsMin;
+    if (!validBand) {
+      repairsMin = scenario.estimatedRepairs * 0.85;
+      repairsMax = scenario.estimatedRepairs * 1.3;
+    }
+    repairsMin = Math.min(roundTo500(repairsMin), scenario.estimatedRepairs);
+    repairsMax = Math.max(roundTo500(repairsMax), scenario.estimatedRepairs);
+    scenario.estimatedRepairsMin = repairsMin;
+    scenario.estimatedRepairsMax = repairsMax;
+
     // Validate property facts are real, in-range integers (prevents the
     // "0 beds / 0 sqft / year 0" cards that slipped through before).
     const intInRange = (value: unknown, min: number, max: number): boolean =>
@@ -544,8 +566,11 @@ CRITICAL REQUIREMENTS:
     if (!intInRange(scenario.beds, 1, 10)) {
       throw new Error(`Invalid scenario: beds must be an integer 1-10 (got ${scenario.beds})`);
     }
-    if (!intInRange(scenario.baths, 1, 10)) {
-      throw new Error(`Invalid scenario: baths must be an integer 1-10 (got ${scenario.baths})`);
+    // Baths may be in half steps (e.g. 2.5) like real listings.
+    const halfStepInRange = (value: unknown, min: number, max: number): boolean =>
+      typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max && Number.isInteger(value * 2);
+    if (!halfStepInRange(scenario.baths, 1, 10)) {
+      throw new Error(`Invalid scenario: baths must be in 0.5 steps 1-10 (got ${scenario.baths})`);
     }
     if (!intInRange(scenario.sqft, 300, 20000)) {
       throw new Error(`Invalid scenario: sqft must be an integer 300-20000 (got ${scenario.sqft})`);
@@ -607,6 +632,13 @@ CRITICAL REQUIREMENTS:
     // Ensure occupancy status is valid
     if (!['vacant', 'occupied', 'unknown'].includes(scenario.occupancyStatus)) {
       throw new Error('Invalid scenario: occupancyStatus must be vacant, occupied, or unknown');
+    }
+
+    // Constrain the listing category to the supported set; default if the
+    // model omitted it or returned an unexpected value (varies per scenario).
+    const allowedAuctionTypes = ['Bank Owned', '2nd Chance Foreclosure', 'Short Sale', 'Foreclosure Homes', 'Non-Bank Owned'];
+    if (!scenario.auctionType || !allowedAuctionTypes.includes(scenario.auctionType)) {
+      scenario.auctionType = '2nd Chance Foreclosure';
     }
 
     // FINANCIAL-CONSISTENCY GATE: compute the deal the same way the frontend

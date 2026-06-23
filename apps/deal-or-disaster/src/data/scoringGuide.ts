@@ -55,7 +55,7 @@ export const scoringGuides: ScoringAnalysis[] = [
     ],
     decision: `
 FINANCIAL MATH:
-- Auction Price: $180,000
+- Starting Bid: $180,000
 - Repairs: $45,000
 - Closing Costs: ~$5,000
 - TOTAL COST TO OWN: $230,000
@@ -98,7 +98,7 @@ This is a TERRIBLE deal. You'd lose $108,000 on this property.
     ],
     decision: `
 FINANCIAL MATH:
-- Auction Price: $140,000
+- Starting Bid: $140,000
 - Repairs: $35,000
 - Closing Costs: ~$4,500
 - TOTAL COST TO OWN: $179,500
@@ -147,7 +147,7 @@ This is a SOLID DEAL. You make $65,500 profit with reasonable HOA costs.
     ],
     decision: `
 FINANCIAL MATH:
-- Auction Price: $210,000
+- Starting Bid: $210,000
 - Superpriority HOA Lien (MUST PAY): $47,500
 - Repairs: $28,000
 - Eviction Costs: ~$10,000
@@ -196,7 +196,7 @@ This is a DISASTER. The superpriority HOA lien kills this deal. You lose $152,00
     ],
     decision: `
 FINANCIAL MATH:
-- Auction Price: $95,000
+- Starting Bid: $95,000
 - Official Repair Estimate: $22,000 (UNREALISTIC)
 - Code Remediation (hidden cost): ~$50,000
 - Code Enforcement Lien (must pay): $35,000
@@ -240,7 +240,7 @@ This is a BAD DEAL. Hidden code violations and unrealistic repair estimates lead
     ],
     decision: `
 FINANCIAL MATH:
-- Auction Price: $285,000
+- Starting Bid: $285,000
 - Repairs/Updates: $55,000
 - Mechanics Lien (small, manageable): $8,500
 - Closing Costs: ~$8,500

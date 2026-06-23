@@ -32,7 +32,7 @@ export const ScoringGuideDisplay: React.FC<ScoringGuideProps> = ({ caseData }) =
             <div className="analysis-section">
               <h4>Investment Costs</h4>
               <div className="cost-item">
-                <span>Auction Price:</span>
+                <span>Starting Bid:</span>
                 <span className="amount">${caseData.auctionPrice.toLocaleString()}</span>
               </div>
               <div className="cost-item">

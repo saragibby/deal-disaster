@@ -313,6 +313,12 @@ function App() {
       difficulty: challengeData.difficulty,
       correctDecision: property.correctDecision,
       decisionExplanation: property.explanation,
+      propertyType: property.propertyType,
+      auctionType: property.auctionType,
+      beds: property.beds,
+      baths: property.baths,
+      sqft: property.sqft,
+      yearBuilt: property.yearBuilt,
     };
     
     setCurrentCase(dailyCase);
@@ -704,7 +710,7 @@ function App() {
                   <span className="step-number">1</span>
                   <div>
                     <h4>Review the Case</h4>
-                    <p>Examine the property details, auction price, and estimated repairs carefully.</p>
+                    <p>Examine the property details, starting bid, and estimated repairs carefully.</p>
                   </div>
                 </div>
                 <div className="instruction-step">
