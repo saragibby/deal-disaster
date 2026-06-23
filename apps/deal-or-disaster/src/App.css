@@ -1571,8 +1571,78 @@ body {
   gap: 18px;
 }
 
+.investigation-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.investigation-title {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.investigation-title h3 {
+  margin: 0;
+}
+
+.due-diligence-meter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+}
+
+.due-diligence-meter.exhausted {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.dd-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #065f46;
+}
+
+.due-diligence-meter.exhausted .dd-count {
+  color: #b91c1c;
+}
+
+.dd-cost {
+  font-size: 0.85rem;
+  color: #64748b;
+  padding-left: 6px;
+}
+
+.flag-card.locked {
+  cursor: not-allowed;
+}
+
+.flag-card.locked .flag-card-front {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  box-shadow: none;
+}
+
+.flag-card.locked .flag-location {
+  color: #94a3b8;
+}
+
+.flag-card.locked:hover .flag-card-front {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
 .flag-card {
-  height: 215px;
+  height: 240px;
   perspective: 1200px;
   cursor: pointer;
   outline: none;
@@ -1622,11 +1692,23 @@ body {
 
 .flag-card-front {
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 7px;
 }
 
 .flag-doc-icon {
   font-size: 1.7rem;
+}
+
+.flag-source-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
+  text-align: left;
+}
+
+.flag-card-front .flip-cta {
+  margin-top: auto;
 }
 
 .flag-card-back {
@@ -1697,7 +1779,7 @@ body {
 /* Decision Buttons */
 .decision-buttons {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   margin-bottom: 30px;
 }
@@ -1731,15 +1813,6 @@ body {
 
 .buy-btn:hover:not(:disabled) {
   background: var(--success);
-  color: white;
-}
-
-.investigate-btn {
-  border-color: var(--warning);
-}
-
-.investigate-btn:hover:not(:disabled) {
-  background: var(--warning);
   color: white;
 }
 

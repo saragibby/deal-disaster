@@ -270,9 +270,6 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <div className="decision-feedback incorrect">
                     <p><strong>⚠️ Alternative Approach Recommended</strong></p>
                     <p><strong>Why {caseData.correctDecision}:</strong> {caseData.decisionExplanation || 'This property requires more careful analysis before proceeding.'}</p>
-                    {result.userDecision === 'BUY' && caseData.correctDecision === 'INVESTIGATE' && (
-                      <p className="advice">💡 <em>Tip: When there are title issues or major unknowns, INVESTIGATE allows you to gather more information before committing.</em></p>
-                    )}
                     {result.userDecision === 'BUY' && caseData.correctDecision === 'WALK_AWAY' && (
                       <p className="advice">💡 <em>Tip: Some properties have too many red flags or costs that make them unprofitable even at the starting bid.</em></p>
                     )}
@@ -320,14 +317,6 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                     <div className="math-explanation">
                       <p><strong>Walked away from a GOOD deal:</strong></p>
                       <p>❌ Missed profit of {profitText} = <strong>-50 points</strong></p>
-                    </div>
-                  );
-                }
-                if (decision === 'INVESTIGATE') {
-                  return (
-                    <div className="math-explanation">
-                      <p><strong>Chose to investigate further:</strong></p>
-                      <p>⚠️ Partial credit = <strong>+10 points</strong> — at a live auction there's no time for more research, so you must commit to BUY or WALK AWAY.</p>
                     </div>
                   );
                 }

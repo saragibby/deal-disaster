@@ -1,22 +1,102 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PropertyCase, RedFlag } from '../types';
 import ForeclosureAnnouncement from './ForeclosureAnnouncement';
-import { Share2, X } from 'lucide-react';
+import { Share2, X, Lock } from 'lucide-react';
+
+// A plain-language hint of what a given record/source actually contains, so the
+// player understands what they're paying to pull before they commit a
+// due-diligence action. Keyword-matched against the AI-generated source name
+// (`hiddenIn`); falls back to a generic line for anything unrecognized.
+function getSourceHint(hiddenIn: string): string {
+  const s = (hiddenIn || '').toLowerCase();
+  const has = (...words: string[]) => words.some((w) => s.includes(w));
+
+  if (has('title', 'deed', 'chain of title')) {
+    return 'Ownership history and recorded claims — surviving liens, easements, and clouds on title.';
+  }
+  if (has('lien', 'judgment', 'encumbrance')) {
+    return 'Recorded debts against the property — what survives the sale and follows the new owner.';
+  }
+  if (has('tax', 'assessor', 'county record', 'treasurer')) {
+    return 'Assessed value plus any delinquent property taxes or tax-lien certificates owed.';
+  }
+  if (has('hoa', 'association', 'condo', 'coa')) {
+    return 'Association dues, special assessments, and unpaid balances that transfer with the unit.';
+  }
+  if (has('inspection', 'inspector', 'condition report')) {
+    return 'Known structural, roof, foundation, and system defects flagged by a prior inspection.';
+  }
+  if (has('permit', 'code', 'violation', 'building dept')) {
+    return 'Open permits, unpermitted work, and outstanding code-enforcement violations.';
+  }
+  if (has('environmental', 'mold', 'asbestos', 'lead', 'radon', 'soil')) {
+    return 'Environmental hazards — contamination, mold, or materials that are costly to remediate.';
+  }
+  if (has('survey', 'plat', 'boundary', 'setback')) {
+    return 'Lot boundaries, encroachments, and setback issues that can limit use or resale.';
+  }
+  if (has('appraisal', 'valuation', 'bpo', 'comps', 'market')) {
+    return 'Independent value opinion and comparable sales used to sanity-check the resale number.';
+  }
+  if (has('occupan', 'tenant', 'lease', 'eviction', 'squatter')) {
+    return 'Who is living there now — tenants, leases, or occupants you may have to remove.';
+  }
+  if (has('court', 'docket', 'lawsuit', 'litigation', 'foreclosure notice', 'bankrupt')) {
+    return 'Active legal filings — pending suits, bankruptcies, or foreclosure-process defects.';
+  }
+  if (has('utility', 'water', 'sewer', 'septic', 'well')) {
+    return 'Utility connections and unpaid water/sewer balances that can become municipal liens.';
+  }
+  if (has('insurance', 'claim', 'flood')) {
+    return 'Past claims and flood-zone status that drive insurance cost and lender requirements.';
+  }
+  if (has('neighbor', 'rumor', 'local')) {
+    return 'On-the-ground intel about the property and block that rarely shows up on paper.';
+  }
+  return 'Background records on this property — pull them to surface issues hidden from the listing.';
+}
 
 interface CaseDisplayProps {
   propertyCase: PropertyCase;
   timeRemaining: number;
   onRedFlagClick: (flagId: string) => void;
   onRedFlagAnswer?: (flagId: string, answerIndex: number) => void;
+  // Spend one due-diligence action to open a document. Returns false when the
+  // budget/time is exhausted, in which case the document stays locked.
+  onTryInvestigate?: () => boolean;
+  investigationBudget?: number;
+  investigationsUsed?: number;
+  investigationTimeCost?: number;
+  investigationFee?: number;
 }
 
-export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClick, onRedFlagAnswer }: CaseDisplayProps) {
+export default function CaseDisplay({
+  propertyCase,
+  timeRemaining,
+  onRedFlagClick,
+  onRedFlagAnswer,
+  onTryInvestigate,
+  investigationBudget,
+  investigationsUsed = 0,
+  investigationTimeCost = 0,
+  investigationFee = 0,
+}: CaseDisplayProps) {
   const [activeTab, setActiveTab] = useState<'case' | 'announcement'>('case');
   const [expandedLiens, setExpandedLiens] = useState<Set<number>>(new Set());
   const [selectedFlag, setSelectedFlag] = useState<RedFlag | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  // Documents this player has already paid to inspect. Re-opening a pulled
+  // document is free; opening a new one spends a due-diligence action.
+  const [openedFlags, setOpenedFlags] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setOpenedFlags(new Set());
+  }, [propertyCase.id]);
+
+  const investigationsRemaining =
+    investigationBudget !== undefined ? Math.max(0, investigationBudget - investigationsUsed) : Infinity;
+  const canOpenNewDocument = investigationsRemaining > 0 && timeRemaining >= investigationTimeCost;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -58,6 +138,13 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
 
   const handleFlagClick = (flag: RedFlag) => {
     if (flag.discovered) return;
+
+    // First time opening this document: spend a due-diligence action. If the
+    // budget/time is gone, keep it locked. Re-opening a pulled document is free.
+    if (!openedFlags.has(flag.id)) {
+      if (onTryInvestigate && !onTryInvestigate()) return;
+      setOpenedFlags((prev) => new Set(prev).add(flag.id));
+    }
 
     // If this flag has a question, show the decision modal
     if (flag.question && flag.choices) {
@@ -271,28 +358,56 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
             </div>
 
             <div className="detail-section red-flags-section">
-              <h3>🔍 Property Investigation (Click a document to review)</h3>
+              <div className="investigation-header">
+                <div className="investigation-title">
+                  <h3>🔍 Property Investigation</h3>
+                  {investigationBudget !== undefined && (
+                    <span className="dd-cost">
+                      Each inspection costs {investigationTimeCost}s
+                      {investigationFee > 0 ? ` · −${investigationFee} pts` : ''}
+                    </span>
+                  )}
+                </div>
+                {investigationBudget !== undefined && (
+                  <div className={`due-diligence-meter ${canOpenNewDocument ? '' : 'exhausted'}`}>
+                    <span className="dd-count">
+                      Due diligence: {investigationsRemaining} of {investigationBudget} left
+                    </span>
+                  </div>
+                )}
+              </div>
               <div className="red-flags">
                 {propertyCase.redFlags.map((flag: RedFlag) => {
                   const answered = flag.discovered && flag.userAnswer !== undefined;
                   const isCorrect = flag.userAnswer === flag.correctChoice;
+                  const locked = !flag.discovered && !openedFlags.has(flag.id) && !canOpenNewDocument;
                   return (
                     <div
                       key={flag.id}
-                      className={`flag-card ${flag.discovered ? 'flipped' : ''} ${answered ? (isCorrect ? 'correct' : 'incorrect') : ''}`}
-                      onClick={() => handleFlagClick(flag)}
+                      className={`flag-card ${flag.discovered ? 'flipped' : ''} ${answered ? (isCorrect ? 'correct' : 'incorrect') : ''} ${locked ? 'locked' : ''}`}
+                      onClick={() => !locked && handleFlagClick(flag)}
                       role="button"
-                      tabIndex={flag.discovered ? -1 : 0}
-                      aria-disabled={flag.discovered}
+                      tabIndex={flag.discovered || locked ? -1 : 0}
+                      aria-disabled={flag.discovered || locked}
                       onKeyDown={(e) =>
-                        !flag.discovered && (e.key === 'Enter' || e.key === ' ') && handleFlagClick(flag)
+                        !flag.discovered && !locked && (e.key === 'Enter' || e.key === ' ') && handleFlagClick(flag)
                       }
                     >
                       <div className="flag-card-inner">
                         <div className="flag-card-face flag-card-front">
-                          <span className="flag-doc-icon" aria-hidden="true">📄</span>
-                          <span className="flag-location">{flag.hiddenIn}</span>
-                          <span className="flip-cta">Click to review</span>
+                          {locked ? (
+                            <>
+                              <Lock className="flag-doc-icon" size={26} aria-hidden="true" />
+                              <span className="flag-location">{flag.hiddenIn}</span>
+                              <span className="flip-cta">Out of due diligence — commit now</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flag-location">{flag.hiddenIn}</span>
+                              <span className="flag-source-hint">{getSourceHint(flag.hiddenIn)}</span>
+                              <span className="flip-cta">Tap to inspect</span>
+                            </>
+                          )}
                         </div>
                         <div className="flag-card-face flag-card-back">
                           <span className="flag-back-title">{flag.hiddenIn}</span>

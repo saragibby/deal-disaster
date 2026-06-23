@@ -15,17 +15,7 @@ export default function DecisionButtons({ onDecision, disabled }: DecisionButton
       >
         <span className="btn-icon">✅</span>
         <span className="btn-text">BUY</span>
-        <span className="btn-subtitle">Make the deal</span>
-      </button>
-
-      <button
-        className="decision-btn investigate-btn"
-        onClick={() => onDecision('INVESTIGATE')}
-        disabled={disabled}
-      >
-        <span className="btn-icon">⚠️</span>
-        <span className="btn-text">INVESTIGATE MORE</span>
-        <span className="btn-subtitle">Need more info</span>
+        <span className="btn-subtitle">Place the bid</span>
       </button>
 
       <button

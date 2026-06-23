@@ -48,7 +48,7 @@ interface ForeclosureScenario {
     answerExplanation: string;
   }>;
   hiddenIssues: string[];
-  correctDecision: 'BUY' | 'INVESTIGATE' | 'WALK_AWAY';
+  correctDecision: 'BUY' | 'WALK_AWAY';
   explanation: string;
 }
 
@@ -437,7 +437,7 @@ Required JSON structure:
       "answerExplanation": "1-2 sentence explanation of WHY the correct answer is right. Educate the user! Examples: 'IRS tax liens have super-priority status and survive foreclosure sales, meaning you inherit the full $60K debt regardless of purchase price. This is why reviewing title reports is critical.' OR 'Foundation cracks of this severity typically require underpinning and waterproofing, which costs $100-150 per linear foot. With a 40-foot crack, expect $4K-6K minimum for proper repair.'"
     },
   "hiddenIssues": array of 1-3 strings describing non-obvious issues with story details. Examples: "Neighbors report constant sewage backup - septic system likely failing", "City records show demolition order filed last year for unpermitted garage conversion", "Former owner was running an unlicensed daycare - potential liability issues",
-  "correctDecision": "BUY", "INVESTIGATE", or "WALK_AWAY",
+  "correctDecision": "BUY" or "WALK_AWAY",
   "explanation": "detailed explanation of why this is the correct decision with calculations"
 }
 
@@ -624,10 +624,8 @@ CRITICAL REQUIREMENTS:
       }
     }
 
-    // Ensure decision is valid
-    if (!['BUY', 'INVESTIGATE', 'WALK_AWAY'].includes(scenario.correctDecision)) {
-      throw new Error('Invalid scenario: correctDecision must be BUY, INVESTIGATE, or WALK_AWAY');
-    }
+    // correctDecision is normalized to BUY / WALK_AWAY from the economics in
+    // the financial-consistency gate below, so no early check is needed here.
 
     // Ensure occupancy status is valid
     if (!['vacant', 'occupied', 'unknown'].includes(scenario.occupancyStatus)) {
@@ -652,12 +650,9 @@ CRITICAL REQUIREMENTS:
         `Inconsistent scenario: isGoodDeal=${scenario.isGoodDeal} but computed net profit is $${deal.netProfit.toLocaleString()} (resale $${scenario.actualValue.toLocaleString()} - total cost $${deal.totalInvestment.toLocaleString()})`
       );
     }
-    if (scenario.correctDecision === 'BUY' && !profitable) {
-      throw new Error(`Inconsistent scenario: correctDecision=BUY but computed net profit is $${deal.netProfit.toLocaleString()}`);
-    }
-    if (scenario.correctDecision === 'WALK_AWAY' && profitable) {
-      throw new Error(`Inconsistent scenario: correctDecision=WALK_AWAY but computed net profit is $${deal.netProfit.toLocaleString()}`);
-    }
+    // With only BUY / WALK_AWAY as terminal options, the correct call is fully
+    // determined by profitability. Derive it so it can never contradict the math.
+    scenario.correctDecision = profitable ? 'BUY' : 'WALK_AWAY';
 
     return scenario;
   }

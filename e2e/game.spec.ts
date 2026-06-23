@@ -58,8 +58,17 @@ test.describe('Deal or Disaster - Game Play', () => {
     await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
 
     await expect(page.locator('.buy-btn')).toBeVisible();
-    await expect(page.locator('.investigate-btn')).toBeVisible();
     await expect(page.locator('.walk-btn')).toBeVisible();
+    // INVESTIGATE is no longer a terminal decision; only BUY / WALK remain.
+    await expect(page.locator('.investigate-btn')).toHaveCount(0);
+  });
+
+  test('shows the limited due-diligence meter', async ({ page }) => {
+    await page.locator('.start-btn-secondary', { hasText: 'Play Regular Game' }).click();
+    await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
+
+    await expect(page.locator('.due-diligence-meter')).toBeVisible();
+    await expect(page.locator('.due-diligence-meter')).toContainText('Due diligence:');
   });
 
   test('shows timer during game', async ({ page }) => {
@@ -83,8 +92,8 @@ test.describe('Deal or Disaster - Game Play', () => {
     await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
 
     await expect(page.locator('.value-grid')).toBeVisible();
-    await expect(page.locator('text=Property Value')).toBeVisible();
-    await expect(page.locator('text=Auction Price')).toBeVisible();
+    await expect(page.locator('text=Est. Market Value')).toBeVisible();
+    await expect(page.locator('text=Starting Bid')).toBeVisible();
   });
 
   test('can make a walk away decision', async ({ page }) => {

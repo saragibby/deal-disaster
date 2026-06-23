@@ -21,6 +21,15 @@ import './App.css';
 
 const CASE_TIME_LIMIT = 300; // 5 minutes in seconds
 
+// Due diligence on a foreclosure is limited and costly: inspecting a document
+// spends one action from a per-case budget, advances the auction clock, and
+// charges a small fee. This turns investigation into a real tradeoff instead of
+// a risk-free escape, and forces a final BUY / WALK_AWAY commitment at the gavel.
+const INVESTIGATE_TIME_COST = 45; // seconds removed from the clock per inspection
+const INVESTIGATE_FEE = 5; // points charged per inspection
+const DUE_DILIGENCE_BUDGET: Record<string, number> = { easy: 4, medium: 3, hard: 2 };
+const DEFAULT_DUE_DILIGENCE_BUDGET = 3;
+
 function getInitialAuth() {
   try {
     const token = localStorage.getItem('token');
@@ -52,9 +61,15 @@ function App() {
   // points. Reset whenever a new case loads.
   const revealedFlagsRef = useRef<Set<string>>(new Set());
   const answeredFlagsRef = useRef<Set<string>>(new Set());
+  // Due-diligence actions spent on this case. The ref provides a synchronous,
+  // race-safe count for the budget gate; the state drives the on-screen counter.
+  const investigationsUsedRef = useRef(0);
+  const [investigationsUsed, setInvestigationsUsed] = useState(0);
   useEffect(() => {
     revealedFlagsRef.current = new Set();
     answeredFlagsRef.current = new Set();
+    investigationsUsedRef.current = 0;
+    setInvestigationsUsed(0);
   }, [currentCase?.id]);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
@@ -444,6 +459,22 @@ function App() {
     }
   };
 
+  // Spend one due-diligence action to inspect a document. Returns false when the
+  // budget is exhausted or there isn't enough time on the clock, in which case
+  // the caller should keep the document locked. Charging here (time + small fee)
+  // is what gives investigation a real cost.
+  const tryInvestigate = (): boolean => {
+    if (!currentCase) return false;
+    const budget = DUE_DILIGENCE_BUDGET[currentCase.difficulty ?? 'medium'] ?? DEFAULT_DUE_DILIGENCE_BUDGET;
+    if (investigationsUsedRef.current >= budget) return false;
+    if (timeRemaining < INVESTIGATE_TIME_COST) return false;
+    investigationsUsedRef.current += 1;
+    setInvestigationsUsed(investigationsUsedRef.current);
+    setTimeRemaining((prev) => Math.max(0, prev - INVESTIGATE_TIME_COST));
+    setScore((prev) => ({ ...prev, points: prev.points - INVESTIGATE_FEE }));
+    return true;
+  };
+
   const handleRedFlagClick = (flagId: string) => {
     if (!currentCase) return;
     // Synchronous guard: dedupe rapid repeated clicks and StrictMode double-invokes.
@@ -549,11 +580,6 @@ function App() {
         explanation = `This was actually a good deal — you missed about $${deal.netProfit.toLocaleString()} in profit. You were too cautious.`;
         setScore((prev) => ({ ...prev, mistakes: prev.mistakes + 1 }));
       }
-    } else if (decision === 'INVESTIGATE') {
-      // Investigating gives partial credit but costs time
-      points = 10;
-      message = '⚠️ More Research Needed';
-      explanation = 'In a real auction, you don\'t have time to investigate further. You need to decide now: BUY or WALK AWAY.';
     }
 
     // Calculate total points earned for this challenge (investigation + decision)
@@ -716,15 +742,15 @@ function App() {
                 <div className="instruction-step">
                   <span className="step-number">2</span>
                   <div>
-                    <h4>Find Red Flags</h4>
-                    <p>Click on documents to discover hidden issues. Each flag found earns +25 points!</p>
+                    <h4>Run Due Diligence</h4>
+                    <p>Inspect documents to uncover hidden issues — but due diligence is limited. Each inspection spends one action, burns auction time, and costs a small fee. Choose wisely!</p>
                   </div>
                 </div>
                 <div className="instruction-step">
                   <span className="step-number">3</span>
                   <div>
-                    <h4>Make Your Decision</h4>
-                    <p>You have 3 minutes to decide: BUY the property, INVESTIGATE further, or WALK AWAY.</p>
+                    <h4>Commit at the Gavel</h4>
+                    <p>When the clock runs down (5 minutes) you must commit: BUY the property or WALK AWAY. Run out of time and you auto-pass.</p>
                   </div>
                 </div>
                 <div className="instruction-step">
@@ -859,6 +885,11 @@ function App() {
             timeRemaining={timeRemaining}
             onRedFlagClick={handleRedFlagClick}
             onRedFlagAnswer={handleRedFlagAnswer}
+            onTryInvestigate={tryInvestigate}
+            investigationBudget={DUE_DILIGENCE_BUDGET[currentCase.difficulty ?? 'medium'] ?? DEFAULT_DUE_DILIGENCE_BUDGET}
+            investigationsUsed={investigationsUsed}
+            investigationTimeCost={INVESTIGATE_TIME_COST}
+            investigationFee={INVESTIGATE_FEE}
           />
           <DecisionButtons
             onDecision={handleDecision}
