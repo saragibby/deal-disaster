@@ -139,13 +139,37 @@ Curated cases 016–018 demonstrate the mechanics.
   for a more broadly comfortable tone.
 - Keep humor human and story-led, but ensure every funny clue is mechanically meaningful.
 
-### 8. AI validation pipeline (extend the new gate)
+### 8. AI validation pipeline (extend the new gate) ✅ DONE
 The generator now rejects/regenerates financially inconsistent scenarios and validates
 property facts. Future extensions:
 - Validate that each red flag's quiz `correctChoice` is consistent with its `costLow/costHigh`.
 - Ensure the surviving-lien set implied by `correctDecision` matches the lien data.
 - Add archetype targeting (item 1) so generation produces a balanced mix.
 - Log rejected scenarios for prompt-quality monitoring.
+
+**Shipped:** `validateAndNormalizeScenario` in
+[`foreclosureGenerator.ts`](server/src/services/foreclosureGenerator.ts) gained three checks:
+- **Quiz integrity + cost-consistency.** Every red flag must carry a non-empty `question`,
+  a 2–4 item `choices` array, an in-range `correctChoice`, and an `answerExplanation`
+  (structural failures reject and regenerate). The choice at `correctChoice` is then checked
+  against the flag's cost: a no-impact red-herring's correct answer may not assert a ≥$5k cost,
+  a materially expensive issue (≈$10k+) may not read as "free / wiped / no cost"
+  (`impliesNoCost()` + `maxDollars()` dollar parser), and a money-saver's correct answer is
+  warned if it reads like an added cost. Checks only reject clear contradictions to avoid
+  wasting generations on phrasing.
+- **Catalog-authoritative lien survival.** A lien's `survivesForeclosure` is now forced to the
+  shared `LIEN_CATALOG` rule whenever the model's value contradicts it (logged), so the
+  surviving-lien set that drives `computeScenarioDeal()` → profitability → `correctDecision`
+  can never be wrong. Liens with no catalog entry keep their declared value but log a
+  disagreement with the keyword heuristic.
+- **Structured rejection logging.** `logRejectedScenario()` emits a greppable
+  `[scenario-rejected] attempt=… difficulty=… archetype=… reason="…"` line per failed attempt
+  for prompt-quality monitoring (plus `[scenario-lien]` / `[scenario-quiz]` correction warnings).
+
+Prompt rules 19–20 were added so generations satisfy the quiz-vs-cost and lien-survival checks
+up front. Archetype targeting (third bullet) shipped earlier with item 1. Verified end-to-end:
+a regenerated challenge passes all new gates, and the structured rejection log fires on a failed
+attempt.
 
 ### 9. Single market-value resale anchor ✅ DONE
 Beginners should reason about **one** headline number, not two. The old model used a separate,

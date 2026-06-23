@@ -174,7 +174,7 @@ export class ForeclosureScenarioGenerator {
         return validatedScenario;
       } catch (error) {
         lastError = error;
-        console.error(`Error generating foreclosure scenario (attempt ${attempt}/${MAX_ATTEMPTS}):`, error);
+        this.logRejectedScenario(attempt, MAX_ATTEMPTS, difficulty, archetype, error);
       }
     }
 
@@ -493,7 +493,9 @@ CRITICAL REQUIREMENTS:
 15. Remember: A well-maintained property can still be a terrible deal due to liens, title issues, or market factors!
 16. SENIOR vs JUNIOR: junior liens (2nd mortgage, HELOC, most judgments) are WIPED at sale, while super-priority liens (property/IRS tax, HOA super-lien, mechanics, code enforcement, environmental, child support) SURVIVE and the buyer inherits them. Set survivesForeclosure accordingly and teach this nuance in at least one quiz.
 17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in isGoodDeal.
-18. REALISTIC DIMENSIONS: beds, baths, sqft and yearBuilt must be internally consistent and believable for the propertyType, the city/state market, and the estimatedValue (see the field notes above). No 5-bedroom condos, no 4,000 sqft cabins, no 600 sqft homes worth $600k — sanity-check beds ↔ baths ↔ sqft ↔ value before returning.`;
+18. REALISTIC DIMENSIONS: beds, baths, sqft and yearBuilt must be internally consistent and believable for the propertyType, the city/state market, and the estimatedValue (see the field notes above). No 5-bedroom condos, no 4,000 sqft cabins, no 600 sqft homes worth $600k — sanity-check beds ↔ baths ↔ sqft ↔ value before returning.
+19. QUIZ MUST MATCH THE NUMBERS: for every red flag, the choice at "correctChoice" must agree with its cost. An expensive issue's correct answer must state the cost (never "no cost", "free", or "wiped at sale"); a no-impact red-herring's correct answer must say it costs you (almost) nothing; a money-saver's correct answer must describe the saving/credit, never an added cost. "choices" must be a 3-4 item array and "correctChoice" a valid 0-based index into it.
+20. LIEN SURVIVAL MUST MATCH THE CATALOG: set each lien's "survivesForeclosure" exactly per rule #16 (junior mortgages/HELOCs/most judgments = false; property/IRS tax, HOA super-lien, mechanics, code enforcement, environmental, child support = true). The surviving-lien set you declare is what determines whether the deal profits and thus the correct BUY/WALK_AWAY call — get it right.`;
   }
 
   /**
@@ -682,11 +684,29 @@ CRITICAL REQUIREMENTS:
       if (archetype) {
         if (!lien.category) lien.category = archetype.category;
         if (!lien.educationalNote) lien.educationalNote = archetype.educationalNote;
-        if (typeof lien.survivesForeclosure !== 'boolean') {
-          lien.survivesForeclosure = archetype.survivesForeclosure;
+        // The catalog is authoritative on whether a lien survives foreclosure.
+        // If the model declared a value that contradicts the catalog rule, we
+        // correct it (and log) so the surviving-lien set that drives scoring
+        // and correctDecision can never be wrong (item 8).
+        if (
+          typeof lien.survivesForeclosure === 'boolean' &&
+          lien.survivesForeclosure !== archetype.survivesForeclosure
+        ) {
+          console.warn(
+            `[scenario-lien] "${lien.type}" survivesForeclosure=${lien.survivesForeclosure} contradicts catalog rule (${archetype.survivesForeclosure}); correcting to catalog.`
+          );
         }
-      }
-      if (typeof lien.survivesForeclosure !== 'boolean') {
+        lien.survivesForeclosure = archetype.survivesForeclosure;
+      } else if (typeof lien.survivesForeclosure === 'boolean') {
+        // No catalog entry: keep the declared value but flag a disagreement with
+        // the keyword heuristic so prompt-quality issues are visible in logs.
+        const heuristic = this.lienSurvives(lien.type, lien.notes);
+        if (heuristic !== lien.survivesForeclosure) {
+          console.warn(
+            `[scenario-lien] "${lien.type}" survivesForeclosure=${lien.survivesForeclosure} differs from heuristic (${heuristic}); no catalog entry, keeping declared value.`
+          );
+        }
+      } else {
         lien.survivesForeclosure = this.lienSurvives(lien.type, lien.notes);
       }
     }
@@ -714,6 +734,62 @@ CRITICAL REQUIREMENTS:
       // value (that would be silently dropped by the red-herring cost filter).
       if (flag.severity === 'red-herring' && ((flag.costLow ?? 0) < 0 || (flag.costHigh ?? 0) < 0)) {
         throw new Error(`Invalid scenario: red-herring "${flag.type}" cannot carry a negative (money-saving) cost`);
+      }
+
+      // ---- Quiz integrity (item 8) ----
+      // A structurally broken quiz makes the investigation card unplayable, so
+      // reject and regenerate rather than ship it.
+      if (typeof flag.question !== 'string' || flag.question.trim().length === 0) {
+        throw new Error(`Invalid scenario: red flag "${flag.type}" is missing a quiz question`);
+      }
+      if (
+        !Array.isArray(flag.choices) ||
+        flag.choices.length < 2 ||
+        !flag.choices.every((c) => typeof c === 'string' && c.trim().length > 0)
+      ) {
+        throw new Error(`Invalid scenario: red flag "${flag.type}" must have 2+ non-empty quiz choices`);
+      }
+      if (
+        !Number.isInteger(flag.correctChoice) ||
+        flag.correctChoice < 0 ||
+        flag.correctChoice >= flag.choices.length
+      ) {
+        throw new Error(
+          `Invalid scenario: red flag "${flag.type}" has correctChoice ${flag.correctChoice} out of range for ${flag.choices.length} choices`
+        );
+      }
+      if (typeof flag.answerExplanation !== 'string' || flag.answerExplanation.trim().length === 0) {
+        throw new Error(`Invalid scenario: red flag "${flag.type}" is missing an answer explanation`);
+      }
+
+      // ---- Quiz cost-consistency (item 8) ----
+      // The correct answer must not contradict the flag's economics. We only
+      // reject clear contradictions to avoid wasting generations on phrasing.
+      const correct = flag.choices[flag.correctChoice].toLowerCase();
+      const mid = ((flag.costLow ?? flag.costHigh ?? 0) + (flag.costHigh ?? flag.costLow ?? 0)) / 2;
+      if (flag.severity === 'red-herring') {
+        // A no-impact item's correct answer should never tell the player to
+        // spend a meaningful sum.
+        if (this.maxDollars(correct) >= 5000) {
+          throw new Error(
+            `Inconsistent quiz: red-herring "${flag.type}" correct answer asserts a large cost ("${flag.choices[flag.correctChoice]}") but the item is no-impact`
+          );
+        }
+      } else if (mid >= 10000) {
+        // A materially expensive issue's correct answer must not read as free /
+        // wiped / no cost.
+        if (this.impliesNoCost(correct)) {
+          throw new Error(
+            `Inconsistent quiz: "${flag.type}" costs ~$${Math.round(mid).toLocaleString()} but the correct answer implies no cost ("${flag.choices[flag.correctChoice]}")`
+          );
+        }
+      } else if (mid <= -2000) {
+        // A money-saver's correct answer should not frame it as an added cost.
+        if (/\badd(s|ing)?\b[^.]*\bcost|increase[sd]?\s+(your\s+)?cost|costs?\s+you\s+(more|extra)/.test(correct)) {
+          console.warn(
+            `[scenario-quiz] money-saver "${flag.type}" correct answer reads like an added cost: "${flag.choices[flag.correctChoice]}"`
+          );
+        }
       }
     }
 
@@ -792,6 +868,56 @@ CRITICAL REQUIREMENTS:
         : 'clear-buy';
 
     return scenario;
+  }
+
+  /**
+   * Largest dollar figure mentioned in a quiz choice. Recognizes "$12,000",
+   * "$12k", and "$1.2M". Used by the quiz cost-consistency checks (item 8).
+   * Only "$"-prefixed numbers count, so plain numbers (e.g. "2 years") are
+   * ignored.
+   */
+  private maxDollars(text: string): number {
+    const re = /\$\s?([\d,]+(?:\.\d+)?)\s?([kKmM])?/g;
+    let match: RegExpExecArray | null;
+    let max = 0;
+    while ((match = re.exec(text)) !== null) {
+      let value = parseFloat(match[1].replace(/,/g, ''));
+      if (!Number.isFinite(value)) continue;
+      const suffix = (match[2] || '').toLowerCase();
+      if (suffix === 'k') value *= 1_000;
+      else if (suffix === 'm') value *= 1_000_000;
+      max = Math.max(max, value);
+    }
+    return max;
+  }
+
+  /**
+   * True when a quiz choice reads as "this costs you nothing" (free, wiped,
+   * harmless, etc.). Used to catch an expensive issue whose correct answer
+   * mistakenly implies no cost (item 8).
+   */
+  private impliesNoCost(text: string): boolean {
+    return /\b(no cost|no real cost|no impact|no material cost|free|safe to ignore|ignore it|nothing to worry|harmless|negligible|won'?t cost|no money|wiped (out )?at|gets wiped)\b/.test(
+      text
+    );
+  }
+
+  /**
+   * Structured, greppable log line for a rejected/failed generation attempt so
+   * prompt-quality issues are visible in monitoring (item 8). Search logs for
+   * the "[scenario-rejected]" prefix to audit which rules trip most often.
+   */
+  private logRejectedScenario(
+    attempt: number,
+    maxAttempts: number,
+    difficulty: string,
+    archetype: CaseArchetype | undefined,
+    error: unknown
+  ): void {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[scenario-rejected] attempt=${attempt}/${maxAttempts} difficulty=${difficulty} archetype=${archetype ?? 'any'} reason="${reason}"`
+    );
   }
 
   /**
