@@ -33,7 +33,7 @@ BUY/WALK-AWAY decision that is scored.
 
 ---
 
-## K. Unify the quiz mechanic across both modes
+## K. Unify the quiz mechanic across both modes ✅ DONE
 
 **Today:** Regular cases and the Daily Challenge use slightly different discovery/quiz flows.
 
@@ -41,6 +41,15 @@ BUY/WALK-AWAY decision that is scored.
 - A quiz on **every** discoverable document/red flag in both regular and daily play.
 - Same scoring rules, same "issues found X of Y" feedback, same reveal animations.
 - Share the components between modes instead of mode-specific branches.
+
+**Shipped:** Both modes already render the same `CaseDisplay` quiz engine; the gap was that
+static regular cases carried no quiz data while AI daily cases did. A new
+[`utils/quizGenerator.ts`](apps/deal-or-disaster/src/utils/quizGenerator.ts) `deriveQuiz()`
+generates a quiz from each flag's cost range / severity when none is authored (authored quizzes
+always win), applied via `withDerivedQuizzes()` at every case-load point. Scoring is now fully
+mode-agnostic: a per-case `caseInvestigationPointsRef` replaced the daily-only
+`challengeStartPoints`, so the post-decision "investigation vs decision" breakdown is identical
+in both modes. All 63 static flags now present a quiz with consistent +50/+75/−25 scoring.
 
 ---
 

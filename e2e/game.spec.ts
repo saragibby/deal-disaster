@@ -138,3 +138,29 @@ test.describe('Deal or Disaster - Lien / Issue Library', () => {
   });
 });
 
+test.describe('Deal or Disaster - Unified Quiz Mechanic', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await loginViaAPI(page, TEST_USER.email, TEST_USER.password);
+  });
+
+  test('regular static case presents a quiz when inspecting a document', async ({ page }) => {
+    await page.goto('/deal-or-disaster/deal/case-016');
+    await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
+
+    // Static (regular) cases now derive a quiz for every red flag, matching the
+    // Daily Challenge mechanic. Inspecting a document opens the quiz modal.
+    const firstFlag = page.locator('.red-flags .flag-card').first();
+    await expect(firstFlag).toBeVisible();
+    await firstFlag.click();
+
+    await expect(page.locator('.red-flag-modal')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.flag-question')).toBeVisible();
+    // Multiple answer choices and a submit button are present.
+    await expect(page.locator('.answer-choices .choice-btn').first()).toBeVisible();
+    expect(await page.locator('.answer-choices .choice-btn').count()).toBeGreaterThan(1);
+    await expect(page.locator('.submit-answer-btn')).toBeVisible();
+  });
+});
+
+

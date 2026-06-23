@@ -212,13 +212,6 @@ export default function CaseDisplay({
                 <span className="listing-tag">🔨 {propertyCase.auctionType || '2nd Chance Foreclosure'}</span>
                 <h2>{propertyCase.address}</h2>
                 <p className="location">{propertyCase.city}, {propertyCase.state} {propertyCase.zip}</p>
-                <div className="property-specs">
-                  {propertyCase.beds != null && <span>{propertyCase.beds} Beds</span>}
-                  {propertyCase.baths != null && <span>{propertyCase.baths} Baths</span>}
-                  {propertyCase.sqft != null && <span>{propertyCase.sqft.toLocaleString()} Sq. Ft.</span>}
-                  {propertyCase.yearBuilt != null && <span>Built {propertyCase.yearBuilt}</span>}
-                  {propertyCase.propertyType && <span>{propertyCase.propertyType}</span>}
-                </div>
               </div>
               <div className="header-badges">
                 <button
@@ -273,41 +266,67 @@ export default function CaseDisplay({
           </div>
 
           <div className="property-details">
-            <div className="detail-section">
-              <h3>📋 Property Description</h3>
-              <p>{propertyCase.description}</p>
-              <p>
-                <strong>Occupancy:</strong>{' '}
-                {(() => {
-                  const occ = propertyCase.occupant
-                    ?? (propertyCase.occupancyStatus === 'vacant' ? 'vacant'
-                      : propertyCase.occupancyStatus === 'occupied' ? 'owner'
-                      : undefined);
-                  const label = occ === 'vacant' ? 'Vacant'
-                    : occ === 'owner' ? 'Occupied — former owner'
-                    : occ === 'tenant' ? 'Occupied — tenant'
-                    : occ === 'squatter' ? 'Occupied — squatter'
-                    : 'Unknown';
-                  return label;
-                })()}
+            <div className="detail-section description-section">
+              <div className="description-main">
+                <h3>📋 Property Description</h3>
+                <p>{propertyCase.description}</p>
                 {propertyCase.occupancyCost ? (
-                  <span className="occupancy-cost">
-                    {' '}· est. {formatCurrency(propertyCase.occupancyCost)} to clear (eviction / cash-for-keys)
-                  </span>
+                  <p className="occupancy-cost">
+                    💰 est. {formatCurrency(propertyCase.occupancyCost)} to clear occupancy (eviction / cash-for-keys)
+                  </p>
                 ) : null}
-              </p>
-              {propertyCase.redemptionPeriodDays ? (
-                <p className="redemption-note">
-                  <strong>⏳ Redemption period:</strong> the prior owner can reclaim this property for{' '}
-                  {propertyCase.redemptionPeriodDays} days after the sale
-                  {propertyCase.redemptionCost ? ` — budget ${formatCurrency(propertyCase.redemptionCost)} in carrying costs and risk` : ''}.
+                {propertyCase.redemptionPeriodDays ? (
+                  <p className="redemption-note">
+                    <strong>⏳ Redemption period:</strong> the prior owner can reclaim this property for{' '}
+                    {propertyCase.redemptionPeriodDays} days after the sale
+                    {propertyCase.redemptionCost ? ` — budget ${formatCurrency(propertyCase.redemptionCost)} in carrying costs and risk` : ''}.
+                  </p>
+                ) : null}
+                {propertyCase.hoaFees ? <p><strong>HOA Fees:</strong> {formatCurrency(propertyCase.hoaFees)}/month</p> : null}
+                <p className="listing-disclaimer">
+                  <span className="disclaimer-icon">⚠️</span>
+                  <strong className="disclaimer-label">Sold as-is</strong>
+                  <span className="disclaimer-text">
+                    Cash only · No interior access · No inspection or financing
+                    contingencies. Buyer assumes all liens that survive the foreclosure sale.
+                  </span>
                 </p>
-              ) : null}
-              {propertyCase.hoaFees ? <p><strong>HOA Fees:</strong> {formatCurrency(propertyCase.hoaFees)}/month</p> : null}
-              <p className="listing-disclaimer">
-                ⚠️ Sold <strong>as-is</strong> · Cash only · No interior access · No inspection or financing
-                contingencies. Buyer assumes all liens that survive the foreclosure sale.
-              </p>
+              </div>
+              <table className="property-info-table">
+                <tbody>
+                  <tr>
+                    <th>Occupancy</th>
+                    <td>
+                      {(() => {
+                        const occ = propertyCase.occupant
+                          ?? (propertyCase.occupancyStatus === 'vacant' ? 'vacant'
+                            : propertyCase.occupancyStatus === 'occupied' ? 'owner'
+                            : undefined);
+                        return occ === 'vacant' ? 'Vacant'
+                          : occ === 'owner' ? 'Owner-occupied'
+                          : occ === 'tenant' ? 'Tenant-occupied'
+                          : occ === 'squatter' ? 'Squatter'
+                          : 'Unknown';
+                      })()}
+                    </td>
+                  </tr>
+                  {propertyCase.beds != null && (
+                    <tr><th>Beds</th><td>{propertyCase.beds}</td></tr>
+                  )}
+                  {propertyCase.baths != null && (
+                    <tr><th>Baths</th><td>{propertyCase.baths}</td></tr>
+                  )}
+                  {propertyCase.sqft != null && (
+                    <tr><th>Square Feet</th><td>{propertyCase.sqft.toLocaleString()}</td></tr>
+                  )}
+                  {propertyCase.yearBuilt != null && (
+                    <tr><th>Year Built</th><td>{propertyCase.yearBuilt}</td></tr>
+                  )}
+                  {propertyCase.propertyType && (
+                    <tr><th>Property Type</th><td>{propertyCase.propertyType}</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
             <div className="detail-section">
@@ -493,7 +512,7 @@ export default function CaseDisplay({
             </button>
 
             <div className="modal-header">
-              <h3>📄 {selectedFlag.hiddenIn}</h3>
+              <h3>{selectedFlag.hiddenIn}</h3>
               <div className="header-actions">
                 {!showResult && (
                   <button className="help-btn" onClick={() => setShowHelp(!showHelp)}>

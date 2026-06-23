@@ -13,6 +13,7 @@ import { AskWill } from '@deal-platform/shared-ui';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
 import { computeDeal, formatPct } from './utils/dealFinancials';
+import { withDerivedQuizzes } from './utils/quizGenerator';
 import { api } from './services/api';
 import { buildAppUrl } from '@deal-platform/shared-auth';
 import { LogOut, User } from 'lucide-react';
@@ -53,7 +54,6 @@ function App() {
   const [showDailyChallenge, setShowDailyChallenge] = useState(false);
   const [isDailyChallenge, setIsDailyChallenge] = useState(false);
   const [dailyChallengeData, setDailyChallengeData] = useState<any>(null);
-  const [challengeStartPoints, setChallengeStartPoints] = useState(0);
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'calendar'>('leaderboard');
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
   // Track which flags have already been revealed/answered so rapid, repeated
@@ -65,11 +65,17 @@ function App() {
   // race-safe count for the budget gate; the state drives the on-screen counter.
   const investigationsUsedRef = useRef(0);
   const [investigationsUsed, setInvestigationsUsed] = useState(0);
+  // Net points earned during investigation of the CURRENT case (quiz answers +/-
+  // and inspection fees). Tracked per-case so the post-decision "investigation vs
+  // decision" breakdown is correct and identical in both game modes. Reset on a
+  // new case below.
+  const caseInvestigationPointsRef = useRef(0);
   useEffect(() => {
     revealedFlagsRef.current = new Set();
     answeredFlagsRef.current = new Set();
     investigationsUsedRef.current = 0;
     setInvestigationsUsed(0);
+    caseInvestigationPointsRef.current = 0;
   }, [currentCase?.id]);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
@@ -205,7 +211,7 @@ function App() {
       const caseData = propertyCases.find((c: PropertyCase) => c.id === id);
       
       if (caseData) {
-        setCurrentCase(caseData);
+        setCurrentCase(withDerivedQuizzes(caseData));
         setGameStarted(true);
         setIsDailyChallenge(false);
         setTimeRemaining(CASE_TIME_LIMIT);
@@ -293,7 +299,6 @@ function App() {
       redFlagMistakes: 0,
     };
     setScore(initialScore);
-    setChallengeStartPoints(0); // Track starting points for this challenge
     
     // Convert daily challenge data to PropertyCase format
     const property = challengeData.property_data;
@@ -344,7 +349,7 @@ function App() {
       yearBuilt: property.yearBuilt,
     };
     
-    setCurrentCase(dailyCase);
+    setCurrentCase(withDerivedQuizzes(dailyCase));
     setTimeRemaining(CASE_TIME_LIMIT);
     setResult(null);
     
@@ -358,7 +363,7 @@ function App() {
 
   const loadNextCase = () => {
     const newCase = getRandomCase(completedCaseIds);
-    setCurrentCase(newCase);
+    setCurrentCase(withDerivedQuizzes(newCase));
     setTimeRemaining(CASE_TIME_LIMIT);
     setResult(null);
     
@@ -479,6 +484,7 @@ function App() {
     investigationsUsedRef.current += 1;
     setInvestigationsUsed(investigationsUsedRef.current);
     setTimeRemaining((prev) => Math.max(0, prev - INVESTIGATE_TIME_COST));
+    caseInvestigationPointsRef.current -= INVESTIGATE_FEE;
     setScore((prev) => ({ ...prev, points: prev.points - INVESTIGATE_FEE }));
     return true;
   };
@@ -498,8 +504,11 @@ function App() {
         : prev
     );
 
-    // Only award discovery points if there's no question (old behavior)
+    // Only award discovery points if there's no question (old behavior). With
+    // quiz derivation every flag now carries a question, so scoring flows
+    // through handleRedFlagAnswer in both modes; this remains as a safe fallback.
     if (!flag.question) {
+      caseInvestigationPointsRef.current += 25;
       setScore((prev) => ({
         ...prev,
         points: prev.points + 25,
@@ -538,6 +547,7 @@ function App() {
       points = -25;
     }
 
+    caseInvestigationPointsRef.current += points;
     setScore((prev) => ({
       ...prev,
       points: prev.points + points,
@@ -590,8 +600,9 @@ function App() {
       }
     }
 
-    // Calculate total points earned for this challenge (investigation + decision)
-    const investigationPoints = score.points - challengeStartPoints;
+    // Investigation points earned on THIS case (quiz answers and inspection
+    // fees), tracked per-case so the breakdown is identical in both modes.
+    const investigationPoints = caseInvestigationPointsRef.current;
     const totalPointsEarned = investigationPoints + points;
 
     setScore((prev) => ({
