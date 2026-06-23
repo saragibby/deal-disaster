@@ -51,6 +51,12 @@ mode-agnostic: a per-case `caseInvestigationPointsRef` replaced the daily-only
 `challengeStartPoints`, so the post-decision "investigation vs decision" breakdown is identical
 in both modes. All 63 static flags now present a quiz with consistent +50/+75/−25 scoring.
 
+**Follow-up polish (shipped):** The case-display layout was tightened alongside K — the
+Property Description now uses a 4-column grid (description spans 3 columns; a property-info
+table holding occupancy, beds, baths, sq ft, year built, and type fills the 4th), the duplicate
+specs line under the address was removed, the "Sold as-is" disclaimer renders as a top-aligned
+row, and the quiz dialog lost its title emoji with a slightly larger option font.
+
 ---
 
 ## Part 2 — Gameplay & Content Enhancements
