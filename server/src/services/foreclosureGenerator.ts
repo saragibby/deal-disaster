@@ -3,6 +3,7 @@ import { blobStorage } from './blobStorage.js';
 import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
 import { IImageProvider } from './imageProviders/IImageProvider.js';
 import { findLienArchetype, formatLienCatalogForPrompt, formatIssueCatalogForPrompt } from '@deal-platform/shared-types';
+import { generateStandardPhotoPrompts, PropertyScenario } from '../utils/imagePromptBuilder.js';
 
 interface ForeclosureScenario {
   address: string;
@@ -189,78 +190,15 @@ export class ForeclosureScenarioGenerator {
       return scenario.photos;
     }
 
-    // Extract key details for more realistic images
     const location = `${scenario.city}, ${scenario.state}`;
-    const propertyType = scenario.propertyType.toLowerCase();
-    const propertyDesc = scenario.description || '';
-    const funnyStory = scenario.funnyStory || '';
-    const occupancyStatus = scenario.occupancyStatus;
-    
-    // Extract key visual issues from red flags and hidden issues to make photos more accurate
-    const visualIssues: string[] = [];
-    scenario.redFlags?.forEach(flag => {
-      const desc = flag.description.toLowerCase();
-      if (desc.includes('crack') || desc.includes('foundation') || desc.includes('settling')) {
-        visualIssues.push('visible cracks in walls or foundation');
-      }
-      if (desc.includes('water') || desc.includes('stain') || desc.includes('leak') || desc.includes('mold')) {
-        visualIssues.push('water damage or staining visible');
-      }
-      if (desc.includes('roof')) {
-        visualIssues.push('roof showing wear or damage');
-      }
-      if (desc.includes('electrical') || desc.includes('wiring')) {
-        visualIssues.push('dated or problematic electrical');
-      }
-      if (desc.includes('overgrown') || desc.includes('landscaping') || desc.includes('neglect')) {
-        visualIssues.push('overgrown or neglected landscaping');
-      }
-      if (desc.includes('paint') || desc.includes('cosmetic') || desc.includes('dated')) {
-        visualIssues.push('dated finishes or peeling paint');
-      }
-    });
 
-    scenario.hiddenIssues?.forEach(issue => {
-      const desc = issue.toLowerCase();
-      if (desc.includes('hoard') || desc.includes('clutter')) {
-        visualIssues.push('cluttered or hoarding conditions');
-      }
-      if (desc.includes('damage') || desc.includes('vandal')) {
-        visualIssues.push('visible property damage');
-      }
-    });
-
-    // Determine overall property condition based on issues found
-    let conditionContext = '';
-    if (visualIssues.length === 0) {
-      conditionContext = 'Property appears well-maintained and in good condition. ';
-    } else if (visualIssues.length <= 2) {
-      conditionContext = `Property shows minor signs of: ${visualIssues.join(', ')}. `;
-    } else {
-      conditionContext = `Property shows signs of: ${visualIssues.slice(0, 3).join(', ')}. `;
-    }
-    
-    // Detect if property has multiple levels based on description
-    const descLower = (propertyDesc + ' ' + funnyStory).toLowerCase();
-    const hasMultipleLevels = descLower.includes('stair') || descLower.includes('upstairs') || 
-                              descLower.includes('two-story') || descLower.includes('two story') ||
-                              descLower.includes('second floor') || descLower.includes('multi-level');
-    const levelContext = hasMultipleLevels ? 'Two-story property with multiple levels. ' : '';
-    
-    // Occupancy-specific details for more realistic images
-    const occupancyDetails = occupancyStatus === 'vacant' 
-      ? 'Property is vacant and unfurnished. ' 
-      : occupancyStatus === 'occupied'
-      ? 'Property is currently occupied with furniture and lived-in appearance. '
-      : '';
-
-    // Use the photo descriptions from the scenario and enhance them with property context
-    const imagePrompts = scenario.photos.map((photoDesc, index) => {
-      // Remove any emoji from the description if present
-      const cleanDesc = photoDesc.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
-      
-      return `Photorealistic real estate photograph, no people, no humans: ${cleanDesc}. ${scenario.beds}-bedroom, ${scenario.baths}-bathroom ${propertyType} of about ${scenario.sqft.toLocaleString()} square feet in ${location}, built in ${scenario.yearBuilt}. ${levelContext}${occupancyDetails}${conditionContext}Professional MLS listing photo, natural daylight, high-resolution camera. The home's size, room proportions and architectural style should match a ${scenario.sqft.toLocaleString()} sq ft ${propertyType}. IMPORTANT: Show only the empty property - absolutely no people, no humans, no figures visible anywhere in the image.`;
-    });
+    // Build prompts from the shared imagePromptBuilder (the same one the
+    // regeneration scripts use). This is the single source of truth for image
+    // prompts and, critically, every prompt carries the NO TEXT / NO WATERMARK /
+    // "real photo, not an illustration/blueprint" guard so the model can never
+    // render a text card instead of a photo. The standardized set is exterior,
+    // kitchen, backyard, and an interior bedroom.
+    const imagePrompts = generateStandardPhotoPrompts(scenario as PropertyScenario);
 
     const imageUrls: string[] = [];
 

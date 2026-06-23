@@ -383,10 +383,10 @@ export function buildStandardPhotoPrompt(
       break;
       
     case 'interior_room':
-      // Randomly choose between living room, bedroom, or bathroom for variety
-      const roomTypes = ['living room', 'master bedroom', 'bathroom'];
-      const roomType = roomTypes[Math.floor(Math.random() * roomTypes.length)];
-      specificPrompt = `${roomType.charAt(0).toUpperCase() + roomType.slice(1)} interior photograph inside a ${propertyStyle}. Room is ${occupancy} and in ${condition}. ${issueContext ? `Shows: ${issueContext}.` : ''} Natural lighting from windows, typical residential room. Interior finishes and style should match the property's era. ${consistencyNote}`;
+      // Always a master bedroom: it's the most representative interior shot and
+      // keeps the standardized set (exterior, kitchen, backyard, bedroom)
+      // predictable.
+      specificPrompt = `Master bedroom interior photograph inside a ${propertyStyle}. Room is ${occupancy} and in ${condition}. ${issueContext ? `Shows: ${issueContext}.` : ''} Natural lighting from windows, typical residential bedroom with space for a bed and dresser. Interior finishes and style should match the property's era. ${consistencyNote}`;
       break;
   }
 
