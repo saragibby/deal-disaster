@@ -1,3 +1,22 @@
+export type LienCategory =
+  | 'mortgage'
+  | 'junior-mortgage'
+  | 'property-tax'
+  | 'federal-tax'
+  | 'state-tax'
+  | 'hoa'
+  | 'hoa-super-priority'
+  | 'mechanics'
+  | 'judgment'
+  | 'child-support'
+  | 'code-enforcement'
+  | 'municipal-utility'
+  | 'special-assessment'
+  | 'environmental'
+  | 'lis-pendens';
+
+export type OccupantType = 'vacant' | 'owner' | 'tenant' | 'squatter';
+
 export interface Lien {
   type: string;
   holder: string;
@@ -7,6 +26,10 @@ export interface Lien {
   // Whether this lien survives the foreclosure sale (buyer inherits the debt).
   // When omitted, dealFinancials infers survival from the lien type.
   survivesForeclosure?: boolean;
+  // Library grouping (drives default survival + education).
+  category?: LienCategory;
+  // One-sentence teaching note surfaced in the post-game breakdown.
+  educationalNote?: string;
 }
 
 export interface RedFlag {
@@ -45,6 +68,18 @@ export interface PropertyCase {
   photoUrls?: string[]; // URLs to the generated images (for static cases)
   description: string;
   occupancyStatus: 'vacant' | 'occupied' | 'unknown';
+  // Richer occupancy detail; drives the eviction/holding cost. occupancyStatus
+  // is kept for back-compat and derived from this when present.
+  occupant?: OccupantType;
+  // Eviction / cash-for-keys / holding cost applied when not vacant. Flows into
+  // the scored P&L.
+  occupancyCost?: number;
+  // Statutory redemption window (days) the former owner can reclaim the
+  // property. 0 / undefined means no redemption right.
+  redemptionPeriodDays?: number;
+  // Carrying cost while the property cannot be resold until redemption closes.
+  // Flows into the P&L once discovered.
+  redemptionCost?: number;
   hoaFees?: number;
   actualValue: number; // true value after all issues considered
   isGoodDeal: boolean;
@@ -76,7 +111,9 @@ export interface DealFinancials {
   baseRepairs: number; // repairEstimate
   issueCosts: number; // sum of midpoints of discovered/real issue cost ranges
   survivingLiens: number; // sum of liens that survive the sale
-  totalInvestment: number; // auction + baseRepairs + issueCosts + survivingLiens + closing
+  occupancyCost: number; // eviction/holding cost when the property is occupied
+  redemptionCost: number; // carrying cost during a statutory redemption window
+  totalInvestment: number; // auction + baseRepairs + issueCosts + survivingLiens + occupancy + redemption + closing
   netProfit: number; // resaleValue - totalInvestment
   roi: number; // netProfit / totalInvestment (fraction, e.g. 0.18)
   classification: DealClassification; // derived from roi

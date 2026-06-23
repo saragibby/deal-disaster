@@ -14,6 +14,19 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
 
   if (!result || !caseData) return null;
 
+  const formatDecision = (decision: string) => {
+    switch (decision) {
+      case 'BUY':
+        return 'Buy';
+      case 'WALK_AWAY':
+        return 'Walk Away';
+      case 'INVESTIGATE':
+        return 'Investigate';
+      default:
+        return decision;
+    }
+  };
+
   const getResultClass = () => {
     if (result.points >= 100) return 'excellent';
     if (result.points >= 50) return 'good';
@@ -24,7 +37,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
   // Single canonical financial model — every figure below renders from this so
   // the banner, calculator, and scoring footer can never disagree.
   const deal = computeDeal(caseData);
-  const { closingCosts, totalInvestment, netProfit, issueCosts } = deal;
+  const { closingCosts, totalInvestment, netProfit, issueCosts, occupancyCost, redemptionCost } = deal;
 
   const classificationLabel =
     deal.classification === 'GOOD'
@@ -90,6 +103,18 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <div className="analysis-row">
                     <span>Issue &amp; Remediation Costs:</span>
                     <span>${issueCosts.toLocaleString()}</span>
+                  </div>
+                )}
+                {occupancyCost > 0 && (
+                  <div className="analysis-row">
+                    <span>Eviction / Cash-for-Keys:</span>
+                    <span>${occupancyCost.toLocaleString()}</span>
+                  </div>
+                )}
+                {redemptionCost > 0 && (
+                  <div className="analysis-row">
+                    <span>Redemption-Period Carrying Costs:</span>
+                    <span>${redemptionCost.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="analysis-row total">
@@ -250,13 +275,13 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <div className="decision-item">
                     <span className="decision-label">Your Decision:</span>
                     <span className={`decision-value user-decision ${result.userDecision.toLowerCase()}`}>
-                      {result.userDecision}
+                      {formatDecision(result.userDecision)}
                     </span>
                   </div>
                   <div className="decision-item">
                     <span className="decision-label">Expert Recommendation:</span>
                     <span className={`decision-value expert-decision ${caseData.correctDecision.toLowerCase()}`}>
-                      {caseData.correctDecision}
+                      {formatDecision(caseData.correctDecision)}
                     </span>
                   </div>
                 </div>
@@ -269,7 +294,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                 ) : (
                   <div className="decision-feedback incorrect">
                     <p><strong>⚠️ Alternative Approach Recommended</strong></p>
-                    <p><strong>Why {caseData.correctDecision}:</strong> {caseData.decisionExplanation || 'This property requires more careful analysis before proceeding.'}</p>
+                    <p><strong>Why {formatDecision(caseData.correctDecision)}:</strong> {caseData.decisionExplanation || 'This property requires more careful analysis before proceeding.'}</p>
                     {result.userDecision === 'BUY' && caseData.correctDecision === 'WALK_AWAY' && (
                       <p className="advice">💡 <em>Tip: Some properties have too many red flags or costs that make them unprofitable even at the starting bid.</em></p>
                     )}

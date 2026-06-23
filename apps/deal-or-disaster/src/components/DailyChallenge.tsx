@@ -58,6 +58,10 @@ export default function DailyChallenge({ onStartChallenge, onClose, challengeDat
             photos: challengeObj.photos || [],
             funnyStory: challengeObj.funnyStory || challengeObj.description,
             occupancyStatus: challengeObj.occupancyStatus || 'unknown',
+            occupant: challengeObj.occupant,
+            occupancyCost: challengeObj.occupancyCost,
+            redemptionPeriodDays: challengeObj.redemptionPeriodDays,
+            redemptionCost: challengeObj.redemptionCost,
             hoaFees: challengeObj.hoaFees,
             actualValue: challengeObj.actualValue || challengeObj.estimatedValue,
             isGoodDeal: challengeObj.isGoodDeal

@@ -83,6 +83,17 @@ export function classifyRoi(roi: number): DealClassification {
 }
 
 /**
+ * Whether the player has uncovered the property's redemption-period risk. The
+ * redemption carrying cost only hits the live (discovery-gated) P&L once a
+ * redemption-related document has actually been inspected.
+ */
+export function redemptionDiscovered(caseData: PropertyCase): boolean {
+  return (caseData.redFlags ?? []).some(
+    (f) => f.discovered && /redemption/i.test(`${f.description} ${f.hiddenIn} ${f.impact ?? ''}`)
+  );
+}
+
+/**
  * Format an ROI fraction as a signed percentage string, e.g. 0.181 -> "+18.1%",
  * -0.468 -> "-46.8%". Never produces "+-".
  */
@@ -124,8 +135,21 @@ export function computeDeal(
     .filter((flag) => (discoveredOnly ? flag.discovered : true))
     .reduce((sum, flag) => sum + issueCost(flag), 0);
 
+  // Occupancy is visible from the listing, so its eviction/holding cost always
+  // counts. Redemption risk is a title/county discovery, so in the live
+  // (discoveredOnly) view it only counts once the player has inspected it.
+  const occupancyCost = caseData.occupancyCost ?? 0;
+  const redemptionApplies = !discoveredOnly || redemptionDiscovered(caseData);
+  const redemptionCost = redemptionApplies ? caseData.redemptionCost ?? 0 : 0;
+
   const totalInvestment =
-    caseData.auctionPrice + baseRepairs + issueCosts + survivingLiens + closingCosts;
+    caseData.auctionPrice +
+    baseRepairs +
+    issueCosts +
+    survivingLiens +
+    occupancyCost +
+    redemptionCost +
+    closingCosts;
 
   const netProfit = resaleValue - totalInvestment;
   const roi = totalInvestment > 0 ? netProfit / totalInvestment : 0;
@@ -141,6 +165,8 @@ export function computeDeal(
     baseRepairs,
     issueCosts,
     survivingLiens,
+    occupancyCost,
+    redemptionCost,
     totalInvestment,
     netProfit,
     roi,

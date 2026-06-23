@@ -1205,6 +1205,275 @@ export const propertyCases: PropertyCase[] = [
         impact: 'Possible special assessment $2,000–$4,000'
       }
     ]
+  },
+  {
+    id: 'case-016',
+    address: '88 Marigold Court',
+    city: 'Columbus',
+    state: 'OH',
+    zip: '43215',
+    propertyValue: 240000,
+    auctionPrice: 120000,
+    repairEstimate: 15000,
+    actualValue: 235000,
+    isGoodDeal: true,
+    occupancyStatus: 'occupied',
+    occupant: 'tenant',
+    occupancyCost: 7000,
+    propertyType: 'Single Family Home',
+    hoaFees: 0,
+    beds: 3,
+    baths: 2,
+    sqft: 1520,
+    yearBuilt: 1998,
+    description: 'Tidy ranch with a tenant still living in it — and before you panic, the tenant actually pays rent on time and has offered to stay on a lease. Ohio is a non-redemption state, so once the gavel drops the property is yours. The kitchen is dated in a "charming time capsule" way, and the previous owner left a fridge covered in inspirational magnets and exactly one expired yogurt. The bones are good; the drama is minimal.',
+    photos: ['🏠 Exterior', '🍳 Kitchen', '🛏️ Bedroom', '🌳 Yard'],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Buckeye Savings Bank',
+        amount: 110000,
+        priority: 1,
+        category: 'mortgage',
+        survivesForeclosure: false,
+        notes: 'Foreclosing lien — extinguished by the sale.',
+        educationalNote: 'The foreclosing first mortgage is wiped at sale; you pay the auction price, not the loan balance.'
+      },
+      {
+        type: 'Property Tax Lien',
+        holder: 'Franklin County Treasurer',
+        amount: 4000,
+        priority: 0,
+        category: 'property-tax',
+        survivesForeclosure: true,
+        notes: 'Two quarters of delinquent county taxes.',
+        educationalNote: 'Property tax liens are super-priority: they survive foreclosure and the new owner inherits them.'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-016-1',
+        description: 'Property is occupied by a paying tenant — expect a cash-for-keys or relocation deal to take possession.',
+        severity: 'medium',
+        hiddenIn: 'Occupancy Status',
+        discovered: false,
+        impact: 'Tenant in place — ~$7,000 cash-for-keys to clear (counted in occupancy cost)'
+      },
+      {
+        id: 'rf-016-2',
+        description: 'Water heater is 11 years old and rusting at the base — replace before it floods the utility room.',
+        severity: 'low',
+        hiddenIn: 'Home Inspection',
+        discovered: false,
+        costLow: 1200,
+        costHigh: 1800,
+        impact: 'Water heater replacement $1,200–$1,800'
+      },
+      {
+        id: 'rf-016-3',
+        description: 'Dated kitchen cabinets and countertops — cosmetic refresh to hit resale value.',
+        severity: 'low',
+        hiddenIn: 'Home Inspection',
+        discovered: false,
+        costLow: 4000,
+        costHigh: 6000,
+        impact: 'Kitchen cosmetic refresh $4,000–$6,000'
+      },
+      {
+        id: 'rf-016-4',
+        description: 'Loud HVAC fan — listing whispers "needs replacing." Technician confirms it just needs a $90 capacitor.',
+        severity: 'red-herring',
+        hiddenIn: 'Seller Disclosure',
+        discovered: false,
+        impact: 'No material cost — cheap capacitor fix'
+      }
+    ]
+  },
+  {
+    id: 'case-017',
+    address: '2207 Persimmon Lane',
+    city: 'Birmingham',
+    state: 'AL',
+    zip: '35203',
+    propertyValue: 290000,
+    auctionPrice: 165000,
+    repairEstimate: 25000,
+    actualValue: 255000,
+    isGoodDeal: false,
+    occupancyStatus: 'occupied',
+    occupant: 'owner',
+    occupancyCost: 14000,
+    redemptionPeriodDays: 365,
+    redemptionCost: 18000,
+    propertyType: 'Single Family Home',
+    hoaFees: 0,
+    beds: 4,
+    baths: 2.5,
+    sqft: 2240,
+    yearBuilt: 1989,
+    description: 'On paper this two-story looks like the steal of the auction — until you read the fine print. Alabama gives the former owner a full year to redeem the property by paying you back, and this particular former owner is still living inside and is, per the neighbors, "not going quietly." Add an IRS lien that follows the house and a foundation that has opinions, and the spread evaporates. Great curb appeal; terrible timeline.',
+    photos: ['🏡 Front', '🚪 Entry', '🛋️ Living', '🪜 Stairs'],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Heart of Dixie Mortgage',
+        amount: 155000,
+        priority: 1,
+        category: 'mortgage',
+        survivesForeclosure: false,
+        notes: 'Foreclosing lien — wiped at sale.',
+        educationalNote: 'The foreclosing first mortgage is extinguished; you bid the auction price instead.'
+      },
+      {
+        type: 'IRS Federal Tax Lien',
+        holder: 'Internal Revenue Service',
+        amount: 22000,
+        priority: 2,
+        category: 'federal-tax',
+        survivesForeclosure: true,
+        notes: 'Federal tax lien against the prior owner. The IRS also holds a 120-day redemption right.',
+        educationalNote: 'Federal tax liens survive foreclosure and the buyer inherits the debt — and the IRS can redeem within 120 days.'
+      },
+      {
+        type: 'Property Tax Lien',
+        holder: 'Jefferson County Tax Collector',
+        amount: 6000,
+        priority: 0,
+        category: 'property-tax',
+        survivesForeclosure: true,
+        notes: 'Delinquent county property taxes.',
+        educationalNote: 'Property tax liens are super-priority and always survive the sale.'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-017-1',
+        description: 'Alabama statutory redemption period: the former owner can reclaim the property for up to 1 year after the sale by repaying you. Your capital is tied up and at risk that whole time.',
+        severity: 'high',
+        hiddenIn: 'County Records — Redemption Rights',
+        discovered: false,
+        impact: 'One-year redemption risk — ~$18,000 in carrying costs and tied-up capital'
+      },
+      {
+        id: 'rf-017-2',
+        description: 'IRS federal tax lien survives the sale — you inherit the $22,000 obligation on top of your purchase.',
+        severity: 'high',
+        hiddenIn: 'Title Search',
+        discovered: false,
+        impact: 'Surviving IRS lien — $22,000 inherited (counted in the lien stack)'
+      },
+      {
+        id: 'rf-017-3',
+        description: 'Hostile former owner still occupying — expect a contested eviction with legal fees and delay.',
+        severity: 'medium',
+        hiddenIn: 'Occupancy Status',
+        discovered: false,
+        impact: 'Contested eviction — ~$14,000 to regain possession (counted in occupancy cost)'
+      },
+      {
+        id: 'rf-017-4',
+        description: 'Foundation settling on the northeast corner with stair-step cracking in the brick veneer.',
+        severity: 'high',
+        hiddenIn: 'Structural Inspection',
+        discovered: false,
+        costLow: 18000,
+        costHigh: 26000,
+        impact: 'Foundation stabilization $18,000–$26,000'
+      }
+    ]
+  },
+  {
+    id: 'case-018',
+    address: '514 Cottonwood Drive',
+    city: 'Wichita',
+    state: 'KS',
+    zip: '67202',
+    propertyValue: 250000,
+    auctionPrice: 130000,
+    repairEstimate: 18000,
+    actualValue: 240000,
+    isGoodDeal: true,
+    occupancyStatus: 'vacant',
+    occupant: 'vacant',
+    occupancyCost: 0,
+    propertyType: 'Single Family Home',
+    hoaFees: 0,
+    beds: 3,
+    baths: 2,
+    sqft: 1740,
+    yearBuilt: 2003,
+    description: 'The title report looks like a horror novel: a second mortgage, a HELOC, and a judgment lien all stacked up like bad news. New investors run screaming. Pros smile, because the FIRST mortgage is the one foreclosing — which means every junior lien below it gets wiped clean at the sale. Vacant, clean, and structurally sound. The scariest-looking page in the file is actually the reason this is a deal.',
+    photos: ['🏠 Exterior', '🍽️ Dining', '🛁 Bath', '🚗 Garage'],
+    liens: [
+      {
+        type: 'First Mortgage',
+        holder: 'Prairie State Bank',
+        amount: 125000,
+        priority: 1,
+        category: 'mortgage',
+        survivesForeclosure: false,
+        notes: 'Foreclosing lien — extinguished by the sale.',
+        educationalNote: 'The foreclosing senior mortgage is wiped; you pay the auction price.'
+      },
+      {
+        type: 'Second Mortgage / HELOC',
+        holder: 'Sunflower Credit Union',
+        amount: 60000,
+        priority: 2,
+        category: 'junior-mortgage',
+        survivesForeclosure: false,
+        notes: 'Junior to the foreclosing first mortgage.',
+        educationalNote: 'Junior mortgages and HELOCs are wiped when a senior lien forecloses — the buyer does not inherit them.'
+      },
+      {
+        type: 'Judgment Lien',
+        holder: 'Midwest Collections LLC',
+        amount: 18000,
+        priority: 3,
+        category: 'judgment',
+        survivesForeclosure: false,
+        notes: 'Recorded after the first mortgage.',
+        educationalNote: 'Most judgment liens recorded after the foreclosing lien are junior and are wiped at sale.'
+      },
+      {
+        type: 'Property Tax Lien',
+        holder: 'Sedgwick County Treasurer',
+        amount: 3000,
+        priority: 0,
+        category: 'property-tax',
+        survivesForeclosure: true,
+        notes: 'One year of delinquent property taxes.',
+        educationalNote: 'Even when the scary junior liens vanish, the super-priority property tax lien still survives.'
+      }
+    ],
+    redFlags: [
+      {
+        id: 'rf-018-1',
+        description: 'Stacked junior liens (2nd mortgage, HELOC, judgment) total $78k — but all are junior to the foreclosing first mortgage and get wiped at sale.',
+        severity: 'red-herring',
+        hiddenIn: 'Title Search',
+        discovered: false,
+        impact: 'No cost — junior liens are extinguished by the sale'
+      },
+      {
+        id: 'rf-018-2',
+        description: 'Roof is at the end of its service life with a few curling shingles over the garage.',
+        severity: 'medium',
+        hiddenIn: 'Home Inspection',
+        discovered: false,
+        costLow: 6000,
+        costHigh: 9000,
+        impact: 'Roof replacement $6,000–$9,000'
+      },
+      {
+        id: 'rf-018-3',
+        description: 'Delinquent county property taxes survive the sale — you inherit the $3,000.',
+        severity: 'low',
+        hiddenIn: 'County Tax Records',
+        discovered: false,
+        impact: 'Surviving property tax lien — $3,000 inherited (counted in the lien stack)'
+      }
+    ]
   }
 ];
 

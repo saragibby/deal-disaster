@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { blobStorage } from './blobStorage.js';
 import { ImageProviderFactory } from './imageProviders/ImageProviderFactory.js';
 import { IImageProvider } from './imageProviders/IImageProvider.js';
+import { findLienArchetype, formatLienCatalogForPrompt, formatIssueCatalogForPrompt } from '@deal-platform/shared-types';
 
 interface ForeclosureScenario {
   address: string;
@@ -23,6 +24,10 @@ interface ForeclosureScenario {
   actualValue: number;
   isGoodDeal: boolean;
   occupancyStatus: 'vacant' | 'occupied' | 'unknown';
+  occupant?: 'vacant' | 'owner' | 'tenant' | 'squatter';
+  occupancyCost?: number;
+  redemptionPeriodDays?: number;
+  redemptionCost?: number;
   hoaFees?: number;
   description: string;
   funnyStory: string;
@@ -33,6 +38,8 @@ interface ForeclosureScenario {
     amount: number;
     priority: number;
     survivesForeclosure?: boolean;
+    category?: string;
+    educationalNote?: string;
     notes?: string;
   }>;
   redFlags: Array<{
@@ -317,10 +324,14 @@ export class ForeclosureScenarioGenerator {
     const lienGuidance = this.getLienGuidanceForDifficulty(difficulty);
     const excludedLocations = this.getExcludedLocationsText();
     const propertyCondition = this.getPropertyConditionGuidance();
-    
+    const issueCatalog = formatIssueCatalogForPrompt();
+
     return `Generate a realistic and ENTERTAINING foreclosure auction scenario as a JSON object. Make the story funny and engaging while providing subtle clues about the deal quality.${excludedLocations}
 
 PROPERTY CONDITION VARIETY: ${propertyCondition}
+
+ISSUE LIBRARY (draw from this catalog for variety; use realistic costs and the matching source document for each issue's question/discovery):
+${issueCatalog}
 
 Required JSON structure:
 {
@@ -343,6 +354,10 @@ Required JSON structure:
   "actualValue": true value after all hidden costs/issues (can be lower than estimatedValue if bad deal),
   "isGoodDeal": boolean (true if profitable after ALL costs considered),
   "occupancyStatus": "vacant", "occupied", or "unknown",
+  "occupant": "who is in the property: 'vacant', 'owner' (former owner still living there), 'tenant' (has a lease), or 'squatter'. Pick a NON-vacant occupant for some cases so eviction risk is in play.",
+  "occupancyCost": "if NOT vacant, the realistic eviction / cash-for-keys / holding cost in dollars (owner-occupant ~$8-15K and hardest to remove, tenant ~$3-12K, squatter ~$6-20K). Use 0 for vacant. This is added to total costs.",
+  "redemptionPeriodDays": "statutory redemption window in days if this state/sale grants the former owner a right to reclaim (e.g. 180, 365); use 0 when there is no redemption right. Use this sparingly for medium/hard cases.",
+  "redemptionCost": "if redemptionPeriodDays > 0, the carrying cost in dollars (taxes + insurance + interest) of holding the property until the window closes since you cannot resell yet (~$4-18K). Use 0 when there is no redemption right.",
   "hoaFees": optional monthly HOA fees (omit if not applicable),
   "description": "brief 1-2 sentence property description that reflects the ACTUAL condition",
   "funnyStory": "3-5 sentences about the property itself. Be funny and humorous! Describe quirky features, strange design choices, unusual conditions, or odd characteristics of the house. MATCH THE PROPERTY CONDITION - if it's well-maintained, describe neat quirks; if it's rundown, describe neglect. Drop subtle clues about problems without mentioning the foreclosure or auction. Focus on what makes THIS property unique or problematic in an entertaining way. Weave in hints about the specific issues this property has.",
@@ -456,12 +471,14 @@ CRITICAL REQUIREMENTS:
 7. For well-maintained properties, issues should be HIDDEN (title problems, liens, zoning issues, not cosmetic damage)
 8. For harder difficulties, make issues interact (e.g., water damage + mold + code violations)
 9. Include realistic liens (tax liens, IRS liens, mechanics liens survive foreclosure!)
-10. Ensure math adds up: auctionPrice + estimatedRepairs + surviving liens + red flag costs = total cost vs actualValue
+10. Ensure math adds up: auctionPrice + estimatedRepairs + surviving liens + red flag costs + occupancyCost + redemptionCost = total cost vs actualValue
 11. Photo descriptions MUST match the property condition - pristine homes get pristine photos!
 12. Drop clues in the story without giving away the answer
 13. Use realistic numbers for 2025 market conditions
 14. Make each property feel unique with its own character and problems
-15. Remember: A well-maintained property can still be a terrible deal due to liens, title issues, or market factors!`;
+15. Remember: A well-maintained property can still be a terrible deal due to liens, title issues, or market factors!
+16. SENIOR vs JUNIOR: junior liens (2nd mortgage, HELOC, most judgments) are WIPED at sale, while super-priority liens (property/IRS tax, HOA super-lien, mechanics, code enforcement, environmental, child support) SURVIVE and the buyer inherits them. Set survivesForeclosure accordingly and teach this nuance in at least one quiz.
+17. OCCUPANCY & REDEMPTION are real costs: if the property is occupied include a believable occupancyCost; if a redemption right applies include redemptionPeriodDays and redemptionCost. Both must be reflected in actualValue/isGoodDeal.`;
   }
 
   private getPropertyConditionGuidance(): string {
@@ -479,42 +496,35 @@ CRITICAL REQUIREMENTS:
   }
 
   private getLienGuidanceForDifficulty(difficulty: string): string {
+    // Lien type lists are derived from the shared catalog so adding an
+    // archetype there automatically enriches generation. Each line states the
+    // survival rule, realistic range, and an example holder.
+    const easyCats: import('@deal-platform/shared-types').LienCategory[] = [
+      'mortgage', 'property-tax', 'hoa', 'municipal-utility',
+    ];
+    const mediumCats: import('@deal-platform/shared-types').LienCategory[] = [
+      'mortgage', 'junior-mortgage', 'property-tax', 'state-tax', 'federal-tax',
+      'hoa', 'mechanics', 'judgment', 'code-enforcement', 'special-assessment',
+    ];
+    const hardCats: import('@deal-platform/shared-types').LienCategory[] = [
+      'mortgage', 'junior-mortgage', 'property-tax', 'federal-tax', 'state-tax',
+      'hoa', 'hoa-super-priority', 'mechanics', 'judgment', 'child-support',
+      'code-enforcement', 'municipal-utility', 'special-assessment',
+      'environmental', 'lis-pendens',
+    ];
+
+    const lienObjectShape = `Each lien object MUST have: "type" (catalog label), "category" (catalog category key), "holder" (specific, story-relevant name), "amount" (dollars), "priority" (1 = most senior), "survivesForeclosure" (REQUIRED boolean matching the catalog rule), and "notes" (story context). DO NOT double-count a surviving lien's dollars as a red-flag cost.`;
+
     switch (difficulty) {
       case 'easy':
-        return `array of 2-3 liens with simple structure. Include basic liens like:
-    {
-      "type": "Choose from: First Mortgage, Property Tax Lien, HOA Lien, Utility Lien",
-      "holder": "name of institution or entity (make it specific)",
-      "amount": dollar amount (keep moderate),
-      "priority": 1, 2, 3, etc.,
-      "survivesForeclosure": REQUIRED boolean - true if the buyer inherits it (tax/HOA super-priority liens), false if wiped (mortgages).,
-      "notes": "Add story details! e.g., 'Will be wiped at foreclosure', 'Survives foreclosure - you inherit this!'"
-    }`;
-      
-      case 'medium':
-        return `array of 3-4 liens with moderate complexity. Mix different types:
-    {
-      "type": "VARY THESE! Choose from: First Mortgage, Second Mortgage, Property Tax Lien, State Tax Lien, Federal Tax Lien, HOA Lien, Mechanics Lien (unpaid contractors), Water/Sewer Lien, Code Enforcement Lien, Judgment Lien (from lawsuit), Special Assessment Lien",
-      "holder": "name of institution or entity (make it specific and story-relevant). For Mechanics Liens use contractor names like 'ABC Roofing', 'Joe's Plumbing', etc.",
-      "amount": dollar amount (vary significantly - some small, some large),
-      "priority": 1, 2, 3, etc.,
-      "survivesForeclosure": REQUIRED boolean - true if the buyer inherits it (tax/IRS/HOA super-priority/mechanics/code enforcement liens), false if wiped (mortgages/HELOC).,
-      "notes": "Add story details! e.g., 'From contractor who walked off job after dispute', 'Unpaid since previous owner's divorce', 'Will be wiped at foreclosure', 'Survives foreclosure - you inherit this!', 'Has been in collections for 3 years'"
-    }`;
-      
+        return `array of 2-3 liens with a simple structure. Choose types from this catalog:\n${formatLienCatalogForPrompt(easyCats)}\n${lienObjectShape}`;
+
       case 'hard':
-        return `array of 4-6 liens with COMPLEX and DIVERSE structure. Create a challenging lien scenario:
-    {
-      "type": "MAXIMUM VARIETY REQUIRED! Mix multiple types: First Mortgage, Second Mortgage, HELOC, IRS Tax Lien, State Tax Lien, Local Property Tax Lien, HOA Lien with super-priority status, Mechanics Lien (multiple contractors), Child Support Lien (can use multiple for comedy: 'Baby Mama #1', 'Baby Mama #2', 'Baby Mama from Vegas'), Judgment Lien (multiple lawsuits), Code Enforcement Lien, Environmental Lien, Water/Sewer Lien, Special Assessment Lien, Lis Pendens (pending litigation). Include at LEAST 4 different lien categories!",
-      "holder": "SPECIFIC names that tell a story: 'IRS - Western Region Collections', 'Baby Mama #2 - the one with twins', 'Defunct contractor - Good Times Remodeling LLC', 'City of [City] - Code Enforcement Division', 'County Water Authority', '[State] Dept of Revenue', etc.",
-      "amount": dollar amount (create dramatic variety - mix $500 utility liens with $85,000 IRS liens),
-      "priority": 1, 2, 3, etc. (be strategic - some liens survive foreclosure regardless of priority!),
-      "survivesForeclosure": REQUIRED boolean - true if this lien survives foreclosure and the buyer inherits it (IRS/federal tax, property/county tax, HOA super-priority, mechanics, code enforcement, municipal, child support), false if it is wiped (first/second mortgage, HELOC).,
-      "notes": "DETAILED story context! Examples: 'IRS lien for $85K from 2019-2021 unreported rental income - SURVIVES FORECLOSURE!', 'Super-priority HOA lien for last 6 months dues - takes precedence over first mortgage!', 'Mechanics lien from contractor who installed faulty foundation repair - still in litigation', 'Baby Mama #3 - filed child support lien last month, will pursue regardless of sale', 'Code enforcement lien for $15K in unpaid fines - property was illegal Airbnb', 'Second mortgage was cross-collateralized with another property owner still owns'"
-    }. For hard difficulty, include at least 2-3 liens that SURVIVE foreclosure to create real complexity!`;
-      
+        return `array of 4-6 liens with COMPLEX, DIVERSE structure. Use MAXIMUM variety from this catalog and include at LEAST 4 different categories, with 2-3 liens that SURVIVE foreclosure. Where it fits the story, use an HOA super-priority lien that leaps ahead of a first mortgage:\n${formatLienCatalogForPrompt(hardCats)}\n${lienObjectShape}`;
+
+      case 'medium':
       default:
-        return this.getLienGuidanceForDifficulty('medium');
+        return `array of 3-4 liens with moderate complexity. Mix surviving and wiped liens from this catalog:\n${formatLienCatalogForPrompt(mediumCats)}\n${lienObjectShape}`;
     }
   }
 
@@ -602,13 +612,21 @@ CRITICAL REQUIREMENTS:
       throw new Error('Invalid scenario: photos must be a non-empty array');
     }
 
-    // Validate/normalize each lien: amount must be numeric, survivesForeclosure
-    // must resolve to a boolean (inferred from type/notes when omitted).
+    // Validate/normalize each lien: amount must be numeric, and enrich from the
+    // shared lien catalog (category, educational note, default survival rule).
     for (const lien of scenario.liens) {
       if (typeof lien.amount !== 'number' || !Number.isFinite(lien.amount) || lien.amount < 0) {
         throw new Error(`Invalid scenario: lien "${lien.type}" has a non-numeric amount (${lien.amount})`);
       }
       lien.amount = Math.round(lien.amount);
+      const archetype = findLienArchetype(lien.category ?? lien.type);
+      if (archetype) {
+        if (!lien.category) lien.category = archetype.category;
+        if (!lien.educationalNote) lien.educationalNote = archetype.educationalNote;
+        if (typeof lien.survivesForeclosure !== 'boolean') {
+          lien.survivesForeclosure = archetype.survivesForeclosure;
+        }
+      }
       if (typeof lien.survivesForeclosure !== 'boolean') {
         lien.survivesForeclosure = this.lienSurvives(lien.type, lien.notes);
       }
@@ -630,6 +648,39 @@ CRITICAL REQUIREMENTS:
     // Ensure occupancy status is valid
     if (!['vacant', 'occupied', 'unknown'].includes(scenario.occupancyStatus)) {
       throw new Error('Invalid scenario: occupancyStatus must be vacant, occupied, or unknown');
+    }
+
+    // Normalize occupancy: derive a richer occupant from the legacy status when
+    // omitted, keep the two in sync, and make sure a non-vacant property carries
+    // an eviction/holding cost so it actually hits the scored P&L.
+    if (!scenario.occupant) {
+      scenario.occupant =
+        scenario.occupancyStatus === 'occupied' ? 'owner'
+        : scenario.occupancyStatus === 'vacant' ? 'vacant'
+        : undefined; // 'unknown' stays unmodeled
+    }
+    if (scenario.occupant === 'vacant') {
+      scenario.occupancyStatus = 'vacant';
+      scenario.occupancyCost = 0;
+    } else if (scenario.occupant) {
+      scenario.occupancyStatus = 'occupied';
+      if (!(typeof scenario.occupancyCost === 'number' && Number.isFinite(scenario.occupancyCost) && scenario.occupancyCost >= 0)) {
+        const defaults: Record<string, number> = { owner: 10000, tenant: 7000, squatter: 13000 };
+        scenario.occupancyCost = defaults[scenario.occupant] ?? 10000;
+      }
+      scenario.occupancyCost = Math.round(scenario.occupancyCost);
+    }
+
+    // Normalize redemption: a positive statutory window implies a carrying cost.
+    if (typeof scenario.redemptionPeriodDays === 'number' && scenario.redemptionPeriodDays > 0) {
+      scenario.redemptionPeriodDays = Math.round(scenario.redemptionPeriodDays);
+      if (!(typeof scenario.redemptionCost === 'number' && Number.isFinite(scenario.redemptionCost) && scenario.redemptionCost >= 0)) {
+        scenario.redemptionCost = 9000; // catalog midpoint carrying cost
+      }
+      scenario.redemptionCost = Math.round(scenario.redemptionCost);
+    } else {
+      scenario.redemptionPeriodDays = 0;
+      scenario.redemptionCost = 0;
     }
 
     // Constrain the listing category to the supported set; default if the
@@ -694,7 +745,9 @@ CRITICAL REQUIREMENTS:
         const high = flag.costHigh ?? flag.costLow ?? 0;
         return sum + Math.round((low + high) / 2);
       }, 0);
-    const totalInvestment = scenario.auctionPrice + scenario.estimatedRepairs + issueCosts + survivingLiens + closingCosts;
+    const occupancyCost = scenario.occupancyCost ?? 0;
+    const redemptionCost = scenario.redemptionCost ?? 0;
+    const totalInvestment = scenario.auctionPrice + scenario.estimatedRepairs + issueCosts + survivingLiens + occupancyCost + redemptionCost + closingCosts;
     const netProfit = scenario.actualValue - totalInvestment;
     const roi = totalInvestment > 0 ? netProfit / totalInvestment : 0;
     return { netProfit: Math.round(netProfit), roi, totalInvestment: Math.round(totalInvestment) };

@@ -1,11 +1,39 @@
 // ===== Property & Game Types =====
 
+/** Grouping for the lien library; drives survival rules and education. */
+export type LienCategory =
+  | 'mortgage'
+  | 'junior-mortgage'
+  | 'property-tax'
+  | 'federal-tax'
+  | 'state-tax'
+  | 'hoa'
+  | 'hoa-super-priority'
+  | 'mechanics'
+  | 'judgment'
+  | 'child-support'
+  | 'code-enforcement'
+  | 'municipal-utility'
+  | 'special-assessment'
+  | 'environmental'
+  | 'lis-pendens';
+
+/** Who is living in the property at the time of sale. */
+export type OccupantType = 'vacant' | 'owner' | 'tenant' | 'squatter';
+
 export interface Lien {
   type: string;
   holder: string;
   amount: number;
   priority: number;
   notes?: string;
+  /** Library grouping for this lien (drives default survival + education). */
+  category?: LienCategory;
+  /** Whether the buyer inherits this debt after the sale. When omitted,
+   *  dealFinancials infers survival from the lien type. */
+  survivesForeclosure?: boolean;
+  /** One-sentence teaching note surfaced in the post-game breakdown. */
+  educationalNote?: string;
 }
 
 export interface RedFlag {
@@ -39,6 +67,18 @@ export interface PropertyCase {
   photoUrls?: string[];
   description: string;
   occupancyStatus: 'vacant' | 'occupied' | 'unknown';
+  /** Richer occupancy detail. When set, drives the eviction/holding cost.
+   *  occupancyStatus is kept for back-compat and derived from this. */
+  occupant?: OccupantType;
+  /** Eviction / cash-for-keys / holding cost applied when the property is not
+   *  vacant. Flows into the scored P&L. */
+  occupancyCost?: number;
+  /** Statutory redemption window (days) during which the former owner can
+   *  reclaim the property. 0 / undefined means no redemption right. */
+  redemptionPeriodDays?: number;
+  /** Carrying cost incurred because the property cannot be resold until the
+   *  redemption window closes. Flows into the P&L once discovered. */
+  redemptionCost?: number;
   hoaFees?: number;
   actualValue: number;
   isGoodDeal: boolean;
@@ -523,4 +563,378 @@ export interface SavedComparison {
   property_slugs: string[];
   created_at: string;
   updated_at: string;
+}
+
+// ── Lien & Issue Library ─────────────────────────────────────────────────
+// Authored catalog of real-world lien and issue archetypes. Single source of
+// truth shared by the AI generator (prompt + validation gate) and the game UI
+// (static cases + post-game education). Add variety here, not in the prompt.
+
+export interface LienArchetype {
+  category: LienCategory;
+  /** Canonical display label, e.g. "IRS Federal Tax Lien". */
+  type: string;
+  /** Whether the buyer inherits this debt at a typical foreclosure sale. */
+  survivesForeclosure: boolean;
+  /** Typical priority position (1 = most senior / super-priority). */
+  typicalPriority: number;
+  /** Realistic dollar range [low, high]. Use [0, 0] for non-dollar clouds. */
+  amountRange: [number, number];
+  /** Concrete example holders to ground the scenario. */
+  holderExamples: string[];
+  /** One-sentence teaching note for the post-game breakdown. */
+  educationalNote: string;
+}
+
+export const LIEN_CATALOG: LienArchetype[] = [
+  {
+    category: 'mortgage',
+    type: 'First Mortgage',
+    survivesForeclosure: false,
+    typicalPriority: 1,
+    amountRange: [80000, 320000],
+    holderExamples: ['Wells Fargo Home Mortgage', 'Bank of America, N.A.', 'Rocket Mortgage'],
+    educationalNote:
+      'The foreclosing first mortgage is extinguished by the sale — that is what the auction wipes out — so you do not inherit it.',
+  },
+  {
+    category: 'junior-mortgage',
+    type: 'Second Mortgage / HELOC',
+    survivesForeclosure: false,
+    typicalPriority: 2,
+    amountRange: [15000, 90000],
+    holderExamples: ['Chase HELOC', 'Discover Home Loans', 'a local credit union'],
+    educationalNote:
+      'Junior mortgages and HELOCs are wiped when a senior lien forecloses; the lender chases the surplus, not you.',
+  },
+  {
+    category: 'property-tax',
+    type: 'Property Tax Lien',
+    survivesForeclosure: true,
+    typicalPriority: 1,
+    amountRange: [3000, 45000],
+    holderExamples: ['County Tax Collector', 'County Treasurer'],
+    educationalNote:
+      'Property taxes hold super-priority and survive any foreclosure — unpaid taxes always follow the property to the new owner.',
+  },
+  {
+    category: 'federal-tax',
+    type: 'IRS Federal Tax Lien',
+    survivesForeclosure: true,
+    typicalPriority: 3,
+    amountRange: [10000, 150000],
+    holderExamples: ['IRS - Centralized Lien Operation'],
+    educationalNote:
+      'Federal tax liens survive foreclosure and the IRS keeps a 120-day right of redemption — you can inherit the debt or lose the property back to the IRS.',
+  },
+  {
+    category: 'state-tax',
+    type: 'State Tax Lien',
+    survivesForeclosure: true,
+    typicalPriority: 3,
+    amountRange: [5000, 80000],
+    holderExamples: ['[State] Dept of Revenue', '[State] Franchise Tax Board'],
+    educationalNote:
+      'State income and sales-tax liens generally survive foreclosure much like federal tax liens.',
+  },
+  {
+    category: 'hoa',
+    type: 'HOA Lien',
+    survivesForeclosure: false,
+    typicalPriority: 4,
+    amountRange: [1500, 25000],
+    holderExamples: ['Sunset Ridge HOA', 'Oakwood Community Association'],
+    educationalNote:
+      'Ordinary HOA-dues liens are usually junior and wiped — but watch for a super-priority slice that is not.',
+  },
+  {
+    category: 'hoa-super-priority',
+    type: 'HOA Super-Priority Lien',
+    survivesForeclosure: true,
+    typicalPriority: 1,
+    amountRange: [2000, 18000],
+    holderExamples: ['Oakwood COA - super-priority assessment'],
+    educationalNote:
+      'In super-lien states a few months of unpaid HOA dues leap ahead of the first mortgage — they can wipe the mortgage and survive the sale.',
+  },
+  {
+    category: 'mechanics',
+    type: "Mechanic's Lien",
+    survivesForeclosure: true,
+    typicalPriority: 2,
+    amountRange: [3000, 60000],
+    holderExamples: ['ABC Roofing LLC', "Joe's Plumbing", 'Good Times Remodeling LLC'],
+    educationalNote:
+      "A perfected mechanic's lien for unpaid work can survive foreclosure and attach to the property regardless of who owns it.",
+  },
+  {
+    category: 'judgment',
+    type: 'Judgment Lien',
+    survivesForeclosure: false,
+    typicalPriority: 4,
+    amountRange: [5000, 120000],
+    holderExamples: ['ABC Collections', 'a former business partner', '[County] Civil Court'],
+    educationalNote:
+      'Money-judgment liens are usually junior and wiped at sale — but confirm priority, because a senior judgment can survive.',
+  },
+  {
+    category: 'child-support',
+    type: 'Child Support Lien',
+    survivesForeclosure: true,
+    typicalPriority: 3,
+    amountRange: [2000, 75000],
+    holderExamples: ['[State] Child Support Enforcement', 'a custodial parent'],
+    educationalNote:
+      "Child-support liens are statutory and typically survive foreclosure — the obligation follows the property's equity.",
+  },
+  {
+    category: 'code-enforcement',
+    type: 'Code Enforcement Lien',
+    survivesForeclosure: true,
+    typicalPriority: 2,
+    amountRange: [2000, 40000],
+    holderExamples: ['City of [City] - Code Enforcement Division'],
+    educationalNote:
+      'Municipal code-enforcement fines attach to the land and survive foreclosure — you inherit both the fines and the violations.',
+  },
+  {
+    category: 'municipal-utility',
+    type: 'Water/Sewer Lien',
+    survivesForeclosure: true,
+    typicalPriority: 2,
+    amountRange: [500, 12000],
+    holderExamples: ['County Water Authority', 'City Utilities Department'],
+    educationalNote:
+      'Unpaid municipal water and sewer charges can become liens that run with the land and survive the sale.',
+  },
+  {
+    category: 'special-assessment',
+    type: 'Special Assessment Lien',
+    survivesForeclosure: true,
+    typicalPriority: 1,
+    amountRange: [5000, 50000],
+    holderExamples: ['PACE financing - Ygrene', 'City Improvement District'],
+    educationalNote:
+      'Special assessments (sidewalks, sewer, PACE solar) attach to the property and survive — they are collected alongside property taxes.',
+  },
+  {
+    category: 'environmental',
+    type: 'Environmental Lien',
+    survivesForeclosure: true,
+    typicalPriority: 1,
+    amountRange: [15000, 250000],
+    holderExamples: ['EPA - Superfund Program', '[State] Dept of Environmental Quality'],
+    educationalNote:
+      "Environmental cleanup liens can be super-priority, survive foreclosure, and dwarf the property's value — a true deal-killer.",
+  },
+  {
+    category: 'lis-pendens',
+    type: 'Lis Pendens',
+    survivesForeclosure: true,
+    typicalPriority: 5,
+    amountRange: [0, 0],
+    holderExamples: ['[County] Superior Court - quiet title action'],
+    educationalNote:
+      'A lis pendens is not a dollar lien — it is notice of pending litigation that clouds title and can unwind your purchase. Clear it before resale.',
+  },
+];
+
+export type IssueCategory =
+  | 'structural'
+  | 'systems'
+  | 'title'
+  | 'environmental'
+  | 'occupancy'
+  | 'legal'
+  | 'financial'
+  | 'market';
+
+export interface IssueArchetype {
+  category: IssueCategory;
+  /** Short label / type for the red flag. */
+  type: string;
+  severity: 'red-herring' | 'low' | 'medium' | 'high' | 'severe';
+  /** Realistic remediation/cost range [low, high]. [0, 0] for pure clouds or red herrings. */
+  costRange: [number, number];
+  /** Document/source where this is discovered (maps to RedFlag.hiddenIn). */
+  sourceDocument: string;
+  /** One-sentence teaching note / why it matters. */
+  educationalNote: string;
+}
+
+export const ISSUE_CATALOG: IssueArchetype[] = [
+  {
+    category: 'structural',
+    type: 'Foundation settlement',
+    severity: 'high',
+    costRange: [15000, 60000],
+    sourceDocument: 'Inspection report',
+    educationalNote:
+      'Underpinning and waterproofing a settling foundation runs roughly $100–150 per linear foot — budget tens of thousands.',
+  },
+  {
+    category: 'structural',
+    type: 'Roof at end of life',
+    severity: 'medium',
+    costRange: [8000, 25000],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'A roof past its service life is a near-term capital cost you cannot defer.',
+  },
+  {
+    category: 'systems',
+    type: 'Failing HVAC',
+    severity: 'medium',
+    costRange: [5000, 15000],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'Full HVAC replacement is a predictable five-figure hit on an as-is purchase.',
+  },
+  {
+    category: 'systems',
+    type: 'Outdated electrical panel',
+    severity: 'medium',
+    costRange: [4000, 12000],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'Outdated panels and knob-and-tube wiring fail insurance and lender requirements.',
+  },
+  {
+    category: 'environmental',
+    type: 'Mold remediation',
+    severity: 'medium',
+    costRange: [6000, 20000],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'Hidden mold behind walls means remediation plus repairing whatever caused it.',
+  },
+  {
+    category: 'environmental',
+    type: 'Buried oil tank / soil contamination',
+    severity: 'high',
+    costRange: [10000, 80000],
+    sourceDocument: 'Environmental report',
+    educationalNote: 'A leaking buried tank can trigger costly soil remediation and environmental liability.',
+  },
+  {
+    category: 'environmental',
+    type: 'Asbestos materials',
+    severity: 'medium',
+    costRange: [8000, 30000],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'Pre-1980 homes may need licensed asbestos abatement before renovation.',
+  },
+  {
+    category: 'title',
+    type: 'Clouded title / missing heir',
+    severity: 'high',
+    costRange: [0, 0],
+    sourceDocument: 'Title report',
+    educationalNote:
+      'A missing-heir or wild-deed cloud can stall resale for months until a quiet-title action resolves it.',
+  },
+  {
+    category: 'title',
+    type: 'Easement / encroachment',
+    severity: 'low',
+    costRange: [0, 0],
+    sourceDocument: 'Survey / plat',
+    educationalNote: 'An encroaching structure or shared-driveway easement can limit use and scare buyers.',
+  },
+  {
+    category: 'occupancy',
+    type: 'Owner refuses to leave',
+    severity: 'high',
+    costRange: [5000, 15000],
+    sourceDocument: 'Occupancy / field report',
+    educationalNote:
+      'An owner-occupant fights eviction hardest; expect 3–6 months of delay plus legal or cash-for-keys costs.',
+  },
+  {
+    category: 'occupancy',
+    type: 'Tenant with active lease',
+    severity: 'medium',
+    costRange: [3000, 12000],
+    sourceDocument: 'Occupancy / field report',
+    educationalNote:
+      'A valid lease may survive the sale; you inherit the tenant until it expires or you pay them to leave.',
+  },
+  {
+    category: 'occupancy',
+    type: 'Squatters in possession',
+    severity: 'high',
+    costRange: [6000, 20000],
+    sourceDocument: 'Occupancy / field report',
+    educationalNote: 'Removing squatters can require a formal eviction and become a months-long, costly fight.',
+  },
+  {
+    category: 'legal',
+    type: 'Redemption-period right',
+    severity: 'high',
+    costRange: [4000, 18000],
+    sourceDocument: 'Foreclosure / county records',
+    educationalNote:
+      'In redemption states the former owner can buy the property back; you carry it (taxes, insurance, interest) and cannot resell until the window closes.',
+  },
+  {
+    category: 'legal',
+    type: 'Open permits / unpermitted work',
+    severity: 'medium',
+    costRange: [4000, 20000],
+    sourceDocument: 'Building department records',
+    educationalNote: 'Unpermitted additions must be legalized or removed — and they can block your resale or refi.',
+  },
+  {
+    category: 'financial',
+    type: 'Pending special assessment',
+    severity: 'medium',
+    costRange: [5000, 25000],
+    sourceDocument: 'HOA statement',
+    educationalNote: 'A board-approved special assessment becomes the new owner\u2019s bill even before it is a lien.',
+  },
+  {
+    category: 'market',
+    type: 'Inflated ARV / declining micro-market',
+    severity: 'medium',
+    costRange: [0, 0],
+    sourceDocument: 'Comps / market data',
+    educationalNote: 'If your ARV leans on stale comps, the resale will not clear your numbers.',
+  },
+  {
+    category: 'structural',
+    type: 'Dated finishes (cosmetic only)',
+    severity: 'red-herring',
+    costRange: [0, 0],
+    sourceDocument: 'Inspection report',
+    educationalNote: 'Dated finishes look scary but are cheap cosmetic updates — do not overweight them.',
+  },
+];
+
+/** Fuzzy-match a lien type/category string to a catalog archetype. */
+export function findLienArchetype(typeOrCategory: string): LienArchetype | undefined {
+  const needle = (typeOrCategory || '').toLowerCase();
+  const byCategory = LIEN_CATALOG.find((l) => l.category === needle);
+  if (byCategory) return byCategory;
+  // Keyword scan against the type label and category tokens.
+  return LIEN_CATALOG.find((l) => {
+    const hay = `${l.type} ${l.category}`.toLowerCase();
+    return needle.includes(l.category.replace(/-/g, ' ')) || hay.includes(needle) || needle.includes(l.type.toLowerCase());
+  });
+}
+
+/** Format the lien catalog (optionally filtered to categories) for an AI prompt. */
+export function formatLienCatalogForPrompt(categories?: LienCategory[]): string {
+  const rows = categories
+    ? LIEN_CATALOG.filter((l) => categories.includes(l.category))
+    : LIEN_CATALOG;
+  return rows
+    .map(
+      (l) =>
+        `- ${l.type} [${l.category}] — ${l.survivesForeclosure ? 'SURVIVES (buyer inherits)' : 'wiped at sale'}; typical $${l.amountRange[0].toLocaleString()}–$${l.amountRange[1].toLocaleString()}; e.g. ${l.holderExamples[0]}`
+    )
+    .join('\n');
+}
+
+/** Format the issue catalog for an AI prompt. */
+export function formatIssueCatalogForPrompt(): string {
+  return ISSUE_CATALOG.map(
+    (i) =>
+      `- ${i.type} [${i.category}, ${i.severity}] — cost $${i.costRange[0].toLocaleString()}–$${i.costRange[1].toLocaleString()}; found in: ${i.sourceDocument}`
+  ).join('\n');
 }

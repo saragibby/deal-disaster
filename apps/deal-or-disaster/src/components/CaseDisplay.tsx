@@ -276,8 +276,34 @@ export default function CaseDisplay({
             <div className="detail-section">
               <h3>📋 Property Description</h3>
               <p>{propertyCase.description}</p>
-              <p><strong>Occupancy:</strong> {propertyCase.occupancyStatus}</p>
-              {propertyCase.hoaFees && <p><strong>HOA Fees:</strong> {formatCurrency(propertyCase.hoaFees)}/month</p>}
+              <p>
+                <strong>Occupancy:</strong>{' '}
+                {(() => {
+                  const occ = propertyCase.occupant
+                    ?? (propertyCase.occupancyStatus === 'vacant' ? 'vacant'
+                      : propertyCase.occupancyStatus === 'occupied' ? 'owner'
+                      : undefined);
+                  const label = occ === 'vacant' ? 'Vacant'
+                    : occ === 'owner' ? 'Occupied — former owner'
+                    : occ === 'tenant' ? 'Occupied — tenant'
+                    : occ === 'squatter' ? 'Occupied — squatter'
+                    : 'Unknown';
+                  return label;
+                })()}
+                {propertyCase.occupancyCost ? (
+                  <span className="occupancy-cost">
+                    {' '}· est. {formatCurrency(propertyCase.occupancyCost)} to clear (eviction / cash-for-keys)
+                  </span>
+                ) : null}
+              </p>
+              {propertyCase.redemptionPeriodDays ? (
+                <p className="redemption-note">
+                  <strong>⏳ Redemption period:</strong> the prior owner can reclaim this property for{' '}
+                  {propertyCase.redemptionPeriodDays} days after the sale
+                  {propertyCase.redemptionCost ? ` — budget ${formatCurrency(propertyCase.redemptionCost)} in carrying costs and risk` : ''}.
+                </p>
+              ) : null}
+              {propertyCase.hoaFees ? <p><strong>HOA Fees:</strong> {formatCurrency(propertyCase.hoaFees)}/month</p> : null}
               <p className="listing-disclaimer">
                 ⚠️ Sold <strong>as-is</strong> · Cash only · No interior access · No inspection or financing
                 contingencies. Buyer assumes all liens that survive the foreclosure sale.
@@ -325,6 +351,11 @@ export default function CaseDisplay({
                             <span className="lien-holder">{lien.holder}</span>
                             <span className="lien-amount">{formatCurrency(lien.amount)}</span>
                           </div>
+                          {typeof lien.survivesForeclosure === 'boolean' && (
+                            <span className={`lien-survival ${lien.survivesForeclosure ? 'survives' : 'wiped'}`}>
+                              {lien.survivesForeclosure ? '⚠️ Survives sale' : '✅ Wiped at sale'}
+                            </span>
+                          )}
                           <span className="flip-cta">Tap for details</span>
                         </div>
                         <div className="lien-card-face lien-card-back">
@@ -341,10 +372,24 @@ export default function CaseDisplay({
                               <span className="detail-label">Amount:</span>
                               <span className="detail-value">{formatCurrency(lien.amount)}</span>
                             </div>
+                            <div className="detail-row">
+                              <span className="detail-label">After foreclosure:</span>
+                              <span className="detail-value">
+                                {lien.survivesForeclosure
+                                  ? 'Survives — the buyer inherits this debt'
+                                  : 'Wiped out by the sale — buyer does not owe it'}
+                              </span>
+                            </div>
                             {lien.notes && (
                               <div className="detail-row full-width note-row">
                                 <span className="detail-label">⚠️ Important Notes:</span>
                                 <span className="detail-value">{lien.notes}</span>
+                              </div>
+                            )}
+                            {lien.educationalNote && (
+                              <div className="detail-row full-width note-row lien-edu-row">
+                                <span className="detail-label">🎓 Why it matters:</span>
+                                <span className="detail-value">{lien.educationalNote}</span>
                               </div>
                             )}
                           </div>

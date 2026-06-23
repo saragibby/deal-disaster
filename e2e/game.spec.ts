@@ -106,3 +106,35 @@ test.describe('Deal or Disaster - Game Play', () => {
     await expect(page.locator('.result-modal')).toBeVisible({ timeout: 10000 });
   });
 });
+
+test.describe('Deal or Disaster - Lien / Issue Library', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await loginViaAPI(page, TEST_USER.email, TEST_USER.password);
+  });
+
+  test('redemption-state case shows redemption note, occupancy cost, and surviving lien badge', async ({ page }) => {
+    await page.goto('/deal-or-disaster/deal/case-017');
+    await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
+
+    // Redemption-period risk is surfaced to the player.
+    await expect(page.locator('.redemption-note')).toBeVisible();
+    await expect(page.locator('.redemption-note')).toContainText('Redemption period');
+
+    // Occupancy line shows the occupant type and the cost to clear possession.
+    await expect(page.locator('text=Occupied — former owner')).toBeVisible();
+    await expect(page.locator('.occupancy-cost')).toContainText('to clear');
+
+    // At least one lien is flagged as surviving the sale.
+    await expect(page.locator('.lien-survival.survives').first()).toBeVisible();
+  });
+
+  test('junior-lien case shows liens that are wiped at sale', async ({ page }) => {
+    await page.goto('/deal-or-disaster/deal/case-018');
+    await expect(page.locator('.case-display')).toBeVisible({ timeout: 15000 });
+
+    // The stacked junior liens are surfaced as wiped at the sale.
+    await expect(page.locator('.lien-survival.wiped').first()).toBeVisible();
+  });
+});
+
