@@ -14,7 +14,7 @@ fixed. The items below are larger product/gameplay changes to work through later
 
 ---
 
-## J. INVESTIGATE needs a real downside
+## J. INVESTIGATE needs a real downside ✅ DONE
 
 **Today:** Choosing INVESTIGATE always grants a flat **+10** with no real cost, so it's a
 risk-free "safe" answer that short-circuits the BUY/WALK-AWAY decision the game is meant to
@@ -26,6 +26,10 @@ teach.
 - Award partial credit only when investigation actually surfaces a decision-changing issue;
   otherwise apply a small opportunity penalty.
 - After investigating, still force a final BUY/WALK-AWAY commitment and score that decision.
+
+**Shipped:** INVESTIGATE is now limited, costly due diligence — each inspection consumes time
+and points against a capped due-diligence budget, and the player must still commit to a binary
+BUY/WALK-AWAY decision that is scored.
 
 ---
 
@@ -70,12 +74,21 @@ The Daily Challenge has a richer post-game explanation than regular cases. Bring
 expert-style breakdown (why it was a deal/disaster, which liens survived, cost math) to
 regular cases too.
 
-### 6. Expanded lien / issue library
+### 6. Expanded lien / issue library ✅ DONE
 Add more real-world mechanics:
 - Redemption period risk (former owner can reclaim).
 - Senior vs. junior lien wipeout nuances.
 - Occupancy / eviction risk (occupied properties, hostile tenants, squatters).
 - Special assessments, environmental liens, lis pendens.
+
+**Shipped:** `LIEN_CATALOG` (15 archetypes) and `ISSUE_CATALOG` (17 archetypes) now live in
+`@deal-platform/shared-types` as a single source of truth, covering super-priority HOA,
+federal/state tax, mechanic's, judgment, child-support, code-enforcement, environmental, and
+lis-pendens liens plus occupancy and redemption issues. Occupancy/eviction and redemption-period
+costs flow into the scored P&L (`computeDeal()`) and the AI validation gate; the generator derives
+its lien/issue guidance from the catalog and teaches senior-vs-junior survival. The UI surfaces
+occupant type, eviction cost, a redemption badge, and per-lien survival + educational notes.
+Curated cases 016–018 demonstrate the mechanics.
 
 ### 7. Tone & polish
 - Make joke clues in the story actually map to discoverable documents/issues.
