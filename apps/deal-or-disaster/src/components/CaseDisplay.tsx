@@ -71,7 +71,7 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
     setShowHelp(false);
   };
 
-  const potentialProfit = propertyCase.propertyValue - propertyCase.auctionPrice - propertyCase.repairEstimate;
+  const spreadBeforeCosts = propertyCase.propertyValue - propertyCase.auctionPrice - propertyCase.repairEstimate;
 
   return (
     <div className="case-display">
@@ -134,7 +134,7 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
           <div className="property-overview">
             <div className="value-grid">
               <div className="value-item">
-                <span className="label">Property Value</span>
+                <span className="label">Est. Market Value</span>
                 <span className="amount">{formatCurrency(propertyCase.propertyValue)}</span>
               </div>
               <div className="value-item highlight">
@@ -149,9 +149,9 @@ export default function CaseDisplay({ propertyCase, timeRemaining, onRedFlagClic
                     : formatCurrency(propertyCase.repairEstimate)}
                 </span>
               </div>
-              <div className={`value-item ${potentialProfit > 0 ? 'profit' : 'loss'}`}>
-                <span className="label">Potential Profit</span>
-                <span className="amount">{formatCurrency(potentialProfit)}</span>
+              <div className={`value-item ${spreadBeforeCosts > 0 ? 'profit' : 'loss'}`}>
+                <span className="label">Spread Before Costs</span>
+                <span className="amount">{formatCurrency(spreadBeforeCosts)}</span>
               </div>
             </div>
           </div>

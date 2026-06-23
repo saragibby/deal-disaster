@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import CaseDisplay from './components/CaseDisplay';
 import DecisionButtons from './components/DecisionButtons';
@@ -12,6 +12,7 @@ import ChallengeCalendar from './components/ChallengeCalendar';
 import { AskWill } from '@deal-platform/shared-ui';
 import { PropertyCase, Decision, GameScore, ScoreResult } from './types';
 import { getRandomCase } from './data/cases';
+import { computeDeal, formatPct } from './utils/dealFinancials';
 import { api } from './services/api';
 import { buildAppUrl } from '@deal-platform/shared-auth';
 import { LogOut, User } from 'lucide-react';
@@ -46,6 +47,15 @@ function App() {
   const [challengeStartPoints, setChallengeStartPoints] = useState(0);
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'calendar'>('leaderboard');
   const [currentCase, setCurrentCase] = useState<PropertyCase | null>(null);
+  // Track which flags have already been revealed/answered so rapid, repeated
+  // clicks (or React StrictMode double-invokes) can't double-count or drop
+  // points. Reset whenever a new case loads.
+  const revealedFlagsRef = useRef<Set<string>>(new Set());
+  const answeredFlagsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    revealedFlagsRef.current = new Set();
+    answeredFlagsRef.current = new Set();
+  }, [currentCase?.id]);
   const [timeRemaining, setTimeRemaining] = useState(CASE_TIME_LIMIT);
   const [score, setScore] = useState<GameScore>({
     points: 0,
@@ -287,6 +297,8 @@ function App() {
         hiddenIn: flag.type,
         discovered: false,
         impact: flag.impact,
+        costLow: flag.costLow,
+        costHigh: flag.costHigh,
         question: flag.question,
         choices: flag.choices,
         correctChoice: flag.correctChoice,
@@ -428,58 +440,65 @@ function App() {
 
   const handleRedFlagClick = (flagId: string) => {
     if (!currentCase) return;
+    // Synchronous guard: dedupe rapid repeated clicks and StrictMode double-invokes.
+    if (revealedFlagsRef.current.has(flagId)) return;
+    const flag = currentCase.redFlags.find((f) => f.id === flagId);
+    if (!flag || flag.discovered) return;
+    revealedFlagsRef.current.add(flagId);
 
-    const updatedCase = { ...currentCase };
-    const flag = updatedCase.redFlags.find((f) => f.id === flagId);
+    // Immutable functional update so concurrent clicks on different flags compose.
+    setCurrentCase((prev) =>
+      prev
+        ? { ...prev, redFlags: prev.redFlags.map((f) => (f.id === flagId ? { ...f, discovered: true } : f)) }
+        : prev
+    );
 
-    if (flag && !flag.discovered) {
-      flag.discovered = true;
-      setCurrentCase(updatedCase);
-      
-      // Only award discovery points if there's no question (old behavior)
-      if (!flag.question) {
-        setScore((prev) => ({
-          ...prev,
-          points: prev.points + 25,
-          redFlagsFound: prev.redFlagsFound + 1,
-        }));
-      } else {
-        // Just mark as found for stats
-        setScore((prev) => ({
-          ...prev,
-          redFlagsFound: prev.redFlagsFound + 1,
-        }));
-      }
+    // Only award discovery points if there's no question (old behavior)
+    if (!flag.question) {
+      setScore((prev) => ({
+        ...prev,
+        points: prev.points + 25,
+        redFlagsFound: prev.redFlagsFound + 1,
+      }));
+    } else {
+      // Just mark as found for stats
+      setScore((prev) => ({
+        ...prev,
+        redFlagsFound: prev.redFlagsFound + 1,
+      }));
     }
   };
 
   const handleRedFlagAnswer = (flagId: string, answerIndex: number) => {
     if (!currentCase) return;
+    // Synchronous guard: an already-answered flag can't be rescored.
+    if (answeredFlagsRef.current.has(flagId)) return;
+    const flag = currentCase.redFlags.find((f) => f.id === flagId);
+    if (!flag || flag.correctChoice === undefined || flag.userAnswer !== undefined) return;
+    answeredFlagsRef.current.add(flagId);
 
-    const updatedCase = { ...currentCase };
-    const flag = updatedCase.redFlags.find((f) => f.id === flagId);
+    setCurrentCase((prev) =>
+      prev
+        ? { ...prev, redFlags: prev.redFlags.map((f) => (f.id === flagId ? { ...f, userAnswer: answerIndex } : f)) }
+        : prev
+    );
 
-    if (flag && flag.correctChoice !== undefined) {
-      flag.userAnswer = answerIndex;
-      setCurrentCase(updatedCase);
+    const isCorrect = answerIndex === flag.correctChoice;
 
-      const isCorrect = answerIndex === flag.correctChoice;
-      
-      // Bonus points for high/severe severity flags
-      let points = 0;
-      if (isCorrect) {
-        points = (flag.severity === 'high' || flag.severity === 'severe') ? 75 : 50;
-      } else {
-        points = -25;
-      }
-
-      setScore((prev) => ({
-        ...prev,
-        points: prev.points + points,
-        redFlagCorrect: isCorrect ? prev.redFlagCorrect + 1 : prev.redFlagCorrect,
-        redFlagMistakes: !isCorrect ? prev.redFlagMistakes + 1 : prev.redFlagMistakes,
-      }));
+    // Bonus points for high/severe severity flags
+    let points = 0;
+    if (isCorrect) {
+      points = (flag.severity === 'high' || flag.severity === 'severe') ? 75 : 50;
+    } else {
+      points = -25;
     }
+
+    setScore((prev) => ({
+      ...prev,
+      points: prev.points + points,
+      redFlagCorrect: isCorrect ? prev.redFlagCorrect + 1 : prev.redFlagCorrect,
+      redFlagMistakes: !isCorrect ? prev.redFlagMistakes + 1 : prev.redFlagMistakes,
+    }));
   };
 
   const handleDecision = async (decision: Decision, forcedTimeTaken?: number) => {
@@ -488,6 +507,8 @@ function App() {
     let points = 0;
     let message = '';
     let explanation = '';
+    // Single canonical model so the banner agrees with the result calculator.
+    const deal = computeDeal(currentCase);
     const undiscoveredFlags = currentCase.redFlags.filter((f) => !f.discovered && f.severity !== 'red-herring');
     const missedSevereFlags = currentCase.redFlags.filter((f) => !f.discovered && (f.severity === 'severe' || f.severity === 'high'));
 
@@ -495,13 +516,13 @@ function App() {
       if (currentCase.isGoodDeal) {
         points = 100;
         message = '✅ Excellent Decision!';
-        explanation = `This was a solid deal! You'll make approximately $${(currentCase.actualValue - currentCase.auctionPrice - currentCase.repairEstimate).toLocaleString()} profit.`;
+        explanation = `This was a solid deal! After all costs you'd net approximately $${deal.netProfit.toLocaleString()} (ROI ${formatPct(deal.roi)}).`;
         setScore((prev) => ({ ...prev, goodDeals: prev.goodDeals + 1 }));
       } else {
         points = -150;
         message = '❌ Bad Investment!';
         const hiddenIssues = undiscoveredFlags.map((f) => f.description).join(' ');
-        explanation = `This was a trap! ${hiddenIssues} You would lose approximately $${(currentCase.auctionPrice + currentCase.repairEstimate - currentCase.actualValue).toLocaleString()}.`;
+        explanation = `This was a trap! ${hiddenIssues} After all costs you would lose approximately $${Math.abs(deal.netProfit).toLocaleString()}.`;
         setScore((prev) => ({ ...prev, mistakes: prev.mistakes + 1 }));
         
         // Additional penalty for buying with missed severe issues
@@ -514,12 +535,12 @@ function App() {
       if (!currentCase.isGoodDeal) {
         points = 50;
         message = '👍 Smart Move!';
-        explanation = `Good instincts! You avoided a bad deal. ${undiscoveredFlags.length > 0 ? undiscoveredFlags[0].description : 'There were hidden issues that would have cost you.'}`;
+        explanation = `Good instincts! You avoided a loss of about $${Math.abs(deal.netProfit).toLocaleString()}. ${undiscoveredFlags.length > 0 ? undiscoveredFlags[0].description : 'There were hidden issues that would have cost you.'}`;
         setScore((prev) => ({ ...prev, badDealsAvoided: prev.badDealsAvoided + 1 }));
       } else {
         points = -50;
         message = '😬 Missed Opportunity';
-        explanation = 'This was actually a good deal. You were too cautious and missed out on a profitable investment.';
+        explanation = `This was actually a good deal — you missed about $${deal.netProfit.toLocaleString()} in profit. You were too cautious.`;
         setScore((prev) => ({ ...prev, mistakes: prev.mistakes + 1 }));
       }
     } else if (decision === 'INVESTIGATE') {

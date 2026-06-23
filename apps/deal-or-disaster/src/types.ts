@@ -4,6 +4,9 @@ export interface Lien {
   amount: number;
   priority: number;
   notes?: string;
+  // Whether this lien survives the foreclosure sale (buyer inherits the debt).
+  // When omitted, dealFinancials infers survival from the lien type.
+  survivesForeclosure?: boolean;
 }
 
 export interface RedFlag {
@@ -13,6 +16,11 @@ export interface RedFlag {
   hiddenIn: string;
   discovered: boolean;
   impact?: string;
+  // Hard-dollar cost range this issue adds to the deal (remediation, surviving
+  // debt, bring-to-code, etc.). The midpoint flows into the P&L. Leave both
+  // undefined for non-cost issues (e.g. pure title clouds with no dollar value).
+  costLow?: number;
+  costHigh?: number;
   question?: string;
   choices?: string[];
   correctChoice?: number;
@@ -49,6 +57,26 @@ export interface PropertyCase {
   baths?: number;
   sqft?: number;
   yearBuilt?: number;
+}
+
+export type DealClassification = 'GOOD' | 'MARGINAL' | 'BAD';
+
+// The single, canonical financial model for a case. Every screen (case summary,
+// win/loss banner, financial analysis, and the "why this scoring" footer) must
+// render from this object so the numbers can never disagree.
+export interface DealFinancials {
+  preForeclosureValue: number; // estimated value before foreclosure (propertyValue)
+  resaleValue: number; // realistic after-repair resale value / ARV (actualValue)
+  closingRate: number; // e.g. 0.025
+  closingCosts: number; // auctionPrice * closingRate
+  baseRepairs: number; // repairEstimate
+  issueCosts: number; // sum of midpoints of discovered/real issue cost ranges
+  survivingLiens: number; // sum of liens that survive the sale
+  totalInvestment: number; // auction + baseRepairs + issueCosts + survivingLiens + closing
+  netProfit: number; // resaleValue - totalInvestment
+  roi: number; // netProfit / totalInvestment (fraction, e.g. 0.18)
+  classification: DealClassification; // derived from roi
+  spreadBeforeCosts: number; // honest "optimistic" figure: value - auction - repairs
 }
 
 export type Decision = 'BUY' | 'INVESTIGATE' | 'WALK_AWAY' | null;

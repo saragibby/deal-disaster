@@ -1,5 +1,6 @@
 import { ScoreResult, PropertyCase } from '../types';
 import { useState } from 'react';
+import { computeDeal, formatPct, lienSurvives, issueCost } from '../utils/dealFinancials';
 
 interface ResultModalProps {
   result: ScoreResult | null;
@@ -20,22 +21,23 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
     return 'bad';
   };
 
-  // Calculate financial metrics
-  const closingCosts = caseData.auctionPrice * 0.025;
-  const totalInvestment = caseData.auctionPrice + caseData.repairEstimate + closingCosts;
-  
-  // Calculate surviving liens (liens that you'll have to pay)
-  const survivingLiens = caseData.liens
-    .filter(lien => 
-      lien.type.includes('Federal Tax') ||
-      lien.type.includes('HOA Superpriority') ||
-      lien.type.includes('Code Enforcement')
-    )
-    .reduce((sum, lien) => sum + lien.amount, 0);
-  
-  // Net profit = market value - total investment - surviving liens you must pay
-  const netProfit = caseData.actualValue - totalInvestment - survivingLiens;
-  const profitMargin = ((netProfit / totalInvestment) * 100).toFixed(1);
+  // Single canonical financial model — every figure below renders from this so
+  // the banner, calculator, and scoring footer can never disagree.
+  const deal = computeDeal(caseData);
+  const { closingCosts, totalInvestment, netProfit, issueCosts } = deal;
+
+  const classificationLabel =
+    deal.classification === 'GOOD'
+      ? '✅ GOOD'
+      : deal.classification === 'MARGINAL'
+      ? '⚠️ MARGINAL'
+      : '❌ BAD';
+  const classificationClass =
+    deal.classification === 'GOOD'
+      ? 'good'
+      : deal.classification === 'MARGINAL'
+      ? 'marginal'
+      : 'bad';
 
   return (
     <div className="modal-overlay">
@@ -84,6 +86,12 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <span>Closing Costs (2.5%):</span>
                   <span>${closingCosts.toLocaleString()}</span>
                 </div>
+                {issueCosts > 0 && (
+                  <div className="analysis-row">
+                    <span>Issue &amp; Remediation Costs:</span>
+                    <span>${issueCosts.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="analysis-row total">
                   <span>Total Investment:</span>
                   <span>${totalInvestment.toLocaleString()}</span>
@@ -93,30 +101,25 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
               <div className="column">
                 <h4>📈 Property Value</h4>
                 <div className="analysis-row">
-                  <span>Market Value:</span>
+                  <span>Pre-Foreclosure Est. Value:</span>
+                  <span>${caseData.propertyValue.toLocaleString()}</span>
+                </div>
+                <div className="analysis-row">
+                  <span>Realistic Resale Value (ARV):</span>
                   <span>${caseData.actualValue.toLocaleString()}</span>
                 </div>
-                
-                {caseData.liens && caseData.liens.some(l => 
-                  l.type.includes('Federal Tax') ||
-                  l.type.includes('HOA Superpriority') ||
-                  l.type.includes('Code Enforcement')
-                ) && (
+
+                {caseData.liens && caseData.liens.some(lienSurvives) && (
                   <>
                     <h4 style={{ marginTop: '15px', marginBottom: '8px' }}>⚠️ Surviving Liens</h4>
-                    {caseData.liens.map((lien, idx) => {
-                      const survives = 
-                        lien.type.includes('Federal Tax') ||
-                        lien.type.includes('HOA Superpriority') ||
-                        lien.type.includes('Code Enforcement');
-                      
-                      return survives ? (
+                    {caseData.liens.map((lien, idx) =>
+                      lienSurvives(lien) ? (
                         <div key={idx} className="analysis-row warning">
                           <span>{lien.type}:</span>
                           <span>-${lien.amount.toLocaleString()}</span>
                         </div>
-                      ) : null;
-                    })}
+                      ) : null
+                    )}
                   </>
                 )}
               </div>
@@ -128,12 +131,12 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                   <span>${netProfit.toLocaleString()}</span>
                 </div>
                 <div className={`analysis-row ${netProfit >= 0 ? 'profit' : 'loss'}`}>
-                  <span>Profit Margin:</span>
-                  <span>{profitMargin}%</span>
+                  <span>ROI:</span>
+                  <span>{formatPct(deal.roi)}</span>
                 </div>
-                <div className={`analysis-row classification ${caseData.isGoodDeal ? 'good' : 'bad'}`}>
+                <div className={`analysis-row classification ${classificationClass}`}>
                   <span>Classification:</span>
-                  <span>{caseData.isGoodDeal ? '✅ GOOD' : '❌ BAD'}</span>
+                  <span>{classificationLabel}</span>
                 </div>
               </div>
             </div>
@@ -146,11 +149,7 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
                 {(() => {
                   const discoveredFlags = caseData.redFlags.filter(f => f.discovered);
                   const missedFlags = caseData.redFlags.filter(f => !f.discovered);
-                  const totalMissedCost = missedFlags.reduce((sum, flag) => {
-                    // Extract dollar amount from impact string
-                    const match = flag.impact?.match(/\$([0-9,]+)/);
-                    return sum + (match ? parseInt(match[1].replace(/,/g, '')) : 0);
-                  }, 0);
+                  const totalMissedCost = missedFlags.reduce((sum, flag) => sum + issueCost(flag), 0);
 
                   return (
                     <>
@@ -287,30 +286,53 @@ export default function ResultModal({ result, caseData, onNextCase, onBackToHome
 
             <div className="decision-math">
               <h4>⚖️ Why This Scoring</h4>
-              {result.points >= 100 && (
-                <div className="math-explanation">
-                  <p><strong>Bought a GOOD deal:</strong></p>
-                  <p>✅ Positive ROI of +{profitMargin}% = <strong>+100 points</strong></p>
-                </div>
-              )}
-              {result.points === 50 && (
-                <div className="math-explanation">
-                  <p><strong>Walked away from a BAD deal:</strong></p>
-                  <p>✅ Avoided a loss of ${Math.abs(netProfit).toLocaleString()} = <strong>+50 points</strong></p>
-                </div>
-              )}
-              {result.points === -150 && (
-                <div className="math-explanation">
-                  <p><strong>Bought a BAD deal:</strong></p>
-                  <p>❌ Negative ROI of {profitMargin}% = <strong>-150 points</strong></p>
-                </div>
-              )}
-              {result.points === -50 && (
-                <div className="math-explanation">
-                  <p><strong>Walked away from a GOOD deal:</strong></p>
-                  <p>❌ Missed profit of +${netProfit.toLocaleString()} = <strong>-50 points</strong></p>
-                </div>
-              )}
+              {(() => {
+                const decision = result.userDecision;
+                const roiText = formatPct(deal.roi);
+                const lossText = `$${Math.abs(netProfit).toLocaleString()}`;
+                const profitText = `$${netProfit.toLocaleString()}`;
+                if (decision === 'BUY' && caseData.isGoodDeal) {
+                  return (
+                    <div className="math-explanation">
+                      <p><strong>Bought a GOOD deal:</strong></p>
+                      <p>✅ Positive ROI of {roiText} on ${totalInvestment.toLocaleString()} invested = <strong>+100 points</strong></p>
+                    </div>
+                  );
+                }
+                if (decision === 'BUY' && !caseData.isGoodDeal) {
+                  return (
+                    <div className="math-explanation">
+                      <p><strong>Bought a BAD deal:</strong></p>
+                      <p>❌ Negative ROI of {roiText} — you'd lose {lossText} = <strong>-150 points</strong></p>
+                    </div>
+                  );
+                }
+                if (decision === 'WALK_AWAY' && !caseData.isGoodDeal) {
+                  return (
+                    <div className="math-explanation">
+                      <p><strong>Walked away from a BAD deal:</strong></p>
+                      <p>✅ Avoided a loss of {lossText} = <strong>+50 points</strong></p>
+                    </div>
+                  );
+                }
+                if (decision === 'WALK_AWAY' && caseData.isGoodDeal) {
+                  return (
+                    <div className="math-explanation">
+                      <p><strong>Walked away from a GOOD deal:</strong></p>
+                      <p>❌ Missed profit of {profitText} = <strong>-50 points</strong></p>
+                    </div>
+                  );
+                }
+                if (decision === 'INVESTIGATE') {
+                  return (
+                    <div className="math-explanation">
+                      <p><strong>Chose to investigate further:</strong></p>
+                      <p>⚠️ Partial credit = <strong>+10 points</strong> — at a live auction there's no time for more research, so you must commit to BUY or WALK AWAY.</p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <button 

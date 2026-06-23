@@ -55,21 +55,28 @@ export const propertyCases: PropertyCase[] = [
         description: 'IRS tax lien survives foreclosure! You\'ll inherit $78k debt that attaches to the property.',
         severity: 'high',
         hiddenIn: 'Title Report - Page 7',
-        discovered: false
+        discovered: false,
+        impact: 'IRS lien survives the sale — you inherit $78,000 in debt'
       },
       {
         id: 'rf-001-2',
         description: 'Property tax lien filed by Maricopa County - $12,500 in unpaid property taxes going back 4 years',
         severity: 'high',
         hiddenIn: 'County Records Search',
-        discovered: false
+        discovered: false,
+        costLow: 12500,
+        costHigh: 12500,
+        impact: 'About $12,500 in back property taxes (senior, survives sale)'
       },
       {
         id: 'rf-001-3',
         description: 'Judgment lien from 2019 civil lawsuit - $35,000 creditor claim still active',
         severity: 'high',
         hiddenIn: 'Lien Search Report - Page 3',
-        discovered: false
+        discovered: false,
+        costLow: 35000,
+        costHigh: 35000,
+        impact: 'Active $35,000 judgment lien you must clear'
       }
     ]
   },
@@ -121,28 +128,38 @@ export const propertyCases: PropertyCase[] = [
         description: 'Minor HOA fees - normal and manageable. Property is actually a solid deal!',
         severity: 'low',
         hiddenIn: 'HOA Documents',
-        discovered: false
+        discovered: false,
+        impact: 'Minor HOA dues (~$150/mo) — negligible'
       },
       {
         id: 'rf-002-2',
         description: 'HOA reserves are only 35% funded - future special assessments likely ($2,000-3,000 per unit)',
         severity: 'medium',
         hiddenIn: 'HOA Financial Statements - Reserve Study',
-        discovered: false
+        discovered: false,
+        costLow: 2000,
+        costHigh: 3000,
+        impact: 'Likely special assessment of $2,000–$3,000'
       },
       {
         id: 'rf-002-3',
         description: 'Gated community will install new security gates next year - special assessment estimated at $1,500-2,000',
         severity: 'low',
         hiddenIn: 'HOA Meeting Minutes',
-        discovered: false
+        discovered: false,
+        costLow: 1500,
+        costHigh: 2000,
+        impact: 'New security gates: $1,500–$2,000 assessment'
       },
       {
         id: 'rf-002-4',
         description: 'Homeowner association lost lawsuit with contractor - $85k judgment could be passed to residents',
         severity: 'medium',
         hiddenIn: 'HOA Legal Documents',
-        discovered: false
+        discovered: false,
+        costLow: 3000,
+        costHigh: 5000,
+        impact: 'If passed to owners, ~$3,000–$5,000 per unit'
       }
     ]
   },
@@ -201,28 +218,38 @@ export const propertyCases: PropertyCase[] = [
         description: 'HOA Superpriority Lien in Nevada! First $47.5k survives foreclosure. You inherit this debt on top of your purchase price.',
         severity: 'high',
         hiddenIn: 'HOA Lien - Fine Print',
-        discovered: false
+        discovered: false,
+        impact: 'Superpriority HOA lien survives — $47,500 inherited'
       },
       {
         id: 'rf-003-2',
         description: 'Property is occupied - expect 3-6 month eviction delay and legal costs of $5k-$15k',
         severity: 'medium',
         hiddenIn: 'Occupancy Status',
-        discovered: false
+        discovered: false,
+        costLow: 5000,
+        costHigh: 15000,
+        impact: 'Eviction delay + legal costs $5,000–$15,000'
       },
       {
         id: 'rf-003-3',
         description: 'Building envelope study reveals foundation settling issues - structural repair estimates $40k-60k',
         severity: 'high',
         hiddenIn: 'HOA Building Report',
-        discovered: false
+        discovered: false,
+        costLow: 40000,
+        costHigh: 60000,
+        impact: 'Foundation structural repairs $40,000–$60,000'
       },
       {
         id: 'rf-003-4',
         description: 'Water intrusion complaints from neighbors - mold remediation may be required before occupancy',
         severity: 'medium',
         hiddenIn: 'HOA Complaint Records',
-        discovered: false
+        discovered: false,
+        costLow: 5000,
+        costHigh: 11000,
+        impact: 'Possible mold remediation $5,000–$11,000'
       }
     ]
   },
@@ -272,35 +299,46 @@ export const propertyCases: PropertyCase[] = [
         description: '$35k code enforcement lien for unpermitted work! Must bring property to code before you can rent or sell.',
         severity: 'high',
         hiddenIn: 'Municipal Records (not in title report)',
-        discovered: false
+        discovered: false,
+        impact: 'Code enforcement lien survives — $35,000 inherited'
       },
       {
         id: 'rf-004-2',
         description: 'Repair estimate seems low at $22k - unpermitted additions suggest much more work needed',
         severity: 'medium',
         hiddenIn: 'Repair Estimate vs Photos',
-        discovered: false
+        discovered: false,
+        costLow: 10000,
+        costHigh: 20000,
+        impact: 'Unpermitted work adds $10,000–$20,000 in repairs'
       },
       {
         id: 'rf-004-3',
         description: 'Contractor lien from 2022 - $18,500 for unpaid labor on those unpermitted additions',
         severity: 'high',
         hiddenIn: 'Lien Search',
-        discovered: false
+        discovered: false,
+        costLow: 18500,
+        costHigh: 18500,
+        impact: 'Contractor lien survives — $18,500 to clear'
       },
       {
         id: 'rf-004-4',
         description: 'Property is in utility easement corridor - City has rights to access for maintenance and repairs',
         severity: 'medium',
         hiddenIn: 'Title Easement Section',
-        discovered: false
+        discovered: false,
+        impact: 'Utility easement limits use; city access rights'
       },
       {
         id: 'rf-004-5',
         description: 'Septic system failed inspection - must be replaced before occupancy ($12k-18k installation)',
         severity: 'high',
         hiddenIn: 'Environmental Report',
-        discovered: false
+        discovered: false,
+        costLow: 12000,
+        costHigh: 18000,
+        impact: 'Septic replacement $12,000–$18,000'
       }
     ]
   },
@@ -352,28 +390,34 @@ export const propertyCases: PropertyCase[] = [
         description: 'Mechanics lien is recent and legitimate - but small enough to not kill the deal. Factor it in.',
         severity: 'low',
         hiddenIn: 'Lien Stack - Bottom',
-        discovered: false
+        discovered: false,
+        impact: 'Mechanics lien survives — $8,500 inherited'
       },
       {
         id: 'rf-005-2',
         description: 'Property is in a 500-year flood plain - flood insurance required (cost $3,500-5,000/year)',
         severity: 'medium',
         hiddenIn: 'FEMA Flood Maps',
-        discovered: false
+        discovered: false,
+        costLow: 3500,
+        costHigh: 5000,
+        impact: 'Flood insurance ~$3,500–$5,000/yr'
       },
       {
         id: 'rf-005-3',
         description: 'Zoning change proposed for adjacent property - will become mixed-use commercial area',
         severity: 'medium',
         hiddenIn: 'City Planning Documents',
-        discovered: false
+        discovered: false,
+        impact: 'Adjacent rezoning may dampen resale appeal'
       },
       {
         id: 'rf-005-4',
         description: 'Utility company easement allows future pipeline installation - minor impact but limits landscaping',
         severity: 'low',
         hiddenIn: 'Title Easements',
-        discovered: false
+        discovered: false,
+        impact: 'Utility easement limits landscaping'
       }
     ]
   },
@@ -431,28 +475,34 @@ export const propertyCases: PropertyCase[] = [
         description: 'Strong chemical odor throughout property. Neighbors report previous owner was "cooking something" in the garage late at night.',
         severity: 'high',
         hiddenIn: 'Environmental Report',
-        discovered: false
+        discovered: false,
+        impact: 'Chemical odor points to contamination cleanup'
       },
       {
         id: 'rf-006-2',
         description: 'Windows have yellow/brown staining on interior surfaces. HVAC contractor noted "odd ventilation setup" in garage.',
         severity: 'high',
         hiddenIn: 'Property Inspection Notes',
-        discovered: false
+        discovered: false,
+        impact: 'Window staining/odd venting consistent with lab use'
       },
       {
         id: 'rf-006-3',
         description: 'Police records show DEA raid at property 8 months ago. Property flagged as potential meth lab - requires $50k+ specialized cleanup.',
         severity: 'high',
         hiddenIn: 'Police Records',
-        discovered: false
+        discovered: false,
+        costLow: 50000,
+        costHigh: 60000,
+        impact: 'Meth contamination cleanup $50,000–$60,000'
       },
       {
         id: 'rf-006-4',
         description: 'IRS tax lien for $47,500 SURVIVES foreclosure - you inherit this debt if you buy the property.',
         severity: 'high',
         hiddenIn: 'Title Search - Federal Liens',
-        discovered: false
+        discovered: false,
+        impact: 'IRS lien survives — $47,500 inherited'
       }
     ]
   },
@@ -504,21 +554,28 @@ export const propertyCases: PropertyCase[] = [
         description: 'Water staining on master bedroom ceiling. Upstairs neighbor had pipe burst 3 months ago - repair quality unknown.',
         severity: 'medium',
         hiddenIn: 'HOA Incident Reports',
-        discovered: false
+        discovered: false,
+        costLow: 1500,
+        costHigh: 3000,
+        impact: 'Ceiling water-stain repair $1,500–$3,000'
       },
       {
         id: 'rf-007-2',
         description: 'HOA considering special assessment of $8,500 per unit for roof replacement project starting this summer.',
         severity: 'medium',
         hiddenIn: 'HOA Board Minutes',
-        discovered: false
+        discovered: false,
+        costLow: 8500,
+        costHigh: 8500,
+        impact: 'Roof special assessment ~$8,500/unit'
       },
       {
         id: 'rf-007-3',
         description: 'Previous owner rented to college students who hosted parties. HOA has filed noise complaints and violation notices.',
         severity: 'low',
         hiddenIn: 'HOA Violation Records',
-        discovered: false
+        discovered: false,
+        impact: 'Prior party-rental noise complaints on file'
       }
     ]
   },
@@ -581,7 +638,8 @@ export const propertyCases: PropertyCase[] = [
         holder: 'Family Court Services',
         amount: 15200,
         priority: 5,
-        notes: 'Legal fees from multiple paternity cases. Attorney pursuing collection.'
+        notes: 'Legal fees from multiple paternity cases. Attorney pursuing collection.',
+        survivesForeclosure: true
       }
     ],
     redFlags: [
@@ -590,28 +648,34 @@ export const propertyCases: PropertyCase[] = [
         description: 'Property has $163,200 in child support liens from three different baby mamas - ALL SURVIVE FORECLOSURE. You inherit these!',
         severity: 'high',
         hiddenIn: 'Title Search - Judgment Liens',
-        discovered: false
+        discovered: false,
+        impact: 'Child-support liens survive — ~$148,000 inherited'
       },
       {
         id: 'rf-008-2',
         description: 'Additional $15,200 judgment lien for family court legal fees also survives. Total inherited debt: $178,400!',
         severity: 'high',
         hiddenIn: 'County Records',
-        discovered: false
+        discovered: false,
+        impact: 'Judgment lien survives — $15,200 inherited'
       },
       {
         id: 'rf-008-3',
         description: 'Occupancy status unknown - listing photos show children\'s toys and furniture. May have tenants or squatters.',
         severity: 'medium',
         hiddenIn: 'Drive-By Inspection',
-        discovered: false
+        discovered: false,
+        costLow: 5000,
+        costHigh: 15000,
+        impact: 'Occupancy unknown — eviction $5,000–$15,000'
       },
       {
         id: 'rf-008-4',
         description: 'Court records show ongoing custody battles. Property may be subject to additional claims or legal complications.',
         severity: 'medium',
         hiddenIn: 'Court Records',
-        discovered: false
+        discovered: false,
+        impact: 'Ongoing custody disputes may bring further claims'
       }
     ]
   },
@@ -663,21 +727,30 @@ export const propertyCases: PropertyCase[] = [
         description: 'Minor settling cracks visible in foundation and drywall. Geologist report shows property is in low-risk subsidence zone.',
         severity: 'low',
         hiddenIn: 'Geological Survey',
-        discovered: false
+        discovered: false,
+        costLow: 2000,
+        costHigh: 4000,
+        impact: 'Monitor settling cracks $2,000–$4,000'
       },
       {
         id: 'rf-009-2',
         description: 'Pool pump needs replacement ($4,500) and pool deck has lifting pavers from tree roots ($3,200 repair).',
         severity: 'low',
         hiddenIn: 'Pool Inspection',
-        discovered: false
+        discovered: false,
+        costLow: 7700,
+        costHigh: 7700,
+        impact: 'Pool pump ($4,500) + deck repair ($3,200) = $7,700'
       },
       {
         id: 'rf-009-3',
         description: 'HOA is solvent and well-managed but planning community wall repairs - potential $2,800 special assessment next year.',
         severity: 'low',
         hiddenIn: 'HOA Financial Statements',
-        discovered: false
+        discovered: false,
+        costLow: 2800,
+        costHigh: 2800,
+        impact: 'Possible $2,800 community-wall assessment'
       }
     ]
   },
@@ -719,7 +792,8 @@ export const propertyCases: PropertyCase[] = [
         holder: 'Whisper Woods HOA',
         amount: 8500,
         priority: 2,
-        notes: 'Unpaid dues plus special assessment'
+        notes: 'Unpaid dues plus special assessment',
+        survivesForeclosure: true
       }
     ],
     redFlags: [
@@ -728,21 +802,30 @@ export const propertyCases: PropertyCase[] = [
         description: 'Unpermitted garage conversion - city requires removal or $15k+ to bring to code',
         severity: 'high',
         hiddenIn: 'Building Permit Records',
-        discovered: false
+        discovered: false,
+        costLow: 15000,
+        costHigh: 20000,
+        impact: 'Bring garage conversion to code $15,000–$20,000'
       },
       {
         id: 'rf-010-2',
         description: 'Foundation moisture issues - inspector estimates $12k remediation',
         severity: 'medium',
         hiddenIn: 'Previous Inspection Report (2022)',
-        discovered: false
+        discovered: false,
+        costLow: 12000,
+        costHigh: 12000,
+        impact: 'Foundation moisture remediation ~$12,000'
       },
       {
         id: 'rf-010-3',
         description: 'HOA special assessment of $4,500 due within 60 days - not disclosed in sale docs',
         severity: 'medium',
         hiddenIn: 'HOA Meeting Minutes',
-        discovered: false
+        discovered: false,
+        costLow: 4500,
+        costHigh: 4500,
+        impact: 'HOA special assessment $4,500 due in 60 days'
       }
     ]
   },
@@ -801,21 +884,28 @@ export const propertyCases: PropertyCase[] = [
         description: 'Mechanics lien survives foreclosure - you inherit $14.5k debt for roof work',
         severity: 'high',
         hiddenIn: 'County Lien Records',
-        discovered: false
+        discovered: false,
+        impact: 'Mechanics lien survives — $14,500 inherited'
       },
       {
         id: 'rf-011-2',
         description: 'Electrical panel is Federal Pacific (known fire hazard) - requires $8k replacement',
         severity: 'high',
         hiddenIn: 'Home Inspection Report',
-        discovered: false
+        discovered: false,
+        costLow: 8000,
+        costHigh: 8000,
+        impact: 'Replace Federal Pacific panel ~$8,000'
       },
       {
         id: 'rf-011-3',
         description: 'Previous water damage in basement - mold remediation needed ($6k-$9k)',
         severity: 'medium',
         hiddenIn: 'Seller Disclosure (buried in footnotes)',
-        discovered: false
+        discovered: false,
+        costLow: 6000,
+        costHigh: 9000,
+        impact: 'Mold remediation $6,000–$9,000'
       }
     ]
   },
@@ -866,21 +956,30 @@ export const propertyCases: PropertyCase[] = [
         description: 'Unfinished renovation work - permits expired, need to restart inspections ($8k)',
         severity: 'medium',
         hiddenIn: 'Building Department Records',
-        discovered: false
+        discovered: false,
+        costLow: 8000,
+        costHigh: 8000,
+        impact: 'Restart expired-permit inspections ~$8,000'
       },
       {
         id: 'rf-012-2',
         description: 'Roof needs replacement within 2 years - current condition marginal ($12k-$18k)',
         severity: 'medium',
         hiddenIn: 'Home Inspection Report',
-        discovered: false
+        discovered: false,
+        costLow: 12000,
+        costHigh: 18000,
+        impact: 'Roof replacement $12,000–$18,000'
       },
       {
         id: 'rf-012-3',
         description: 'HVAC system is 20 years old and showing signs of failure ($7k-$10k replacement)',
         severity: 'medium',
         hiddenIn: 'Maintenance Records',
-        discovered: false
+        discovered: false,
+        costLow: 7000,
+        costHigh: 10000,
+        impact: 'HVAC replacement $7,000–$10,000'
       }
     ]
   },
@@ -923,7 +1022,8 @@ export const propertyCases: PropertyCase[] = [
         holder: 'Ocean Towers HOA',
         amount: 8500,
         priority: 2,
-        notes: 'Unpaid HOA dues - survives foreclosure!'
+        notes: 'Unpaid HOA dues - survives foreclosure!',
+        survivesForeclosure: true
       }
     ],
     redFlags: [
@@ -932,21 +1032,30 @@ export const propertyCases: PropertyCase[] = [
         description: 'Pending HOA special assessment of $35,000 for building repairs - survives foreclosure',
         severity: 'high',
         hiddenIn: 'HOA Meeting Minutes',
-        discovered: false
+        discovered: false,
+        costLow: 35000,
+        costHigh: 35000,
+        impact: 'Special assessment $35,000 survives sale'
       },
       {
         id: 'rf-013-2',
         description: 'Active lawsuit between HOA and previous owner - you may inherit legal costs ($15k-$25k)',
         severity: 'high',
         hiddenIn: 'Court Records',
-        discovered: false
+        discovered: false,
+        costLow: 15000,
+        costHigh: 25000,
+        impact: 'Inherited legal costs $15,000–$25,000'
       },
       {
         id: 'rf-013-3',
         description: 'Building has concrete spalling issues - major repair project starting next year',
         severity: 'high',
         hiddenIn: 'Engineering Report',
-        discovered: false
+        discovered: false,
+        costLow: 25000,
+        costHigh: 40000,
+        impact: 'Concrete spalling repair $25,000–$40,000'
       }
     ]
   },
@@ -997,21 +1106,30 @@ export const propertyCases: PropertyCase[] = [
         description: 'Foundation has minor settling - cracks in drywall, needs monitoring ($5k-$8k)',
         severity: 'medium',
         hiddenIn: 'Structural Engineer Report',
-        discovered: false
+        discovered: false,
+        costLow: 5000,
+        costHigh: 8000,
+        impact: 'Foundation monitoring/repair $5,000–$8,000'
       },
       {
         id: 'rf-014-2',
         description: 'Garage conversion lacks proper permits - $6k to bring to code or remove',
         severity: 'medium',
         hiddenIn: 'Building Permit Records',
-        discovered: false
+        discovered: false,
+        costLow: 6000,
+        costHigh: 6000,
+        impact: 'Garage permits/bring-to-code ~$6,000'
       },
       {
         id: 'rf-014-3',
         description: 'Plumbing is galvanized steel from 1992 - recommend replacement soon ($10k-$15k)',
         severity: 'medium',
         hiddenIn: 'Plumbing Inspection',
-        discovered: false
+        discovered: false,
+        costLow: 10000,
+        costHigh: 15000,
+        impact: 'Re-pipe galvanized plumbing $10,000–$15,000'
       }
     ]
   },
@@ -1063,21 +1181,28 @@ export const propertyCases: PropertyCase[] = [
         description: 'HVAC shared system - HOA responsible but budget shows deferred maintenance',
         severity: 'low',
         hiddenIn: 'HOA Budget Report',
-        discovered: false
+        discovered: false,
+        impact: 'HOA-maintained HVAC shows deferred maintenance'
       },
       {
         id: 'rf-015-2',
         description: 'Water heater is 9 years old - near end of typical lifespan ($1.2k-$1.8k)',
         severity: 'low',
         hiddenIn: 'Home Inspection',
-        discovered: false
+        discovered: false,
+        costLow: 1200,
+        costHigh: 1800,
+        impact: 'Water heater replacement $1,200–$1,800'
       },
       {
         id: 'rf-015-3',
         description: 'HOA reserves underfunded by 30% - potential for special assessments',
         severity: 'medium',
         hiddenIn: 'HOA Financial Statement',
-        discovered: false
+        discovered: false,
+        costLow: 2000,
+        costHigh: 4000,
+        impact: 'Possible special assessment $2,000–$4,000'
       }
     ]
   }

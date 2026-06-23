@@ -31,6 +31,7 @@ interface ForeclosureScenario {
     holder: string;
     amount: number;
     priority: number;
+    survivesForeclosure?: boolean;
     notes?: string;
   }>;
   redFlags: Array<{
@@ -38,6 +39,8 @@ interface ForeclosureScenario {
     description: string;
     severity: 'red-herring' | 'low' | 'medium' | 'high' | 'severe';
     impact: string;
+    costLow?: number;
+    costHigh?: number;
     question: string;
     choices: string[];
     correctChoice: number;
@@ -107,51 +110,58 @@ export class ForeclosureScenarioGenerator {
 
   async generateScenario(difficulty: 'easy' | 'medium' | 'hard' = 'medium', challengeDate?: string): Promise<ForeclosureScenario> {
     const prompt = this.buildPrompt(difficulty);
+    const MAX_ATTEMPTS = 3;
+    let lastError: unknown;
 
-    try {
-      const response = await this.client.chat.completions.create({
-        model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5-nano',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert in foreclosure auction analysis and real estate investing. Generate realistic foreclosure scenarios for educational purposes.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_completion_tokens: 16000
-      });
-
-      console.log('OpenAI Response:', JSON.stringify(response, null, 2));
-
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        console.error('No content in response. Full response:', response);
-        throw new Error('No response from OpenAI');
-      }
-
-      const scenario = JSON.parse(content) as ForeclosureScenario;
-      const validatedScenario = this.validateAndNormalizeScenario(scenario);
-      
-      // Track this location to avoid repetition
-      this.addRecentLocation(validatedScenario.city, validatedScenario.state);
-      
-      // Generate AI images for the property
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const imageUrls = await this.generatePropertyImages(validatedScenario, challengeDate);
-        validatedScenario.photos = imageUrls;
-      } catch (imageError) {
-        console.error('Failed to generate images, using emoji placeholders:', imageError);
-        // Keep the emoji placeholders if image generation fails
+        const response = await this.client.chat.completions.create({
+          model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5-nano',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert in foreclosure auction analysis and real estate investing. Generate realistic foreclosure scenarios for educational purposes.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_completion_tokens: 16000
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          console.error('No content in response. Full response:', response);
+          throw new Error('No response from OpenAI');
+        }
+
+        const scenario = JSON.parse(content) as ForeclosureScenario;
+        // Throws (and triggers a regeneration attempt) if the scenario's numbers
+        // or declared deal quality are inconsistent.
+        const validatedScenario = this.validateAndNormalizeScenario(scenario);
+
+        // Track this location to avoid repetition
+        this.addRecentLocation(validatedScenario.city, validatedScenario.state);
+
+        // Generate AI images for the property
+        try {
+          const imageUrls = await this.generatePropertyImages(validatedScenario, challengeDate);
+          validatedScenario.photos = imageUrls;
+        } catch (imageError) {
+          console.error('Failed to generate images, using emoji placeholders:', imageError);
+          // Keep the emoji placeholders if image generation fails
+        }
+
+        return validatedScenario;
+      } catch (error) {
+        lastError = error;
+        console.error(`Error generating foreclosure scenario (attempt ${attempt}/${MAX_ATTEMPTS}):`, error);
       }
-      
-      return validatedScenario;
-    } catch (error) {
-      console.error('Error generating foreclosure scenario:', error);
-      throw new Error('Failed to generate foreclosure scenario');
     }
+
+    console.error('Failed to generate a valid foreclosure scenario after retries:', lastError);
+    throw new Error('Failed to generate foreclosure scenario');
   }
 
   private async generatePropertyImages(scenario: ForeclosureScenario, challengeDate?: string): Promise<string[]> {
@@ -346,6 +356,8 @@ Required JSON structure:
       "description": "Unrecorded easement dispute with neighbor over shared driveway access that was never properly documented in county records.",
       "severity": "low",
       "impact": "$2,000-$4,000 for title attorney to draft and record easement agreement with neighbor signatures.",
+      "costLow": 2000,
+      "costHigh": 4000,
       "question": "This unrecorded easement issue means...",
       "choices": [
         "Option A: You can ignore it and proceed to sale",
@@ -407,6 +419,8 @@ Required JSON structure:
         CRITICAL: Use DIFFERENT dollar ranges than what appears in your answer choices below! If choice B says '$12k-$20k', the impact should say something like '$10,000-$25,000' or '$8,000-$15,000' to avoid giving away the answer.
         
         DO NOT include words like 'Hint', 'Impact', 'Estimated', etc. - just the dollar amount and explanation.",
+      "costLow": REQUIRED numeric low-end remediation cost in dollars matching the impact range (e.g. 2000). Use 0 for a red-herring. DO NOT count costs that are already represented as a survivable lien below (set 0 to avoid double-counting).,
+      "costHigh": REQUIRED numeric high-end remediation cost in dollars matching the impact range (e.g. 4000). Use 0 for a red-herring.,
       "question": "Create a multiple choice question testing understanding of THIS specific issue. Examples:
         - For liens: 'This IRS tax lien will...' or 'The mechanics lien from ABC Roofing means...'
         - For structural: 'The foundation crack repair will likely cost...' or 'This structural issue affects the property value by...'
@@ -471,6 +485,7 @@ CRITICAL REQUIREMENTS:
       "holder": "name of institution or entity (make it specific)",
       "amount": dollar amount (keep moderate),
       "priority": 1, 2, 3, etc.,
+      "survivesForeclosure": REQUIRED boolean - true if the buyer inherits it (tax/HOA super-priority liens), false if wiped (mortgages).,
       "notes": "Add story details! e.g., 'Will be wiped at foreclosure', 'Survives foreclosure - you inherit this!'"
     }`;
       
@@ -481,6 +496,7 @@ CRITICAL REQUIREMENTS:
       "holder": "name of institution or entity (make it specific and story-relevant). For Mechanics Liens use contractor names like 'ABC Roofing', 'Joe's Plumbing', etc.",
       "amount": dollar amount (vary significantly - some small, some large),
       "priority": 1, 2, 3, etc.,
+      "survivesForeclosure": REQUIRED boolean - true if the buyer inherits it (tax/IRS/HOA super-priority/mechanics/code enforcement liens), false if wiped (mortgages/HELOC).,
       "notes": "Add story details! e.g., 'From contractor who walked off job after dispute', 'Unpaid since previous owner's divorce', 'Will be wiped at foreclosure', 'Survives foreclosure - you inherit this!', 'Has been in collections for 3 years'"
     }`;
       
@@ -491,6 +507,7 @@ CRITICAL REQUIREMENTS:
       "holder": "SPECIFIC names that tell a story: 'IRS - Western Region Collections', 'Baby Mama #2 - the one with twins', 'Defunct contractor - Good Times Remodeling LLC', 'City of [City] - Code Enforcement Division', 'County Water Authority', '[State] Dept of Revenue', etc.",
       "amount": dollar amount (create dramatic variety - mix $500 utility liens with $85,000 IRS liens),
       "priority": 1, 2, 3, etc. (be strategic - some liens survive foreclosure regardless of priority!),
+      "survivesForeclosure": REQUIRED boolean - true if this lien survives foreclosure and the buyer inherits it (IRS/federal tax, property/county tax, HOA super-priority, mechanics, code enforcement, municipal, child support), false if it is wiped (first/second mortgage, HELOC).,
       "notes": "DETAILED story context! Examples: 'IRS lien for $85K from 2019-2021 unreported rental income - SURVIVES FORECLOSURE!', 'Super-priority HOA lien for last 6 months dues - takes precedence over first mortgage!', 'Mechanics lien from contractor who installed faulty foundation repair - still in litigation', 'Baby Mama #3 - filed child support lien last month, will pursue regardless of sale', 'Code enforcement lien for $15K in unpaid fines - property was illegal Airbnb', 'Second mortgage was cross-collateralized with another property owner still owns'"
     }. For hard difficulty, include at least 2-3 liens that SURVIVE foreclosure to create real complexity!`;
       
@@ -519,6 +536,34 @@ CRITICAL REQUIREMENTS:
       scenario.hoaFees = Math.round(scenario.hoaFees);
     }
 
+    // Validate property facts are real, in-range integers (prevents the
+    // "0 beds / 0 sqft / year 0" cards that slipped through before).
+    const intInRange = (value: unknown, min: number, max: number): boolean =>
+      typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+
+    if (!intInRange(scenario.beds, 1, 10)) {
+      throw new Error(`Invalid scenario: beds must be an integer 1-10 (got ${scenario.beds})`);
+    }
+    if (!intInRange(scenario.baths, 1, 10)) {
+      throw new Error(`Invalid scenario: baths must be an integer 1-10 (got ${scenario.baths})`);
+    }
+    if (!intInRange(scenario.sqft, 300, 20000)) {
+      throw new Error(`Invalid scenario: sqft must be an integer 300-20000 (got ${scenario.sqft})`);
+    }
+    const currentYear = new Date().getFullYear();
+    if (!intInRange(scenario.yearBuilt, 1800, currentYear + 1)) {
+      throw new Error(`Invalid scenario: yearBuilt must be an integer 1800-${currentYear + 1} (got ${scenario.yearBuilt})`);
+    }
+
+    // Core financials must be positive, finite numbers.
+    const positiveNumber = (value: unknown): boolean =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0;
+    for (const field of ['auctionPrice', 'estimatedValue', 'estimatedRepairs', 'actualValue'] as const) {
+      if (!positiveNumber(scenario[field])) {
+        throw new Error(`Invalid scenario: ${field} must be a positive number (got ${scenario[field]})`);
+      }
+    }
+
     // Ensure arrays exist
     if (!Array.isArray(scenario.redFlags) || scenario.redFlags.length === 0) {
       throw new Error('Invalid scenario: red flags must be a non-empty array');
@@ -532,6 +577,28 @@ CRITICAL REQUIREMENTS:
       throw new Error('Invalid scenario: photos must be a non-empty array');
     }
 
+    // Validate/normalize each lien: amount must be numeric, survivesForeclosure
+    // must resolve to a boolean (inferred from type/notes when omitted).
+    for (const lien of scenario.liens) {
+      if (typeof lien.amount !== 'number' || !Number.isFinite(lien.amount) || lien.amount < 0) {
+        throw new Error(`Invalid scenario: lien "${lien.type}" has a non-numeric amount (${lien.amount})`);
+      }
+      lien.amount = Math.round(lien.amount);
+      if (typeof lien.survivesForeclosure !== 'boolean') {
+        lien.survivesForeclosure = this.lienSurvives(lien.type, lien.notes);
+      }
+    }
+
+    // Validate/normalize each red flag's remediation cost.
+    for (const flag of scenario.redFlags) {
+      if (flag.costLow !== undefined && (typeof flag.costLow !== 'number' || !Number.isFinite(flag.costLow) || flag.costLow < 0)) {
+        throw new Error(`Invalid scenario: red flag "${flag.type}" has an invalid costLow (${flag.costLow})`);
+      }
+      if (flag.costHigh !== undefined && (typeof flag.costHigh !== 'number' || !Number.isFinite(flag.costHigh) || flag.costHigh < 0)) {
+        throw new Error(`Invalid scenario: red flag "${flag.type}" has an invalid costHigh (${flag.costHigh})`);
+      }
+    }
+
     // Ensure decision is valid
     if (!['BUY', 'INVESTIGATE', 'WALK_AWAY'].includes(scenario.correctDecision)) {
       throw new Error('Invalid scenario: correctDecision must be BUY, INVESTIGATE, or WALK_AWAY');
@@ -542,7 +609,68 @@ CRITICAL REQUIREMENTS:
       throw new Error('Invalid scenario: occupancyStatus must be vacant, occupied, or unknown');
     }
 
+    // FINANCIAL-CONSISTENCY GATE: compute the deal the same way the frontend
+    // does and reject scenarios whose declared isGoodDeal / correctDecision
+    // contradict the actual numbers. This is what stops "you'll profit" banners
+    // appearing on cases flagged as bad deals.
+    const deal = this.computeScenarioDeal(scenario);
+    const profitable = deal.netProfit > 0;
+    if (scenario.isGoodDeal !== profitable) {
+      throw new Error(
+        `Inconsistent scenario: isGoodDeal=${scenario.isGoodDeal} but computed net profit is $${deal.netProfit.toLocaleString()} (resale $${scenario.actualValue.toLocaleString()} - total cost $${deal.totalInvestment.toLocaleString()})`
+      );
+    }
+    if (scenario.correctDecision === 'BUY' && !profitable) {
+      throw new Error(`Inconsistent scenario: correctDecision=BUY but computed net profit is $${deal.netProfit.toLocaleString()}`);
+    }
+    if (scenario.correctDecision === 'WALK_AWAY' && profitable) {
+      throw new Error(`Inconsistent scenario: correctDecision=WALK_AWAY but computed net profit is $${deal.netProfit.toLocaleString()}`);
+    }
+
     return scenario;
+  }
+
+  /**
+   * Server-side mirror of the frontend dealFinancials.computeDeal().
+   * KEEP IN SYNC with apps/deal-or-disaster/src/utils/dealFinancials.ts.
+   */
+  private readonly CLOSING_RATE = 0.025;
+
+  private lienSurvives(type: string, notes?: string): boolean {
+    const text = `${type} ${notes ?? ''}`.toLowerCase();
+    // Wiped liens take precedence (a "first mortgage" must not match /irs/ etc.).
+    if (/\bmortgage\b/.test(text) || /\bheloc\b/.test(text)) {
+      return false;
+    }
+    const survivingPatterns = [
+      /federal tax/, /\birs\b/, /property[\s-]?tax/, /county tax/, /tax lien/,
+      /code[\s-]?enforcement/, /municipal/, /superpriority|super[\s-]?priority/,
+      /mechanic/, /contractor/, /child[\s-]?support/,
+    ];
+    return survivingPatterns.some((re) => re.test(text));
+  }
+
+  private computeScenarioDeal(scenario: ForeclosureScenario): {
+    netProfit: number;
+    roi: number;
+    totalInvestment: number;
+  } {
+    const closingCosts = scenario.auctionPrice * this.CLOSING_RATE;
+    const survivingLiens = scenario.liens
+      .filter((lien) => (typeof lien.survivesForeclosure === 'boolean' ? lien.survivesForeclosure : this.lienSurvives(lien.type, lien.notes)))
+      .reduce((sum, lien) => sum + lien.amount, 0);
+    const issueCosts = scenario.redFlags
+      .filter((flag) => flag.severity !== 'red-herring')
+      .reduce((sum, flag) => {
+        if (flag.costLow === undefined && flag.costHigh === undefined) return sum;
+        const low = flag.costLow ?? flag.costHigh ?? 0;
+        const high = flag.costHigh ?? flag.costLow ?? 0;
+        return sum + Math.round((low + high) / 2);
+      }, 0);
+    const totalInvestment = scenario.auctionPrice + scenario.estimatedRepairs + issueCosts + survivingLiens + closingCosts;
+    const netProfit = scenario.actualValue - totalInvestment;
+    const roi = totalInvestment > 0 ? netProfit / totalInvestment : 0;
+    return { netProfit: Math.round(netProfit), roi, totalInvestment: Math.round(totalInvestment) };
   }
 }
 
