@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type {
   MTREstimate, STREstimate, RentalEstimate,
   FullAnalysisResult, MarketStatistics,
+  StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
 import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, TrendingDown, Minus } from 'lucide-react';
 import { findExplainer } from './TermExplainer';
@@ -18,12 +19,15 @@ interface Props {
   rentalEstimate?: RentalEstimate;
   dataSources?: FullAnalysisResult['dataSources'];
   marketStatistics?: MarketStatistics;
+  /** Single source of truth for ranking; cards display its net cash flow figures. */
+  strategyComparison: StrategyComparisonData;
 }
 
 interface StrategyCard {
   key: 'ltr' | 'mtr' | 'str';
   label: string;
   icon: React.ReactNode;
+  grossMonthly: number;
   netMonthly: number;
   tagline: string;
   available: boolean;
@@ -281,16 +285,29 @@ function CostComparisonRow({
 /*  Main Component                                                     */
 /* ================================================================== */
 
-export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics }: Props) {
+export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison }: Props) {
   // Render nothing if neither MTR nor STR data is available
   if (!mtrEstimate && !strEstimate) return null;
+
+  // Net cash flow per strategy from the single source of truth (after mortgage +
+  // shared carrying costs).  All cards display this so the comparison, the KPI
+  // strip, and the section nav can never disagree on the best strategy.  The
+  // prominent number is the potential gross rent/revenue; net cash flow sits
+  // beneath it.
+  const netByKey: Record<string, number> = {};
+  const grossByKey: Record<string, number> = {};
+  for (const s of strategyComparison.strategies) {
+    netByKey[s.key.toLowerCase()] = s.netCashFlow;
+    grossByKey[s.key.toLowerCase()] = s.grossMonthly;
+  }
 
   const strategies: StrategyCard[] = [
     {
       key: 'ltr',
       label: 'Long-Term',
       icon: <Home size={20} />,
-      netMonthly: ltrRent,
+      grossMonthly: grossByKey['ltr'] ?? ltrRent,
+      netMonthly: netByKey['ltr'] ?? ltrRent,
       tagline: 'Unfurnished · Long lease',
       available: true,
       confidence: rentalEstimate?.confidence,
@@ -301,7 +318,8 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       key: 'mtr',
       label: 'Mid-Term',
       icon: <Building2 size={20} />,
-      netMonthly: mtrEstimate?.netMonthlyRevenue ?? 0,
+      grossMonthly: grossByKey['mtr'] ?? (mtrEstimate?.grossMonthlyRevenue ?? 0),
+      netMonthly: netByKey['mtr'] ?? (mtrEstimate?.netMonthlyRevenue ?? 0),
       tagline: mtrEstimate
         ? `Furnished · ${mtrEstimate.avgStayMonths}mo avg stay`
         : '',
@@ -314,7 +332,8 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       key: 'str',
       label: 'Short-Term',
       icon: <Sparkles size={20} />,
-      netMonthly: strEstimate?.netMonthlyRevenue ?? 0,
+      grossMonthly: grossByKey['str'] ?? (strEstimate?.grossMonthlyRevenue ?? 0),
+      netMonthly: netByKey['str'] ?? (strEstimate?.netMonthlyRevenue ?? 0),
       tagline: strEstimate
         ? `${fmt(strEstimate.nightlyRate)}/night · ${pct(strEstimate.occupancyRate)} occ`
         : '',
@@ -327,9 +346,7 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
 
   const activeStrategies = strategies.filter((s) => s.available);
   const maxRevenue = Math.max(...activeStrategies.map((s) => s.netMonthly));
-  const bestKey = activeStrategies.reduce((best, s) =>
-    s.netMonthly > best.netMonthly ? s : best,
-  ).key;
+  const bestKey = strategyComparison.bestKey.toLowerCase();
 
   return (
     <div className="strategy-comparison">
@@ -367,13 +384,22 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
 
             <div className="strategy-comparison__revenue">
               <span className="strategy-comparison__revenue-monthly">
-                {fmt(strategy.netMonthly)}
+                {fmt(strategy.grossMonthly)}
               </span>
-              <span className="strategy-comparison__revenue-period">/mo net</span>
+              <span className="strategy-comparison__revenue-period">
+                {strategy.key === 'ltr' ? '/mo rent' : '/mo revenue'}
+              </span>
             </div>
 
             <div className="strategy-comparison__revenue-annual">
-              {fmt(strategy.netMonthly * 12)}/yr
+              {fmt(strategy.grossMonthly * 12)}/yr
+            </div>
+
+            <div
+              className={`strategy-comparison__net${strategy.netMonthly < 0 ? ' strategy-comparison__net--negative' : ''}`}
+            >
+              <span className="strategy-comparison__net-value">{fmt(strategy.netMonthly)}</span>
+              <span className="strategy-comparison__net-label">/mo net cash flow</span>
             </div>
 
             <RevenueRange range={strategy.revenueRange} />

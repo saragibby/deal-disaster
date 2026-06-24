@@ -18,6 +18,7 @@ import type {
   TaxSavingsBreakdown,
   FullAnalysisResult,
 } from '@deal-platform/shared-types';
+import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
 
 // ---------------------------------------------------------------------------
 // Individual calculators
@@ -169,9 +170,35 @@ export function calculateTaxSavings(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Full orchestrator
-// ---------------------------------------------------------------------------
+/**
+ * Solve for the monthly rent at which LTR cash flow breaks even ($0).
+ *
+ * Cash flow = R − [mortgage + tax + insurance + HOA + R·(vacancy+repairs+capex+management)/100].
+ * Setting it to 0 and solving for R:
+ *   R = fixedCosts / (1 − pctExpenses/100)
+ * Returns `null` when percentage expenses meet or exceed 100% (no finite break-even).
+ */
+export function calculateBreakEvenRent(
+  mortgage: MortgageBreakdown,
+  params: AnalysisParams,
+): number | null {
+  const fixedCosts =
+    mortgage.monthlyPayment +
+    params.annualPropertyTax / 12 +
+    params.annualInsurance / 12 +
+    (params.monthlyHoa || 0);
+
+  const pctExpenses =
+    params.vacancyPct +
+    params.repairsPct +
+    params.capexPct +
+    (params.managementPct || 0);
+
+  const denominator = 1 - pctExpenses / 100;
+  if (denominator <= 0) return null;
+
+  return Math.round((fixedCosts / denominator) * 100) / 100;
+}
 
 /**
  * Run a complete investment analysis.  Calls every calculator above and
@@ -201,11 +228,43 @@ export function runFullAnalysis(
     cashFlow.annualCashFlow,
   );
 
+  const breakEvenRent = calculateBreakEvenRent(mortgage, params);
+
   return {
     mortgage,
     cashFlow,
     roi,
     taxSavings,
     rentalEstimate,
+    ...(breakEvenRent != null ? { breakEvenRent } : {}),
   };
+}
+
+/**
+ * Finalize an analysis after the strategy estimates (STR/MTR) and data-source
+ * tracking have been attached.  Computes the single-source-of-truth strategy
+ * comparison so every part of the UI ranks LTR/MTR/STR identically.
+ *
+ * Mutates and returns the same object for convenience.
+ */
+export function finalizeAnalysis(results: FullAnalysisResult): FullAnalysisResult {
+  results.strategyComparison = computeStrategyComparison({
+    cashFlow: results.cashFlow,
+    rentalEstimate: results.rentalEstimate,
+    strEstimate: results.strEstimate,
+    mtrEstimate: results.mtrEstimate,
+    dataSources: results.dataSources,
+  });
+
+  results.verdict = computeDealVerdict({
+    cashFlow: results.cashFlow,
+    roi: results.roi,
+    rentalEstimate: results.rentalEstimate,
+    breakEvenRent: results.breakEvenRent ?? null,
+    comparables: results.comparables,
+    marketStatistics: results.marketStatistics,
+    price: results.taxSavings.purchasePrice,
+  });
+
+  return results;
 }

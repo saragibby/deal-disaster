@@ -1,4 +1,5 @@
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
+import { computeStrategyComparison } from '@deal-platform/shared-types';
 import {
   Home, DollarSign, BarChart3, GitCompareArrows,
   TrendingUp, Gavel, Calculator,
@@ -78,13 +79,17 @@ export function deriveSignals(analysis: PropertyAnalysis): SectionSignal[] {
   // ROI signal
   const roiTip = `Cash-on-Cash ROI: ${roi.cashOnCashROI.toFixed(1)}%`;
 
-  // Strategy signal — best net revenue across LTR/MTR/STR
-  const ltrNet = cashFlow.monthlyCashFlow;
-  const mtrNet = mtrEst?.netMonthlyRevenue ?? -Infinity;
-  const strNet = strEst?.netMonthlyRevenue ?? -Infinity;
-  const bestNet = Math.max(ltrNet, mtrNet, strNet);
+  // Strategy signal — single source of truth (net cash flow across LTR/MTR/STR)
+  const strategyComparison = results.strategyComparison ?? computeStrategyComparison({
+    cashFlow,
+    rentalEstimate: results.rentalEstimate,
+    strEstimate: strEst,
+    mtrEstimate: mtrEst,
+    dataSources: results.dataSources,
+  });
+  const bestNet = strategyComparison.bestNetCashFlow;
+  const bestLabel = strategyComparison.bestKey;
   const stratSignal: SignalLevel = bestNet > 0 ? 'good' : bestNet > -200 ? 'fair' : 'caution';
-  const bestLabel = bestNet === mtrNet ? 'MTR' : bestNet === strNet ? 'STR' : 'LTR';
   const stratTip = `Best strategy: ${bestLabel} at $${Math.round(bestNet)}/mo net`;
 
   // Comps signal — price vs market

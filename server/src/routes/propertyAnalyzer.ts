@@ -244,6 +244,10 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     // Attach comparables to results
     results.comparables = comparables;
 
+    // Finalize: compute the single-source-of-truth strategy comparison now that
+    // all estimates and data sources are attached.
+    investmentAnalysisService.finalizeAnalysis(results);
+
     // Persist to DB (upsert — re-analysing same property overwrites the old entry)
     const slug = generatePropertySlug(property.address, property.zip);
     const insertResult = await pool.query(
@@ -453,6 +457,9 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
         console.warn('[analyzer/re-analyze] Geocoding failed (non-fatal):', err.message);
       }
     }
+
+    // Finalize: recompute the single-source-of-truth strategy comparison.
+    investmentAnalysisService.finalizeAnalysis(results);
 
     // Update existing entry in-place
     const updateResult = await pool.query(

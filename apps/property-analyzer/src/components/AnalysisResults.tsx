@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
+import { computeStrategyComparison } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
@@ -164,6 +165,16 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
   const effectiveRent = params.rentOverride || rental.mid;
   const rentAdjusted = effectiveRent !== rental.mid;
 
+  // Single source of truth for ranking strategies — recomputed live so the KPI
+  // strip, strategy comparison, and section nav always agree.
+  const strategyComparison = useMemo(() => computeStrategyComparison({
+    cashFlow,
+    rentalEstimate: rental,
+    strEstimate: results.strEstimate,
+    mtrEstimate: results.mtrEstimate,
+    dataSources: results.dataSources,
+  }), [cashFlow, rental, results.strEstimate, results.mtrEstimate, results.dataSources]);
+
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
 
   return (
@@ -316,6 +327,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
           effectiveRent={effectiveRent}
           mtrEstimate={results.mtrEstimate}
           strEstimate={results.strEstimate}
+          strategyComparison={strategyComparison}
         />
       </div>
 
@@ -377,6 +389,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             rentalEstimate={rental}
             dataSources={results.dataSources}
             marketStatistics={results.marketStatistics}
+            strategyComparison={strategyComparison}
           />
           <DemandIndicators
             property={property}

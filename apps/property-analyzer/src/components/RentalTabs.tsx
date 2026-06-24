@@ -10,6 +10,7 @@ import type {
   ROIMetrics,
   FullAnalysisResult,
   MarketStatistics,
+  StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
@@ -59,19 +60,16 @@ function pctStr(n: number): string {
 /*  Summary Strip (rendered outside RentalTabs, in AnalysisResults)     */
 /* ================================================================== */
 export function RentalSummaryStrip({
-  property, effectiveRent, mtrEstimate, strEstimate,
+  property, effectiveRent, mtrEstimate, strategyComparison,
 }: {
   property: PropertyData;
   effectiveRent: number;
   mtrEstimate?: MTREstimate;
   strEstimate?: STREstimate;
+  strategyComparison: StrategyComparisonData;
 }) {
-  const strategies = [
-    { key: 'LTR', net: effectiveRent },
-    ...(mtrEstimate ? [{ key: 'MTR', net: mtrEstimate.netMonthlyRevenue }] : []),
-    ...(strEstimate ? [{ key: 'STR', net: strEstimate.netMonthlyRevenue }] : []),
-  ];
-  const best = strategies.reduce((a, b) => (b.net > a.net ? b : a));
+  // Best strategy comes from the single source of truth (ranked by net cash flow).
+  const best = { key: strategyComparison.bestKey, net: strategyComparison.bestNetCashFlow };
 
   const annualRent = effectiveRent * 12;
   const priceToRent = annualRent > 0 ? property.price / annualRent : 0;
