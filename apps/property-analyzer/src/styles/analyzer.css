@@ -4398,6 +4398,13 @@ a:hover { color: var(--primary-dark); }
   background: #d1fae5;
   border-color: #34d399;
 }
+.results__toolbar .btn--ghost {
+  color: rgba(255, 255, 255, 0.7);
+}
+.results__toolbar .btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
 
 /* ── Shared Analysis View ── */
 .shared-view__banner {

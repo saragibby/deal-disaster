@@ -6,7 +6,7 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins, Share2, Download, Lock, Globe, Pencil,
+  Coins, Share2, Download, Lock, Globe, Pencil, RefreshCw,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -29,6 +29,7 @@ interface Props {
   analysis: PropertyAnalysis;
   skipEntrance?: boolean;
   readOnly?: boolean;
+  onUpdate?: (updated: PropertyAnalysis) => void;
 }
 
 function fmt(n: number): string {
@@ -44,7 +45,7 @@ function pct(n: number): string {
   return n.toFixed(2) + '%';
 }
 
-export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Props) {
+export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUpdate }: Props) {
   const property = analysis.property_data;
   const results = analysis.analysis_results;
   const rental = results.rentalEstimate;
@@ -91,7 +92,26 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
   });
   const [showAllParams, setShowAllParams] = useState(false);
   const [showOfferSlider, setShowOfferSlider] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const offerRef = useRef<HTMLDivElement>(null);
+
+  // Re-fetch live data and recompute with current assumptions. Tax/insurance
+  // the user hasn't overridden are omitted so the server re-derives them.
+  const handleReanalyze = useCallback(async () => {
+    if (!analysis.slug || !onUpdate) return;
+    setReanalyzing(true);
+    try {
+      const payload: Partial<AnalysisParams> = { ...params };
+      if (params.annualPropertyTax === originalParams.annualPropertyTax) delete payload.annualPropertyTax;
+      if (params.annualInsurance === originalParams.annualInsurance) delete payload.annualInsurance;
+      const updated = await api.reAnalyze(analysis.slug, payload);
+      onUpdate(updated);
+    } catch (err: any) {
+      alert(err?.message || 'Re-analyze failed. Please try again.');
+    } finally {
+      setReanalyzing(false);
+    }
+  }, [analysis.slug, onUpdate, params, originalParams]);
 
   // Open expense params panel and scroll to it
   const openExpenseParams = useCallback(() => {
@@ -275,6 +295,17 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             )}
           </div>
           <div className="results__toolbar-export">
+            {onUpdate && (
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={handleReanalyze}
+                disabled={reanalyzing}
+                title="Re-fetch live data and recompute with current assumptions"
+              >
+                {reanalyzing ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <RefreshCw size={14} />}
+                {reanalyzing ? 'Re-analyzing...' : 'Re-analyze'}
+              </button>
+            )}
             <button
               className="btn btn--outline btn--sm"
               onClick={exportToPdf}
@@ -506,8 +537,36 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
 
           <MetricRow label="Monthly Rent Income" value={fmt(cashFlow.monthlyRent)} positive />
           <AdjustableExpenseRow label="Mortgage (P&I)" value={fmt(cashFlow.monthlyMortgage)} readOnly={readOnly} onAdjust={scrollToLoanCalc} />
-          <AdjustableExpenseRow label="Property Tax" value={fmt(cashFlow.monthlyTax)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="Insurance" value={fmt(cashFlow.monthlyInsurance)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow
+            label="Property Tax"
+            value={fmt(cashFlow.monthlyTax)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={
+              params.annualPropertyTax !== originalParams.annualPropertyTax
+                ? { text: 'Custom', variant: 'estimate' }
+                : results.dataSources?.tax === 'actual'
+                ? { text: 'Actual', variant: 'api' }
+                : results.dataSources?.tax === 'estimate'
+                ? { text: 'Estimated', variant: 'estimate' }
+                : undefined
+            }
+          />
+          <AdjustableExpenseRow
+            label="Insurance"
+            value={fmt(cashFlow.monthlyInsurance)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={
+              params.annualInsurance !== originalParams.annualInsurance
+                ? { text: 'Custom', variant: 'estimate' }
+                : results.dataSources?.insurance === 'estimate'
+                ? { text: 'Estimated', variant: 'estimate' }
+                : results.dataSources?.insurance === 'actual'
+                ? { text: 'Custom', variant: 'estimate' }
+                : undefined
+            }
+          />
           <AdjustableExpenseRow
             label="HOA Fees"
             value={fmt(cashFlow.monthlyHoa)}

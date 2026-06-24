@@ -103,7 +103,11 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
     setResult(null);
 
     try {
-      const response = await api.runAndSaveAnalysis(url.trim(), params);
+      // Omit tax/insurance so the server derives them from the home's price +
+      // state (the user can still override afterwards via the expense sliders).
+      const { annualPropertyTax, annualInsurance, ...autoParams } = params;
+      void annualPropertyTax; void annualInsurance;
+      const response = await api.runAndSaveAnalysis(url.trim(), autoParams);
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
       // Navigate to the analysis URL so it's shareable
@@ -116,6 +120,11 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
       setLoading(false);
     }
   }, [url, params]);
+
+  const handleResultUpdate = useCallback((updated: PropertyAnalysis) => {
+    setResult(updated);
+    setHistoryRefreshKey(k => k + 1);
+  }, []);
 
   const handleViewHistoryItem = useCallback((analysis: PropertyAnalysis) => {
     navigate(`/analysis/${analysis.slug}`);
@@ -199,7 +208,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
 
           {/* Results */}
           {result && !loading && (
-            <AnalysisResults analysis={result} skipEntrance={wasLoading} />
+            <AnalysisResults analysis={result} skipEntrance={wasLoading} onUpdate={handleResultUpdate} />
           )}
         </>
       )}

@@ -573,6 +573,8 @@ export interface FullAnalysisResult {
     str: 'algorithm' | 'airdna';
     mtr: 'algorithm' | 'furnished-finder' | 'padsplit';
     hoa: 'zillow' | 'estimate' | 'none';
+    tax?: 'actual' | 'estimate';
+    insurance?: 'actual' | 'estimate';
   };
 }
 

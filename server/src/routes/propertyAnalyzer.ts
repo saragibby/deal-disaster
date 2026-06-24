@@ -26,6 +26,7 @@ import * as rentCastService from '../services/rentCastService.js';
 import * as realtyInUsService from '../services/realtyInUsService.js';
 import * as airDnaService from '../services/airDnaService.js';
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
+import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { generatePropertySlug } from '../utils/slugify.js';
@@ -95,9 +96,26 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
 
-    // Use real tax data if available and user didn't supply their own
+    // Property tax: prefer the real tax record, otherwise scale by the home's
+    // price and the state's effective tax rate (far better than a flat default).
+    let taxSource: 'actual' | 'estimate' = 'estimate';
     if (property.taxHistory?.length && userParams?.annualPropertyTax == null) {
       params.annualPropertyTax = property.taxHistory[0].amount || params.annualPropertyTax;
+      taxSource = 'actual';
+    } else if (userParams?.annualPropertyTax == null) {
+      params.annualPropertyTax = expenseDefaultsService.estimateAnnualPropertyTax(property.price, property.state);
+      taxSource = 'estimate';
+    } else {
+      taxSource = 'actual';
+    }
+
+    // Insurance: scale by home value + state catastrophe risk when not supplied.
+    let insuranceSource: 'actual' | 'estimate' = 'estimate';
+    if (userParams?.annualInsurance == null) {
+      params.annualInsurance = expenseDefaultsService.estimateAnnualInsurance(property.price, property.state);
+      insuranceSource = 'estimate';
+    } else {
+      insuranceSource = 'actual';
     }
 
     // HOA fee: prefer API data, then estimate by property type
@@ -215,6 +233,8 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: 'algorithm',
       hoa: hoaSource,
+      tax: taxSource,
+      insurance: insuranceSource,
     };
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
@@ -414,6 +434,33 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       ...req.body.params,
     };
 
+    // Property tax / insurance: respect an explicitly-supplied or previously
+    // real/custom value, otherwise (re-)derive from the home's price + state so
+    // older saved analyses self-heal away from the flat legacy defaults.
+    const prevSources = row.analysis_results?.dataSources;
+    const bodyParams = req.body.params || {};
+
+    let taxSource: 'actual' | 'estimate';
+    if (bodyParams.annualPropertyTax != null) {
+      taxSource = 'actual';
+    } else if (prevSources?.tax === 'actual') {
+      taxSource = 'actual';
+    } else if (property.taxHistory?.length) {
+      newParams.annualPropertyTax = property.taxHistory[0].amount || newParams.annualPropertyTax;
+      taxSource = 'actual';
+    } else {
+      newParams.annualPropertyTax = expenseDefaultsService.estimateAnnualPropertyTax(property.price, property.state);
+      taxSource = 'estimate';
+    }
+
+    let insuranceSource: 'actual' | 'estimate';
+    if (bodyParams.annualInsurance != null || prevSources?.insurance === 'actual') {
+      insuranceSource = 'actual';
+    } else {
+      newParams.annualInsurance = expenseDefaultsService.estimateAnnualInsurance(property.price, property.state);
+      insuranceSource = 'estimate';
+    }
+
     // Re-estimate rent using stored comps; if none, fetch fresh real comps.
     let apiComps = row.rental_comps || [];
     let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
@@ -459,6 +506,8 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       str: results.strEstimate?.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: 'algorithm',
       hoa: row.analysis_results?.dataSources?.hoa || 'none',
+      tax: taxSource,
+      insurance: insuranceSource,
     };
 
     // Carry over stored comparables from the original analysis

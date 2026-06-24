@@ -225,9 +225,28 @@ Accuracy work landed so far (single-property results view):
    low-confidence.
 6. **Layout polish.** Recommendation card moved to sit directly below the address/price card with
    consistent `2rem` section spacing.
+7. **Location/property-aware tax & insurance defaults.** Replaced the flat `$2,500` property-tax /
+   `$1,500` insurance assumptions with `expenseDefaultsService.ts`: property tax = price × the
+   state's effective tax rate (50-state + DC table; e.g. NJ 2.47%, MI 1.48%, AL 0.41%), insurance =
+   price × 0.5% × a state catastrophe-risk factor (e.g. FL 2.6×, TX 1.7×), floored at $600. A real
+   tax record (`taxHistory`) or a user-supplied value still wins. Sources are tracked in
+   `dataSources.tax` (`actual` | `estimate`) and `dataSources.insurance` (`actual` | `estimate`)
+   and surfaced as **Actual/Estimated** badges on the Property Tax & Insurance rows. `/re-analyze`
+   self-heals older saved analyses away from the legacy flat defaults (respects previously real or
+   custom values via the stored source).
+   - *Badge bug fixed:* the initial analyze previously sent the full `DEFAULT_ANALYSIS_PARAMS`
+     (including `annualPropertyTax`/`annualInsurance`), so the server's "derive only when absent"
+     check never fired and both were stamped `actual` (no badge). `PropertyAnalyzer.handleAnalyze`
+     now omits tax/insurance from the `/run` payload so the server derives them and stamps the
+     correct source. When the user overrides either value via the expense sliders the badge switches
+     to **Custom**, so the annotation always matches the displayed figure.
+8. **Re-analyze action.** A muted ghost **Re-analyze** button in the results toolbar re-fetches live
+   data and recomputes with the current assumptions via `api.reAnalyze(slug, …)`, omitting any
+   tax/insurance the user hasn't overridden so they re-derive. Results refresh in place through a new
+   `onUpdate` callback on `AnalysisResults`; the button is hidden in the read-only shared view.
 
 **Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
-`rentalEstimationService.ts`, `shared-types/src/index.ts`, `AnalysisResults.tsx`,
-`StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
-**Still open in Phase 2:** MTR real data source, hardcoded tax/expense defaults, dead Zillow comps
-path, prominent break-even surfacing.
+`rentalEstimationService.ts`, `expenseDefaultsService.ts` *(new)*, `shared-types/src/index.ts`,
+`AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
+**Still open in Phase 2:** MTR real data source, remaining hardcoded defaults (cost-seg %, marginal
+tax rate, vacancy/repairs/capex %), retire the dead Zillow comps path, prominent break-even surfacing.
