@@ -101,7 +101,7 @@ STR-specific · non-RE cash-flow assets.
 
 ### Phases 1–5
 - [x] Phase 1 — Clarity & trust
-- [ ] Phase 2 — Accuracy & data coverage
+- [~] Phase 2 — Accuracy & data coverage *(in progress: AirDNA STR fix + best-strategy verdict landed)*
 - [ ] Phase 3 — Deeper analysis
 - [ ] Phase 4 — Workflow
 - [ ] Phase 5 — Future verticals (roadmap only)
@@ -171,9 +171,11 @@ All seven Phase 1 items landed in the analyzer UI (single-property results view)
 3. **Plain-language metric verdict** — a sentence under the Monthly Cash Flow KPI in `AnalysisResults`
    ("the rent covers every expense with … left over" / "you'd fund a … shortfall") plus the break-even
    rent. ROI metrics already carry Strong/Fair/Weak signals via `ROIScorecard`.
-4. **Data-source & confidence transparency** — `components/DataConfidenceBanner.tsx` (`#data-confidence`)
-   lists every rent figure's source (RentCast / AirDNA / algorithmic) and confidence pill; switches to a
-   prominent amber warning treatment whenever any estimate is low-confidence.
+4. **Data-source & confidence transparency** — every rent figure carries its source
+   (RentCast / AirDNA / algorithmic) and a confidence pill on the per-strategy cards in
+   `components/StrategyComparison.tsx`. When any active strategy is low-confidence, an amber
+   caveat footnote renders **inside the Strategy Comparison section** (no longer a separate
+   top-of-page banner — see Phase 2 notes).
 5. **Market-section disambiguation** — added `market-section__subtitle` lines clarifying that
    `HousingMarketTrends` = "what homes are worth to buy" and `RentalMarketTrends` = "what landlords
    charge to rent".
@@ -187,3 +189,45 @@ All seven Phase 1 items landed in the analyzer UI (single-property results view)
 
 **Key files added:** `DealVerdictCard.tsx`, `DataConfidenceBanner.tsx`.
 **Verified:** `build:packages` + property-analyzer `tsc && vite build` both green.
+
+> Note: `DataConfidenceBanner.tsx` was later **removed** in Phase 2 — its indicators were folded
+> into the Strategy Comparison cards/footnote (see Phase 2 notes).
+
+---
+
+## Phase 2 — implementation notes (in progress)
+
+Accuracy work landed so far (single-property results view):
+
+1. **AirDNA STR integration fixed.** `airDnaService.ts` was calling a 404 endpoint and parsing the
+   wrong response shape, so every STR estimate came back `low` confidence. Switched to
+   `GET /rentalizer?address=…&bedrooms=&bathrooms=` (host `airdna1.p.rapidapi.com`) and parse
+   `property_statistics` (`adr.ltm`, `occupancy.ltm`, `revenue.ltm`, `confidence_score.level`).
+   STR confidence now reflects AirDNA's own confidence.
+2. **STR monthly seasonality curve.** AirDNA only returns month-level data inside
+   `cleaning_fee.cleaning_fee_years`; `parseSeasonality()` derives a 12-month revenue/occupancy
+   curve from it (booking-volume proxy). Rendered as a `recharts` bar chart in the STR **Strategy
+   Deep Dive** (best month green, slowest amber).
+3. **`/re-analyze` self-heals STR.** The route now re-fetches AirDNA (24h in-service cache, no extra
+   cost) so previously-saved analyses pick up the parser fix instead of reusing a stale estimate.
+4. **Verdict reflects the BEST strategy, not always LTR.** `computeDealVerdict()` now accepts the
+   `strategyComparison` and scores against the highest-net-cash-flow strategy (LTR/MTR/STR): CoC and
+   cap rate are derived from that strategy's net cash flow, confidence from that strategy, with a
+   `best_strategy` reason + "as a short-term rental" headline suffix. Wired into **both** the live
+   client verdict (`AnalysisResults.tsx`) and the stored server verdict (`investmentAnalysisService.ts`
+   `finalizeAnalysis`). Example: 50550 Lagae St flipped from "Proceed with caution" to
+   "Strong deal as a short-term rental."
+   - *Future enhancement (noted in code):* make the Cash Flow section itself strategy-aware so its
+     figures switch to MTR/STR values when one of those is the best strategy, instead of always LTR.
+5. **Confidence/transparency UI relocation.** Removed the top-of-page `DataConfidenceBanner`; the
+   per-strategy confidence + source badges already live on the Strategy Comparison cards, and a
+   low-confidence amber caveat footnote now renders inside that section when any active strategy is
+   low-confidence.
+6. **Layout polish.** Recommendation card moved to sit directly below the address/price card with
+   consistent `2rem` section spacing.
+
+**Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
+`rentalEstimationService.ts`, `shared-types/src/index.ts`, `AnalysisResults.tsx`,
+`StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
+**Still open in Phase 2:** MTR real data source, hardcoded tax/expense defaults, dead Zillow comps
+path, prominent break-even surfacing.

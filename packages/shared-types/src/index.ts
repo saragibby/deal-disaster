@@ -569,7 +569,7 @@ export interface FullAnalysisResult {
   /** Decision-first "is this a good deal?" verdict (deterministic rules). */
   verdict?: DealVerdict;
   dataSources?: {
-    rental: 'algorithm' | 'rentcast' | 'blended';
+    rental: 'algorithm' | 'rentcast' | 'blended' | 'zillow' | 'realtor';
     str: 'algorithm' | 'airdna';
     mtr: 'algorithm' | 'furnished-finder' | 'padsplit';
     hoa: 'zillow' | 'estimate' | 'none';
@@ -670,6 +670,12 @@ export interface DealVerdictInput {
   marketStatistics?: MarketStatistics;
   /** Effective purchase price (offer price if set, otherwise list price). */
   price: number;
+  /**
+   * Strategy ranking (LTR/MTR/STR). When supplied, the verdict is scored
+   * against the BEST strategy rather than assuming long-term, so a property
+   * that only pencils out as a short-/mid-term rental is rated on that basis.
+   */
+  strategyComparison?: StrategyComparison;
 }
 
 /**
@@ -680,15 +686,40 @@ export interface DealVerdictInput {
  * on top; this function decides the rating.
  */
 export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
-  const { cashFlow, roi, rentalEstimate, breakEvenRent, comparables, price } = input;
+  const { cashFlow, roi, rentalEstimate, breakEvenRent, comparables, price, strategyComparison } = input;
   const reasons: DealVerdictReason[] = [];
   let score = 50;
 
   const dollars = (n: number) =>
     `${n < 0 ? '−' : ''}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
 
+  // Score the verdict against the BEST strategy (LTR/MTR/STR), not just LTR.
+  // For LTR these equal the canonical ROI, so behaviour is unchanged when
+  // long-term wins. CoC/cap for an alt strategy are derived from its net cash
+  // flow (cap rate adds back mortgage since it excludes debt service).
+  const bestStrategy = strategyComparison?.strategies.find(
+    (s) => s.key === strategyComparison.bestKey,
+  );
+  const usingAltStrategy = !!bestStrategy && bestStrategy.key !== 'LTR';
+  const coc = usingAltStrategy && roi.totalCashInvested > 0
+    ? ((bestStrategy!.netCashFlow * 12) / roi.totalCashInvested) * 100
+    : roi.cashOnCashROI;
+  const cap = usingAltStrategy && price > 0
+    ? (((bestStrategy!.netCashFlow + cashFlow.monthlyMortgage) * 12) / price) * 100
+    : roi.capRate;
+  const confidence = bestStrategy ? bestStrategy.confidence : rentalEstimate.confidence;
+
+  if (usingAltStrategy) {
+    const ltr = strategyComparison!.strategies.find((s) => s.key === 'LTR');
+    reasons.push({
+      code: 'best_strategy',
+      label: `Best as a ${bestStrategy!.label.toLowerCase()} rental (${dollars(bestStrategy!.netCashFlow)}/mo net)${ltr ? ` vs ${dollars(ltr.netCashFlow)}/mo long-term` : ''}`,
+      impact: 'positive',
+    });
+  }
+
   // ── Monthly cash flow ──────────────────────────────────────────────────
-  const cf = cashFlow.monthlyCashFlow;
+  const cf = bestStrategy ? bestStrategy.netCashFlow : cashFlow.monthlyCashFlow;
   if (cf > 0) {
     score += 20;
     reasons.push({
@@ -713,7 +744,6 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
   }
 
   // ── Cash-on-cash return ────────────────────────────────────────────────
-  const coc = roi.cashOnCashROI;
   if (coc >= 8) {
     score += 15;
     reasons.push({
@@ -738,7 +768,6 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
   }
 
   // ── Cap rate ───────────────────────────────────────────────────────────
-  const cap = roi.capRate;
   if (cap >= 6) {
     score += 10;
     reasons.push({
@@ -793,13 +822,13 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
   }
 
   // ── Rent confidence caveat ─────────────────────────────────────────────
-  if (rentalEstimate.confidence === 'high') {
+  if (confidence === 'high') {
     score += 5;
-  } else if (rentalEstimate.confidence === 'low') {
+  } else if (confidence === 'low') {
     score -= 10;
     reasons.push({
       code: 'rent_confidence_low',
-      label: 'Rent estimate confidence is low — figures may shift as better data becomes available',
+      label: `${usingAltStrategy ? `${bestStrategy!.label} revenue` : 'Rent'} estimate confidence is low — figures may shift as better data becomes available`,
       impact: 'negative',
     });
   }
@@ -818,12 +847,13 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
 
   const rating: DealRating = score >= 65 ? 'strong' : score >= 40 ? 'marginal' : 'caution';
 
+  const asStrategy = usingAltStrategy ? ` as a ${bestStrategy!.label.toLowerCase()} rental` : '';
   const headline =
     rating === 'strong'
-      ? `Strong deal — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : 'tight cash flow'} and a ${coc.toFixed(1)}% cash-on-cash return.`
+      ? `Strong deal${asStrategy} — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : 'tight cash flow'} and a ${coc.toFixed(1)}% cash-on-cash return.`
       : rating === 'marginal'
-        ? `Marginal deal — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : `${dollars(cf)}/mo today`}, but some metrics are borderline.`
-        : `Proceed with caution — ${cf < 0 ? `${dollars(cf)}/mo cash flow` : 'weak returns'} relative to the cash invested.`;
+        ? `Marginal deal${asStrategy} — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : `${dollars(cf)}/mo today`}, but some metrics are borderline.`
+        : `Proceed with caution — ${cf < 0 ? `${dollars(cf)}/mo cash flow` : 'weak returns'}${usingAltStrategy ? ` even as a ${bestStrategy!.label.toLowerCase()} rental` : ''} relative to the cash invested.`;
 
   return { rating, score, headline, reasons };
 }

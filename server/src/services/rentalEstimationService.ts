@@ -6,7 +6,7 @@
  * and safe to call from any context (routes, scripts, game generators).
  */
 
-import type { PropertyData, RentalComp, RentalEstimate, MarketStatistics } from '@deal-platform/shared-types';
+import type { PropertyData, RentalComp, RentalEstimate, MarketStatistics, RentalMarketTrends } from '@deal-platform/shared-types';
 
 // ---------------------------------------------------------------------------
 // Algorithmic estimation
@@ -103,6 +103,40 @@ export function combineEstimates(
     high,
     confidence: apiComps.length >= 3 ? 'high' : 'medium',
     comps: apiComps,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Zillow area-market calibration
+// ---------------------------------------------------------------------------
+
+/**
+ * Anchor a rent estimate to Zillow's area rental-market median.
+ *
+ * When Zillow reports a median rent for the area, we treat it as a real
+ * market signal: the estimate is blended toward the median (while keeping the
+ * property-specific adjustments from the algorithm) and reported as
+ * high-confidence. Returns the estimate unchanged when no Zillow median is
+ * available.
+ */
+export function applyZillowMarketRent(
+  estimate: RentalEstimate,
+  trends: RentalMarketTrends | undefined | null,
+): RentalEstimate {
+  const median = trends?.medianRent;
+  if (!median || median <= 0) return estimate;
+
+  // Lean on the Zillow market median (real data) while preserving the
+  // property-specific signal (beds / sqft / age) from the algorithm.
+  const ZILLOW_WEIGHT = 0.65;
+  const blendedMid = Math.round(median * ZILLOW_WEIGHT + estimate.mid * (1 - ZILLOW_WEIGHT));
+
+  return {
+    low: Math.round(blendedMid * 0.9),
+    mid: blendedMid,
+    high: Math.round(blendedMid * 1.1),
+    confidence: 'high',
+    comps: estimate.comps,
   };
 }
 

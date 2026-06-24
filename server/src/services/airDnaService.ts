@@ -69,6 +69,21 @@ interface AirDnaPropertyData {
     revenue?: { value?: number; ltm?: number };
   };
 
+  // Actual airdna1 /rentalizer shape (response.data.property_statistics)
+  property_statistics?: {
+    adr?: { ltm?: number };
+    occupancy?: { ltm?: number };
+    revenue?: { ltm?: number };
+    cleaning_fee?: {
+      ltm?: number;
+      // year -> month(1-12) -> value; tracks monthly booking volume
+      cleaning_fee_years?: Record<string, Record<string, number>>;
+    };
+    confidence_score?: { level?: string; score?: number };
+    total_comps?: number;
+  };
+  comps_revenues?: number[];
+
   // Rental estimate variant
   rental_estimate?: {
     adr?: number;
@@ -165,25 +180,17 @@ async function fetchPropertyEstimate(property: PropertyData): Promise<STREstimat
     if (property.bathrooms) params.set('bathrooms', String(property.bathrooms));
 
     const res = await fetch(
-      `https://${AIRDNA_HOST}/v1/rentalizer?${params}`,
+      `https://${AIRDNA_HOST}/rentalizer?${params}`,
       { headers: headers() },
     );
 
     if (!res.ok) {
-      // Try alternate endpoint path
-      const res2 = await fetch(
-        `https://${AIRDNA_HOST}/properties?${params}`,
-        { headers: headers() },
-      );
-      if (!res2.ok) {
-        console.warn(`[AirDNA] Property estimate failed: ${res.status}, alt: ${res2.status}`);
-        return null;
-      }
-      const data = await res2.json() as AirDnaPropertyData;
-      return parseResponse(data, property, 'high');
+      console.warn(`[AirDNA] Property estimate failed: ${res.status} ${res.statusText}`);
+      return null;
     }
 
-    const data = await res.json() as AirDnaPropertyData;
+    const json = await res.json() as { data?: AirDnaPropertyData } & AirDnaPropertyData;
+    const data = json.data ?? json;
     return parseResponse(data, property, 'high');
   } catch (err: any) {
     console.warn('[AirDNA] Property estimate error:', err.message);
@@ -232,12 +239,16 @@ function parseResponse(
   property: PropertyData,
   confidence: 'medium' | 'high',
 ): STREstimate | null {
-  // Log full response for integration debugging (remove once stable)
-  console.log('[AirDNA] Raw response keys:', Object.keys(raw));
-  console.log('[AirDNA] Full response:', JSON.stringify(raw, null, 2));
+  // Verbose dump for integration debugging — enable with DEBUG_AIRDNA=1
+  if (process.env.DEBUG_AIRDNA) {
+    console.log('[AirDNA] Full response:', JSON.stringify(raw, null, 2));
+  }
+
+  const stats = raw.property_statistics;
 
   // Extract ADR (nightly rate) — try every known location
   const adr =
+    stats?.adr?.ltm ??
     raw.adr ??
     raw.average_daily_rate ??
     raw.stats?.adr?.ltm ??
@@ -248,6 +259,7 @@ function parseResponse(
 
   // Extract occupancy (0-1 range) — normalize if 0-100
   let occupancy =
+    stats?.occupancy?.ltm ??
     raw.occupancy ??
     raw.occupancy_rate ??
     raw.stats?.occupancy?.ltm ??
@@ -262,6 +274,7 @@ function parseResponse(
 
   // Extract revenue (prefer monthly)
   const annualRevenue =
+    stats?.revenue?.ltm ??
     raw.annual_revenue ??
     raw.revenue ??
     raw.stats?.revenue?.ltm ??
@@ -278,6 +291,13 @@ function parseResponse(
     console.warn('[AirDNA] Response missing both ADR and revenue — cannot produce estimate');
     return null;
   }
+
+  // Prefer AirDNA's own confidence score when present.
+  const airdnaLevel = stats?.confidence_score?.level?.toLowerCase();
+  const resolvedConfidence: STREstimate['confidence'] =
+    airdnaLevel === 'high' || airdnaLevel === 'medium' || airdnaLevel === 'low'
+      ? airdnaLevel
+      : confidence;
 
   // Compute derived values
   const nightlyRate = Math.round(adr ?? (monthlyRevenue! / 30 / (occupancy ?? 0.55)));
@@ -299,7 +319,7 @@ function parseResponse(
   // ── Extract enrichment data ──────────────────────────────────────────
 
   // Seasonality — try multiple response shapes
-  const seasonality = parseSeasonality(raw, nightlyRate, occupancyRate);
+  const seasonality = parseSeasonality(raw, nightlyRate, occupancyRate, grossMonthlyRevenue * 12);
 
   // Revenue range / percentiles
   const revenueRange = parseRevenueRange(raw, grossMonthlyRevenue);
@@ -314,14 +334,14 @@ function parseResponse(
     cleaningCosts,
     platformFees,
     netMonthlyRevenue,
-    confidence,
+    confidence: resolvedConfidence,
     source: 'airdna',
     ...(seasonality && { seasonality }),
     ...(revenueRange && { revenueRange }),
     ...(marketContext && { marketContext }),
   };
 
-  console.log(`[AirDNA] STR estimate: $${nightlyRate}/night, ${Math.round(occupancyRate * 100)}% occ, $${grossMonthlyRevenue}/mo gross`);
+  console.log(`[AirDNA] STR estimate: $${nightlyRate}/night, ${Math.round(occupancyRate * 100)}% occ, $${grossMonthlyRevenue}/mo gross, confidence=${resolvedConfidence}`);
   return estimate;
 }
 
@@ -333,6 +353,7 @@ function parseSeasonality(
   raw: AirDnaPropertyData,
   baseNightly: number,
   baseOccupancy: number,
+  annualRevenue: number,
 ): STREstimate['seasonality'] {
   // Shape 1: { months: [{ month, revenue, occupancy }] }
   if (Array.isArray(raw.months) && raw.months.length >= 12) {
@@ -360,6 +381,41 @@ function parseSeasonality(
       revenue: Math.round(rev),
       occupancy: baseOccupancy, // no per-month occupancy in this shape
     }));
+  }
+
+  // Shape 4: derive from property_statistics.cleaning_fee.cleaning_fee_years.
+  // This year -> month -> value map is the only month-by-month signal the
+  // rentalizer endpoint returns. Cleaning fees scale with the number of
+  // bookings, so the monthly distribution tracks the revenue/demand curve.
+  // We distribute the annual revenue across months by that weighting.
+  const cfYears = raw.property_statistics?.cleaning_fee?.cleaning_fee_years;
+  if (cfYears && typeof cfYears === 'object' && annualRevenue > 0) {
+    const monthValue: Record<number, number> = {};
+    for (const year of Object.keys(cfYears)) {
+      const months = cfYears[year];
+      if (!months) continue;
+      for (const m of Object.keys(months)) {
+        const idx = Number(m);
+        if (idx >= 1 && idx <= 12 && typeof months[m] === 'number') {
+          monthValue[idx] = months[m];
+        }
+      }
+    }
+    const present = Object.keys(monthValue).length;
+    const total = Object.values(monthValue).reduce((sum, v) => sum + v, 0);
+    if (present >= 6 && total > 0) {
+      return MONTH_NAMES.map((name, i) => {
+        const weight = (monthValue[i + 1] ?? 0) / total;
+        // Scale occupancy around the annual average using the same weighting,
+        // clamped to a realistic range (AirDNA gives no per-month occupancy).
+        const occupancy = Math.min(0.98, Math.max(0.02, baseOccupancy * weight * present));
+        return {
+          month: name,
+          revenue: Math.round(weight * annualRevenue),
+          occupancy,
+        };
+      });
+    }
   }
 
   return undefined;

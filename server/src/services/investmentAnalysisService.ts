@@ -264,6 +264,7 @@ export function finalizeAnalysis(results: FullAnalysisResult): FullAnalysisResul
     comparables: results.comparables,
     marketStatistics: results.marketStatistics,
     price: results.taxSavings.purchasePrice,
+    strategyComparison: results.strategyComparison,
   });
 
   return results;

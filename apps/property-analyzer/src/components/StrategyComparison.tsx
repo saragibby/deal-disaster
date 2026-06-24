@@ -5,7 +5,7 @@ import type {
   FullAnalysisResult, MarketStatistics,
   StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
-import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, TrendingDown, Minus } from 'lucide-react';
+import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, ShieldAlert, TrendingDown, Minus } from 'lucide-react';
 import { findExplainer } from './TermExplainer';
 
 /* ================================================================== */
@@ -347,6 +347,7 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
   const activeStrategies = strategies.filter((s) => s.available);
   const maxRevenue = Math.max(...activeStrategies.map((s) => s.netMonthly));
   const bestKey = strategyComparison.bestKey.toLowerCase();
+  const lowConfidence = activeStrategies.filter((s) => s.confidence === 'low').map((s) => s.label);
 
   return (
     <div className="strategy-comparison">
@@ -419,6 +420,16 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
         strEstimate={strEstimate}
         strategies={strategies}
       />
+
+      {/* Low-confidence caveat — surfaced here alongside the per-strategy badges */}
+      {lowConfidence.length > 0 && (
+        <div className="strategy-comparison__confidence-note">
+          <ShieldAlert size={15} />
+          <span>
+            {lowConfidence.join(' and ')} {lowConfidence.length > 1 ? 'estimates are' : 'estimate is'} low-confidence — less local market data was available, so treat {lowConfidence.length > 1 ? 'them' : 'it'} as a starting point and verify against local comps before committing.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

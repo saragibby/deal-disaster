@@ -4762,6 +4762,7 @@ a:hover { color: var(--primary-dark); }
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  margin-bottom: 2rem;
 }
 .deal-verdict--strong {
   background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
@@ -4863,90 +4864,6 @@ a:hover { color: var(--primary-dark); }
   margin: 0;
   line-height: 1.4;
 }
-
-/* ── Data-source & confidence banner ───────────────────────────── */
-.data-confidence {
-  border-radius: 14px;
-  border: 1px solid;
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-.data-confidence--ok {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-.data-confidence--warn {
-  background: #fffbeb;
-  border-color: #fcd34d;
-}
-.data-confidence__head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-}
-.data-confidence__head-icon {
-  display: flex;
-  flex-shrink: 0;
-  margin-top: 0.1rem;
-}
-.data-confidence--ok .data-confidence__head-icon { color: #475569; }
-.data-confidence--warn .data-confidence__head-icon { color: #d97706; }
-.data-confidence__title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 0.2rem;
-  line-height: 1.3;
-}
-.data-confidence__sub {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.45;
-}
-.data-confidence__rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.data-confidence__row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  padding: 0.4rem 0;
-  border-top: 1px dashed #e2e8f0;
-}
-.data-confidence__row:first-child { border-top: none; }
-.data-confidence__label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-  min-width: 120px;
-}
-.data-confidence__source {
-  font-size: 0.82rem;
-  flex: 1;
-}
-.data-confidence__source--data { color: #15803d; font-weight: 600; }
-.data-confidence__source--est { color: #b45309; font-weight: 600; }
-.data-confidence__pill {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.data-confidence__pill--high { background: #dcfce7; color: #15803d; }
-.data-confidence__pill--medium { background: #fef9c3; color: #a16207; }
-.data-confidence__pill--low { background: #fee2e2; color: #b91c1c; }
 
 /* Clarifying subtitle shared by the two market sections */
 .market-section__subtitle {
@@ -5166,6 +5083,26 @@ a:hover { color: var(--primary-dark); }
   background: var(--bg);
   padding: 0.15rem 0.45rem;
   border-radius: 999px;
+}
+
+/* ── Low-confidence caveat ── */
+.strategy-comparison__confidence-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #fcd9b6;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.strategy-comparison__confidence-note svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #f97316;
 }
 
 /* ── Revenue Range ── */

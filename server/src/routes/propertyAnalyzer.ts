@@ -23,6 +23,7 @@ import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
 import * as rentCastService from '../services/rentCastService.js';
+import * as realtyInUsService from '../services/realtyInUsService.js';
 import * as airDnaService from '../services/airDnaService.js';
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
@@ -136,13 +137,19 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       hoaSource = property.hoaFee ? 'zillow' : 'none';
     }
 
-    // Rental estimation — prefer RentCast real comps, fall back to Zillow similar/algorithmic
+    // Rental estimation — real for-rent comps first (RentCast → Realtor.com),
+    // then Zillow area median, then the bare algorithm.
     let apiComps = await rentCastService.getRentalComps(property);
+    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
+    if (apiComps.length === 0) {
+      apiComps = await realtyInUsService.getRentalComps(property);
+      if (apiComps.length > 0) compSource = 'realtor';
+    }
     if (apiComps.length === 0) {
       apiComps = await propertyDataService.getRentalComps(zpid);
     }
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
 
     // Also try RentCast's AVM rent estimate as a cross-check
     const rentCastEstimate = await rentCastService.getRentEstimate(property);
@@ -152,6 +159,13 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       rentalEstimate.low = Math.round((rentalEstimate.low + rentCastEstimate.low) / 2);
       rentalEstimate.high = Math.round((rentalEstimate.high + rentCastEstimate.high) / 2);
       if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
+    }
+
+    // No rental comps? Anchor to Zillow's area rental-market median (real data,
+    // high confidence) instead of falling back to the bare algorithm.
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    if (usedZillowRent) {
+      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
     }
 
     // Short-term rental — prefer AirDNA real data, fall back to algorithmic
@@ -193,7 +207,11 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     results.mtrEstimate = mtrEstimate;
     if (marketStatistics) results.marketStatistics = marketStatistics;
     results.dataSources = {
-      rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
+      rental: apiComps.length > 0
+        ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
+        : usedZillowRent
+          ? 'zillow'
+          : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: 'algorithm',
       hoa: hoaSource,
@@ -396,20 +414,36 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       ...req.body.params,
     };
 
-    // Re-estimate rent if we have stored comps
-    const apiComps = row.rental_comps || [];
+    // Re-estimate rent using stored comps; if none, fetch fresh real comps.
+    let apiComps = row.rental_comps || [];
+    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
+    if (apiComps.length === 0) {
+      apiComps = await realtyInUsService.getRentalComps(property);
+      if (apiComps.length > 0) compSource = 'realtor';
+    }
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+
+    // No comps? Anchor to Zillow's area rental-market median (real data, high confidence).
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    if (usedZillowRent) {
+      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
+    }
 
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, newParams);
 
-    // Re-estimate STR (preserve original source if it came from a real provider)
+    // Re-estimate STR. Re-fetch from AirDNA (24h cached in-service, so no extra
+    // API cost) so saved analyses pick up the latest real data and parser
+    // improvements (e.g. monthly seasonality). Fall back to the stored
+    // real-provider estimate, then to the algorithm.
     const originalSTR = row.analysis_results?.strEstimate;
-    if (originalSTR && originalSTR.source !== 'algorithm') {
-      results.strEstimate = originalSTR;
-    } else {
-      results.strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
+    let strEstimate = await airDnaService.getSTREstimate(property) || undefined;
+    if (!strEstimate) {
+      strEstimate = originalSTR && originalSTR.source !== 'algorithm'
+        ? originalSTR
+        : strEstimationService.estimateSTR(property, rentalEstimate);
     }
+    results.strEstimate = strEstimate;
 
     // Mid-term rental — algorithmic re-estimation
     const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
@@ -417,7 +451,11 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
 
     // Preserve data source tracking
     results.dataSources = {
-      rental: apiComps.length > 0 ? 'rentcast' : 'algorithm',
+      rental: compSource === 'realtor'
+        ? 'realtor'
+        : apiComps.length > 0
+          ? (row.analysis_results?.dataSources?.rental || 'rentcast')
+          : (usedZillowRent ? 'zillow' : 'algorithm'),
       str: results.strEstimate?.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: 'algorithm',
       hoa: row.analysis_results?.dataSources?.hoa || 'none',

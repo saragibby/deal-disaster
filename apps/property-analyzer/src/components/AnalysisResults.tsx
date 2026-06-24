@@ -11,7 +11,6 @@ import {
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
 import DealVerdictCard from './DealVerdictCard';
-import DataConfidenceBanner from './DataConfidenceBanner';
 import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart } from './RentalTabs';
 import ROIScorecard from './ROIScorecard';
 import WealthProjection from './FiveYearProjection';
@@ -179,6 +178,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
 
   // Decision-first verdict — recomputed live so it reflects any adjusted
   // assumptions (price, rent, expenses) rather than only the saved snapshot.
+  // Scored against the BEST strategy (LTR/MTR/STR) via strategyComparison, so
+  // the recommendation reflects the property's strongest viable use.
+  // FUTURE ENHANCEMENT: make the Cash Flow section itself strategy-aware so its
+  // figures switch to MTR/STR values when one of those is the selected/best
+  // strategy, instead of always showing long-term.
   const verdict = useMemo(() => computeDealVerdict({
     cashFlow,
     roi,
@@ -187,7 +191,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
     comparables: results.comparables,
     marketStatistics: results.marketStatistics,
     price: effectivePrice,
-  }), [cashFlow, roi, rental, results.breakEvenRent, results.comparables, results.marketStatistics, effectivePrice]);
+    strategyComparison,
+  }), [cashFlow, roi, rental, results.breakEvenRent, results.comparables, results.marketStatistics, effectivePrice, strategyComparison]);
 
   // ── "What changed" — diff current assumptions against the saved baseline ──
   const baselineParams = useMemo<AnalysisParams>(() => ({
@@ -282,16 +287,6 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
           </div>
         </div>
       )}
-
-      {/* Decision-first verdict */}
-      <div id="deal-verdict" className="results__section">
-        <DealVerdictCard verdict={verdict} address={property.address} />
-      </div>
-
-      {/* Data-source & confidence transparency */}
-      <div id="data-confidence" className="results__section">
-        <DataConfidenceBanner results={results} />
-      </div>
 
       {/* What changed — appears once assumptions are adjusted */}
       {!readOnly && isAdjusted && changes.length > 0 && (
@@ -410,6 +405,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Decision-first verdict */}
+      <div id="deal-verdict" className="results__section">
+        <DealVerdictCard verdict={verdict} address={property.address} />
       </div>
 
       {/* Rental summary strip */}
