@@ -26,6 +26,7 @@ import * as rentCastService from '../services/rentCastService.js';
 import * as realtyInUsService from '../services/realtyInUsService.js';
 import * as airDnaService from '../services/airDnaService.js';
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
+import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
@@ -201,7 +202,8 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
-    // Mid-term rental — algorithmic estimation with proximity scoring
+    // Mid-term rental — algorithmic estimation with proximity scoring,
+    // calibrated to real furnished comps (Furnished Finder) when available.
     let proximityBoost = 0;
     let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
     if (property.latitude && property.longitude) {
@@ -213,7 +215,13 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
         console.warn('[analyzer/run] Proximity scoring failed (non-fatal):', err.message);
       }
     }
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost);
+    let mtrMarketData = null;
+    try {
+      mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
+    } catch (err: any) {
+      console.warn('[analyzer/run] Furnished Finder MTR fetch failed (non-fatal):', err.message);
+    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost, mtrMarketData);
     if (nearbyInstitutions.length > 0) {
       mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
     }
@@ -240,7 +248,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
           ? 'zillow'
           : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
-      mtr: 'algorithm',
+      mtr: mtrEstimate.source,
       hoa: hoaSource,
       tax: taxSource,
       insurance: insuranceSource,
@@ -513,8 +521,15 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
     }
     results.strEstimate = strEstimate;
 
-    // Mid-term rental — algorithmic re-estimation
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+    // Mid-term rental — real furnished comps (Furnished Finder) when available,
+    // else algorithmic re-estimation.
+    let mtrMarketData = null;
+    try {
+      mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
+    } catch (err: any) {
+      console.warn('[analyzer/re-analyze] Furnished Finder MTR fetch failed (non-fatal):', err.message);
+    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, 0, mtrMarketData);
     results.mtrEstimate = mtrEstimate;
 
     // Preserve data source tracking
@@ -525,7 +540,7 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
           ? (row.analysis_results?.dataSources?.rental || 'rentcast')
           : (usedZillowRent ? 'zillow' : 'algorithm'),
       str: results.strEstimate?.source === 'airdna' ? 'airdna' : 'algorithm',
-      mtr: 'algorithm',
+      mtr: mtrEstimate.source,
       hoa: row.analysis_results?.dataSources?.hoa || 'none',
       tax: taxSource,
       insurance: insuranceSource,

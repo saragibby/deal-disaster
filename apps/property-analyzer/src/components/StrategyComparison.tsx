@@ -78,6 +78,7 @@ function ConfidenceBadge({ confidence, source }: { confidence?: string; source?:
   };
   const color = colors[confidence] || '#94a3b8';
   const sourceLabel = source === 'rentcast' ? 'RentCast' : source === 'airdna' ? 'AirDNA'
+    : source === 'furnished-finder' ? 'Furnished Finder'
     : source === 'blended' ? 'Blended' : 'Estimated';
   const explainer = findExplainer(`confidence ${confidence}`);
   const tooltipRef = useRef<HTMLDivElement>(null);

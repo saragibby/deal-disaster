@@ -264,7 +264,20 @@ Accuracy work landed so far (single-property results view):
 **Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
 `rentalEstimationService.ts`, `expenseDefaultsService.ts` *(new)*, `shared-types/src/index.ts`,
 `AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
-**Still open in Phase 2:** MTR real data source.
+
+10. **MTR real data source (Furnished Finder).** `furnishedFinderService.ts` *(new)* queries
+    Furnished Finder's internal GraphQL endpoint (`api-public.prod.furnishedfinder.com/graphql`,
+    geo-only `search` field — no auth/regionId) for furnished comps within ~6mi of the property
+    (widening to ~15mi in thin markets), filters to bedroom ±1, and returns the median monthly rent
+    plus p25/p75 when ≥ 3 comparable listings exist. `estimateMTR` now accepts this market data and
+    calibrates `monthlyRate`/`furnishedPremium` to the observed median, setting
+    `source: 'furnished-finder'` and `confidence` from sample size (≥8 high, ≥4 medium, else low);
+    `revenueRange` derives from the p25/p75 × occupancy. Falls back to the algorithm on any failure
+    (24h cache, 8s timeout, `FF_MTR_DISABLED=true` kill switch). Wired into both `/run` and
+    `/re-analyze`; `dataSources.mtr` now reflects the real source. *Undocumented private API — see
+    monitoring TODO in repo memory to alert on schema/shape drift once observability is built.*
+    **Files:** `furnishedFinderService.ts` *(new)*, `mtrEstimationService.ts`, `propertyAnalyzer.ts`,
+    `StrategyComparison.tsx`.
 
 ---
 

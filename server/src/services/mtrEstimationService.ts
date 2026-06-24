@@ -10,18 +10,16 @@
  * (Furnished Finder, PadSplit, etc.) can replace the algorithmic
  * implementation while keeping the return types unchanged.
  *
- * ── Recommended API upgrades (in priority order) ──────────────────
+ * ── Real data source (wired) ──────────────────────────────────────
  *
- *  1. Furnished Finder  (furnishedfinder.com)
- *     • Largest MTR platform — traveling nurse focused.
- *     • No public API yet; scrape listing data or partner.
+ *  Furnished Finder (furnishedfinder.com) — the largest MTR platform —
+ *  is integrated via `furnishedFinderService.getMtrMarketData()`. When it
+ *  returns enough comparable furnished comps, `estimateMTR` calibrates the
+ *  monthly rate to the observed market median (source: 'furnished-finder');
+ *  otherwise it falls back to the algorithmic model (source: 'algorithm').
  *
- *  2. PadSplit  (padsplit.com)
- *     • Room-rental MTR platform, strong in SE US.
- *     • Partner API available for qualified operators.
- *
- *  3. Zillow / RentCast  (existing providers)
- *     • Filter by "furnished" listings for premium calibration.
+ *  Possible future upgrade: PadSplit (padsplit.com) partner API for
+ *  room-rental MTR in the SE US.
  * ──────────────────────────────────────────────────────────────────
  */
 
@@ -34,6 +32,7 @@ import type {
   FurnishingQuality,
   MTRSeasonalityMonth,
 } from '@deal-platform/shared-types';
+import type { MTRMarketData } from './furnishedFinderService.js';
 
 // ---------------------------------------------------------------------------
 // Proximity cache (in-memory, 7-day TTL)
@@ -64,6 +63,7 @@ export function estimateMTR(
   property: PropertyData,
   rentalEstimate: RentalEstimate,
   proximityBoost: number = 0,
+  marketData?: MTRMarketData | null,
 ): MTREstimate {
   const { bedrooms, sqft, propertyType } = property;
   const ltrRent = rentalEstimate.mid;
@@ -88,7 +88,13 @@ export function estimateMTR(
   // Sqft adjustment — larger homes can justify slightly higher premiums
   if (sqft > 2500) premium += 0.03;
 
-  const monthlyRate = Math.round(ltrRent * premium);
+  // Real furnished-market rate (Furnished Finder) overrides the modeled rate
+  // when available — the premium becomes an observed ratio rather than a guess.
+  let monthlyRate = Math.round(ltrRent * premium);
+  if (marketData && marketData.monthlyRate > 0) {
+    monthlyRate = marketData.monthlyRate;
+    if (ltrRent > 0) premium = Math.round((monthlyRate / ltrRent) * 100) / 100;
+  }
 
   // --- 2. Occupancy rate -------------------------------------------------
   //  MTR occupancy is typically 85-95 %.  Higher than STR because stays
@@ -167,6 +173,23 @@ export function estimateMTR(
     - managementCosts
     - furnishingCosts.amortizedMonthly;
 
+  // Confidence & range reflect real comps when we have them.
+  const confidence: MTREstimate['confidence'] = marketData
+    ? (marketData.sampleSize >= 8 ? 'high' : marketData.sampleSize >= 4 ? 'medium' : 'low')
+    : 'low';
+  const source: MTREstimate['source'] = marketData ? 'furnished-finder' : 'algorithm';
+  const revenueRange = marketData
+    ? {
+        low: Math.round(marketData.low * occupancy),
+        mid: grossMonthlyRevenue,
+        high: Math.round(marketData.high * occupancy),
+      }
+    : {
+        low: Math.round(grossMonthlyRevenue * 0.85),
+        mid: grossMonthlyRevenue,
+        high: Math.round(grossMonthlyRevenue * 1.15),
+      };
+
   return {
     monthlyRate,
     furnishedPremium: Math.round(premium * 100) / 100,
@@ -181,14 +204,10 @@ export function estimateMTR(
     netMonthlyRevenue: Math.round(netMonthlyRevenue),
     furnishingCosts,
     demandFactors,
-    confidence: 'low',  // algorithmic only
-    source: 'algorithm',
+    confidence,
+    source,
     seasonality: buildMTRSeasonality(monthlyRate, occupancy),
-    revenueRange: {
-      low: Math.round(grossMonthlyRevenue * 0.85),
-      mid: grossMonthlyRevenue,
-      high: Math.round(grossMonthlyRevenue * 1.15),
-    },
+    revenueRange,
   };
 }
 
