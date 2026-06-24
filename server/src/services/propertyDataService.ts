@@ -14,12 +14,12 @@
  *   GET /rental_market?search_query=<city+state> — returns rental market trends
  *   GET /housing_market?search_query=<city+state> — returns housing market overview + ZHVI
  *
- * This provider does NOT have a rental-comps endpoint, so getRentalComps
- * always returns [] and callers should rely on the algorithmic estimator
- * or derive comps from the /similar endpoint.
+ * This provider does NOT have a rental-comps endpoint. Rental comps come from
+ * RentCast / Realtor.com (see rentCastService / realtyInUsService); this service
+ * only supplies property details, similar/nearby sales, and market trends.
  */
 
-import type { PropertyData, PropertySummary, RentalComp, ComparableProperty } from '@deal-platform/shared-types';
+import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
 
 // ---------- configuration ----------
@@ -246,17 +246,6 @@ export async function searchProperties(query: string): Promise<PropertySummary[]
   } catch {
     return [];
   }
-}
-
-/**
- * Fetch API-sourced rental comps for a given ZPID.
- *
- * The private-zillow provider does NOT have a rental comps endpoint.
- * Always returns [] — callers should fall back to the algorithmic estimator.
- */
-export async function getRentalComps(_zpid: string): Promise<RentalComp[]> {
-  // No rental comps endpoint on private-zillow.p.rapidapi.com
-  return [];
 }
 
 /**

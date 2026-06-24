@@ -68,8 +68,10 @@ Decision: rank by **net cash flow**.
 7. **"What changed"** indicator on assumption edits.
 
 ### Phase 2 — Accuracy & data coverage
-1. **API coverage audit** — fetch/surface every available RentCast/AirDNA/Zillow field; wire or
-   retire the dead Zillow comps path; pull RentCast records/sale comps to raise confidence.
+1. **API coverage audit** — fetch/surface every available RentCast/AirDNA/Zillow field; the dead
+   Zillow rental-comps path is now retired (private-zillow has no comps endpoint — real comps come
+   from RentCast → Realtor.com, then the algorithmic estimator); pull RentCast records/sale comps to
+   raise confidence.
 2. Replace hardcoded **tax/expense defaults** with user inputs + location/property defaults
    (e.g. property tax from Zillow `taxinfo`).
 3. **MTR/STR honesty** — clearly mark algorithmic, expose assumptions; optional low-cost APIs noted.
@@ -259,7 +261,7 @@ Accuracy work landed so far (single-property results view):
 **Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
 `rentalEstimationService.ts`, `expenseDefaultsService.ts` *(new)*, `shared-types/src/index.ts`,
 `AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
-**Still open in Phase 2:** MTR real data source, retire the dead Zillow comps path, prominent
+**Still open in Phase 2:** MTR real data source, prominent
 break-even surfacing.
 
 ---

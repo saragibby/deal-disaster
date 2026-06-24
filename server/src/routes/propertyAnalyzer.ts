@@ -168,15 +168,12 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     }
 
     // Rental estimation — real for-rent comps first (RentCast → Realtor.com),
-    // then Zillow area median, then the bare algorithm.
+    // then Zillow area-median anchor, then the bare algorithm.
     let apiComps = await rentCastService.getRentalComps(property);
     let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
     if (apiComps.length === 0) {
       apiComps = await realtyInUsService.getRentalComps(property);
       if (apiComps.length > 0) compSource = 'realtor';
-    }
-    if (apiComps.length === 0) {
-      apiComps = await propertyDataService.getRentalComps(zpid);
     }
     const algorithmic = rentalEstimationService.estimateRent(property);
     let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
