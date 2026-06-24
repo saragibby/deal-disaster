@@ -102,7 +102,7 @@ STR-specific · non-RE cash-flow assets.
 ### Phases 1–5
 - [x] Phase 1 — Clarity & trust
 - [~] Phase 2 — Accuracy & data coverage *(in progress: AirDNA STR fix + best-strategy verdict landed)*
-- [ ] Phase 3 — Deeper analysis
+- [~] Phase 3 — Deeper analysis *(in progress: sensitivity/stress-test view landed)*
 - [ ] Phase 4 — Workflow
 - [ ] Phase 5 — Future verticals (roadmap only)
 
@@ -250,3 +250,22 @@ Accuracy work landed so far (single-property results view):
 `AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
 **Still open in Phase 2:** MTR real data source, remaining hardcoded defaults (cost-seg %, marginal
 tax rate, vacancy/repairs/capex %), retire the dead Zillow comps path, prominent break-even surfacing.
+
+---
+
+## Phase 3 — implementation notes (in progress)
+
+1. **Sensitivity / "Stress Test" view.** New `SensitivityCard.tsx` mounted as a full-width section
+   between the Cash Flow grid and Wealth Projection. For each of the three biggest drivers — **rent,
+   purchase price, interest rate** — it solves the break-even value (where monthly cash flow crosses
+   $0) by bisection over the *same* client calculators used for the live recompute
+   (`calculateMortgage` + `calculateCashFlow`), so it always agrees with the Cash Flow section and
+   updates live as assumptions are edited. Each driver renders a two-zone (safe/​risk) track with a
+   marker at today's value and a line at break-even, plus a plain-language cushion sentence
+   (e.g. "$250/mo cushion — rent could drop to $2,150 before you're underwater"). No API or schema
+   changes; fully client-side. Edge cases (cash-flow positive or negative across the whole tested
+   range) fall back to a full-color track + explanatory caption.
+   - *Still open in Phase 3:* goal-based framing (cash flow / appreciation / tax) that reorders
+     sections + reweights `computeDealVerdict()`; saved/named scenarios with side-by-side compare.
+
+**Files touched:** `SensitivityCard.tsx` *(new)*, `AnalysisResults.tsx`, `analyzer.css`.

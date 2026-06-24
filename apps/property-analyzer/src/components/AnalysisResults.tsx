@@ -14,6 +14,7 @@ import DealVerdictCard from './DealVerdictCard';
 import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart } from './RentalTabs';
 import ROIScorecard from './ROIScorecard';
 import WealthProjection from './FiveYearProjection';
+import SensitivityCard from './SensitivityCard';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
@@ -639,6 +640,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Stress test — how far each assumption can move before cash flow turns negative */}
+      <div id="stress-test" className="results__card results__section">
+        <SensitivityCard params={params} price={effectivePrice} rent={effectiveRent} />
       </div>
 
       {/* Wealth Projection — full width */}
