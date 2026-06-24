@@ -65,6 +65,15 @@ export default function AskWill({ propertyAnalysis }: AskWillProps = {}) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Refs mirror the latest values so event-driven sends (e.g. the "Explain this"
+  // CTA on the verdict card) always read current state, not stale closures.
+  const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
+  const isLoadingRef = useRef(isLoading);
+  isLoadingRef.current = isLoading;
+  const propertyAnalysisRef = useRef(propertyAnalysis);
+  propertyAnalysisRef.current = propertyAnalysis;
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -96,21 +105,36 @@ export default function AskWill({ propertyAnalysis }: AskWillProps = {}) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  // Allow any page to open the chat with a prefilled question that auto-sends.
+  // Usage: window.dispatchEvent(new CustomEvent('askwill:ask', { detail: { question } }))
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { question?: string } | undefined;
+      setIsOpen(true);
+      if (detail?.question) sendMessage(detail.question);
+    };
+    window.addEventListener('askwill:ask', handler as EventListener);
+    return () => window.removeEventListener('askwill:ask', handler as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isLoadingRef.current) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: trimmed,
       timestamp: new Date()
     };
 
-    const conversationHistory = messages.slice(-10).map(msg => ({
+    const conversationHistory = messagesRef.current.slice(-10).map(msg => ({
       role: msg.role,
       content: msg.content
     }));
 
-    const userInput = input;
+    const userInput = trimmed;
+    const context = propertyAnalysisRef.current;
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -126,8 +150,8 @@ export default function AskWill({ propertyAnalysis }: AskWillProps = {}) {
       abortControllerRef.current = await api.chatStream(
         userInput,
         conversationHistory,
-        !propertyAnalysis,
-        propertyAnalysis,
+        !context,
+        context,
         // onChunk: append text to the last (assistant) message
         (chunk: string) => {
           setMessages(prev => {
@@ -181,6 +205,8 @@ export default function AskWill({ propertyAnalysis }: AskWillProps = {}) {
       setIsLoading(false);
     }
   };
+
+  const handleSend = () => sendMessage(input);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

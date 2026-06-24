@@ -100,7 +100,7 @@ STR-specific · non-RE cash-flow assets.
 - [x] Phase 0 build + verification green
 
 ### Phases 1–5
-- [ ] Phase 1 — Clarity & trust
+- [x] Phase 1 — Clarity & trust
 - [ ] Phase 2 — Accuracy & data coverage
 - [ ] Phase 3 — Deeper analysis
 - [ ] Phase 4 — Workflow
@@ -152,3 +152,38 @@ STR-specific · non-RE cash-flow assets.
   verdict card can recompute it live; it is deterministic and fully explainable (reason codes).
 - **Not yet surfaced in UI:** `verdict` and `breakEvenRent` are computed and persisted but not rendered —
   that is Phase 1 (verdict card) and Phase 2 (prominent break-even).
+
+---
+
+## Phase 1 — implementation notes (done)
+
+All seven Phase 1 items landed in the analyzer UI (single-property results view):
+
+1. **Decision-first verdict card** — `components/DealVerdictCard.tsx`, mounted at the very top of
+   `AnalysisResults` (`#deal-verdict`). Consumes `computeDealVerdict()` recomputed **live** via
+   `useMemo` so it reflects adjusted assumptions, not just the saved snapshot. Color-coded by rating
+   (strong/marginal/caution), shows the score, headline, plain-language reason chips, and an
+   **"Ask Will to explain this verdict"** CTA.
+2. **AskWill hybrid hook** — `shared-ui/AskWill.tsx` now listens for a global
+   `window` `askwill:ask` CustomEvent `{ detail: { question } }`, opens the chat, and auto-sends the
+   question. Refactored `handleSend` → `sendMessage(text)` with refs so event-driven sends read
+   current state. The verdict card dispatches this event.
+3. **Plain-language metric verdict** — a sentence under the Monthly Cash Flow KPI in `AnalysisResults`
+   ("the rent covers every expense with … left over" / "you'd fund a … shortfall") plus the break-even
+   rent. ROI metrics already carry Strong/Fair/Weak signals via `ROIScorecard`.
+4. **Data-source & confidence transparency** — `components/DataConfidenceBanner.tsx` (`#data-confidence`)
+   lists every rent figure's source (RentCast / AirDNA / algorithmic) and confidence pill; switches to a
+   prominent amber warning treatment whenever any estimate is low-confidence.
+5. **Market-section disambiguation** — added `market-section__subtitle` lines clarifying that
+   `HousingMarketTrends` = "what homes are worth to buy" and `RentalMarketTrends` = "what landlords
+   charge to rent".
+6. **Sticky jump-nav** — `analyzer-app__header` is now `position: sticky` with a full-width inner
+   wrapper and a `--scrolled` elevation. `SectionNav` gained IntersectionObserver **scroll-spy** that
+   highlights the active section; `.results__section` got `scroll-margin-top` so the header never
+   covers anchored targets.
+7. **"What changed" indicator** — inline banner in `AnalysisResults` (shown when `isAdjusted`) diffs the
+   current assumptions against the saved baseline (label: from → to chips), shows the **cash-flow delta
+   vs. original**, and offers a Reset-all button.
+
+**Key files added:** `DealVerdictCard.tsx`, `DataConfidenceBanner.tsx`.
+**Verified:** `build:packages` + property-analyzer `tsc && vite build` both green.

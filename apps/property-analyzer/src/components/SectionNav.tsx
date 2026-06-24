@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { computeStrategyComparison } from '@deal-platform/shared-types';
 import {
@@ -27,6 +28,28 @@ const SIGNAL_COLORS: Record<string, string> = {
 };
 
 export function SectionNav({ signals }: SectionNavProps) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Scroll-spy: highlight whichever section is currently under the sticky header.
+  useEffect(() => {
+    const elements = signals
+      .map(s => document.getElementById(s.id))
+      .filter((el): el is HTMLElement => el != null);
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]?.target.id) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: '-80px 0px -55% 0px', threshold: [0, 0.25, 0.5, 1] },
+    );
+    elements.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [signals]);
+
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -36,7 +59,7 @@ export function SectionNav({ signals }: SectionNavProps) {
       {signals.map(s => (
         <button
           key={s.id}
-          className="section-nav__item"
+          className={`section-nav__item${s.id === activeId ? ' section-nav__item--active' : ''}`}
           onClick={() => scrollTo(s.id)}
           title={s.tooltip}
           type="button"

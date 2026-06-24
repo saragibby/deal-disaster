@@ -62,6 +62,9 @@ export default function RentalMarketTrends({ properties }: Props) {
     return (
       <div className="results__card rental-market">
         <h3><Home size={18} /> Rental Market Trends</h3>
+        <p className="market-section__subtitle">
+          What landlords here <strong>charge to rent</strong> — median asking rents &amp; listing activity for this market.
+        </p>
         <p className="rental-market__empty">
           No rental market data available for this area.
         </p>
@@ -104,6 +107,9 @@ export default function RentalMarketTrends({ properties }: Props) {
   return (
     <div className="results__card rental-market">
       <h3><Home size={18} /> Rental Market — {trends.areaName}</h3>
+      <p className="market-section__subtitle">
+        What landlords here <strong>charge to rent</strong> — median asking rents &amp; listing activity for this market.
+      </p>
 
       {/* Summary stats row */}
       <div className="rental-market__stats">

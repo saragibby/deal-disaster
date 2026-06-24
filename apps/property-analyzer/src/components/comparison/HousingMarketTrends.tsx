@@ -69,6 +69,9 @@ export default function HousingMarketTrends({ properties }: Props) {
   return (
     <div className="results__card housing-market">
       <h3><Building2 size={18} /> Housing Market — {market.areaName}</h3>
+      <p className="market-section__subtitle">
+        What homes here are <strong>worth to buy</strong> — Zillow home values &amp; recent sale prices for this area.
+      </p>
 
       {/* Key stats row */}
       <div className="housing-market__stats">

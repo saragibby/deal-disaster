@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
-import { computeStrategyComparison } from '@deal-platform/shared-types';
+import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
+import DealVerdictCard from './DealVerdictCard';
+import DataConfidenceBanner from './DataConfidenceBanner';
 import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart } from './RentalTabs';
 import ROIScorecard from './ROIScorecard';
 import WealthProjection from './FiveYearProjection';
@@ -175,6 +177,57 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
     dataSources: results.dataSources,
   }), [cashFlow, rental, results.strEstimate, results.mtrEstimate, results.dataSources]);
 
+  // Decision-first verdict — recomputed live so it reflects any adjusted
+  // assumptions (price, rent, expenses) rather than only the saved snapshot.
+  const verdict = useMemo(() => computeDealVerdict({
+    cashFlow,
+    roi,
+    rentalEstimate: rental,
+    breakEvenRent: results.breakEvenRent ?? null,
+    comparables: results.comparables,
+    marketStatistics: results.marketStatistics,
+    price: effectivePrice,
+  }), [cashFlow, roi, rental, results.breakEvenRent, results.comparables, results.marketStatistics, effectivePrice]);
+
+  // ── "What changed" — diff current assumptions against the saved baseline ──
+  const baselineParams = useMemo<AnalysisParams>(() => ({
+    ...originalParams,
+    offerPrice: originalParams.offerPrice || property.price,
+    rentOverride: originalParams.rentOverride || rental.mid,
+  }), [originalParams, property.price, rental.mid]);
+
+  const baselineCashFlow = useMemo(() => {
+    const price = baselineParams.offerPrice > 0 ? baselineParams.offerPrice : property.price;
+    const m = calculateMortgage(price, baselineParams.downPaymentPct, baselineParams.interestRate, baselineParams.loanTermYears);
+    return calculateCashFlow(baselineParams.rentOverride || rental.mid, m, baselineParams);
+  }, [baselineParams, property.price, rental.mid]);
+
+  const changes = useMemo(() => {
+    const money = (n: number) => fmt(n);
+    const percent = (n: number) => `${n}%`;
+    const defs: { key: keyof AnalysisParams; label: string; format: (n: number) => string }[] = [
+      { key: 'offerPrice', label: 'Offer price', format: money },
+      { key: 'rentOverride', label: 'Monthly rent', format: money },
+      { key: 'downPaymentPct', label: 'Down payment', format: percent },
+      { key: 'interestRate', label: 'Interest rate', format: percent },
+      { key: 'loanTermYears', label: 'Loan term', format: (n) => `${n} yr` },
+      { key: 'vacancyPct', label: 'Vacancy', format: percent },
+      { key: 'repairsPct', label: 'Repairs', format: percent },
+      { key: 'capexPct', label: 'CapEx', format: percent },
+      { key: 'managementPct', label: 'Management', format: percent },
+      { key: 'annualPropertyTax', label: 'Property tax (yr)', format: money },
+      { key: 'annualInsurance', label: 'Insurance (yr)', format: money },
+      { key: 'monthlyHoa', label: 'HOA (mo)', format: money },
+      { key: 'costSegPct', label: 'Cost-seg %', format: percent },
+      { key: 'taxRate', label: 'Tax rate', format: percent },
+    ];
+    return defs
+      .filter(d => params[d.key] !== baselineParams[d.key])
+      .map(d => ({ label: d.label, from: d.format(baselineParams[d.key]), to: d.format(params[d.key]) }));
+  }, [params, baselineParams]);
+
+  const cashFlowDelta = cashFlow.monthlyCashFlow - baselineCashFlow.monthlyCashFlow;
+
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
 
   return (
@@ -226,6 +279,45 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
               {exporting ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <Download size={14} />}
               {exporting ? 'Exporting...' : 'PDF'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Decision-first verdict */}
+      <div id="deal-verdict" className="results__section">
+        <DealVerdictCard verdict={verdict} address={property.address} />
+      </div>
+
+      {/* Data-source & confidence transparency */}
+      <div id="data-confidence" className="results__section">
+        <DataConfidenceBanner results={results} />
+      </div>
+
+      {/* What changed — appears once assumptions are adjusted */}
+      {!readOnly && isAdjusted && changes.length > 0 && (
+        <div className="results__section">
+          <div className="what-changed">
+            <div className="what-changed__head">
+              <span className="what-changed__title">
+                <Pencil size={14} /> You changed {changes.length} assumption{changes.length > 1 ? 's' : ''}
+              </span>
+              <span className={`what-changed__impact ${cashFlowDelta >= 0 ? 'what-changed__impact--up' : 'what-changed__impact--down'}`}>
+                Cash flow {cashFlowDelta >= 0 ? '+' : '−'}{fmt(Math.abs(cashFlowDelta))}/mo vs. original
+              </span>
+              <button className="what-changed__reset" onClick={resetParams} type="button">
+                <RotateCcw size={13} /> Reset all
+              </button>
+            </div>
+            <ul className="what-changed__list">
+              {changes.map(c => (
+                <li key={c.label} className="what-changed__item">
+                  <span className="what-changed__item-label">{c.label}</span>
+                  <span className="what-changed__item-from">{c.from}</span>
+                  <span className="what-changed__item-arrow">→</span>
+                  <span className="what-changed__item-to">{c.to}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
@@ -443,6 +535,16 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             </div>
             <div className="results__big-caption">
               {fmt(cashFlow.annualCashFlow)}/year after all expenses
+            </div>
+            <div className={`results__big-verdict ${cashFlowPositive ? 'results__big-verdict--positive' : cashFlow.monthlyCashFlow > -200 ? 'results__big-verdict--neutral' : 'results__big-verdict--negative'}`}>
+              {cashFlowPositive
+                ? `The rent covers every expense with ${fmt(cashFlow.monthlyCashFlow)}/mo left over.`
+                : cashFlow.monthlyCashFlow > -200
+                  ? `Nearly breaks even — you'd cover a small ${fmt(Math.abs(cashFlow.monthlyCashFlow))}/mo gap.`
+                  : `You'd fund a ${fmt(Math.abs(cashFlow.monthlyCashFlow))}/mo shortfall out of pocket.`}
+              {results.breakEvenRent != null && (
+                <> Break-even rent is {fmt(results.breakEvenRent)}/mo.</>
+              )}
             </div>
           </div>
 
