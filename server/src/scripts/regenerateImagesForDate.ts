@@ -90,7 +90,7 @@ async function generatePropertyImages(imageProvider: IImageProvider, propertyDat
   
   // Use standardized photo prompts
   console.log('📝 Using realistic photo style with Gemini (standardized prompts)');
-  console.log('Photo types: exterior, kitchen, backyard, living room\n');
+  console.log('Photo types: exterior, kitchen, backyard, bedroom\n');
 
   const imagePrompts = generateStandardPhotoPrompts(scenario);
   const imageUrls: string[] = [];
