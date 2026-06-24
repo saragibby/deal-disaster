@@ -75,7 +75,10 @@ Decision: rank by **net cash flow**.
 2. Replace hardcoded **tax/expense defaults** with user inputs + location/property defaults
    (e.g. property tax from Zillow `taxinfo`).
 3. **MTR/STR honesty** — clearly mark algorithmic, expose assumptions; optional low-cost APIs noted.
-4. Surface **break-even rent** prominently.
+4. Surface **break-even rent** prominently. ✅ Computed live (rent at which cash flow hits $0,
+   tracking current price/rate/expense assumptions) and surfaced as a dedicated safe/risk break-even
+   block under the Monthly Cash Flow figure, with a plain-language cushion sentence; also fed to the
+   verdict so its break-even reasoning stays live.
 
 ### Phase 3 — Deeper analysis
 1. **Goal-based framing** (cash flow / appreciation / tax) reorders sections + reweights verdict.
@@ -261,8 +264,7 @@ Accuracy work landed so far (single-property results view):
 **Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
 `rentalEstimationService.ts`, `expenseDefaultsService.ts` *(new)*, `shared-types/src/index.ts`,
 `AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
-**Still open in Phase 2:** MTR real data source, prominent
-break-even surfacing.
+**Still open in Phase 2:** MTR real data source.
 
 ---
 

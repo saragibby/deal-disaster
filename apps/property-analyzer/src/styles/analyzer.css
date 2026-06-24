@@ -855,6 +855,58 @@ a:hover { color: var(--primary-dark); }
 .results__big-verdict--neutral { background: #fffbeb; color: #b45309; }
 .results__big-verdict--negative { background: #fef2f2; color: #b91c1c; }
 
+/* Break-even rent — prominent surfacing */
+.results__breakeven {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid transparent;
+}
+.results__breakeven--safe {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.results__breakeven--risk {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.results__breakeven-icon {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+.results__breakeven--safe .results__breakeven-icon { color: #15803d; }
+.results__breakeven--risk .results__breakeven-icon { color: #b91c1c; }
+.results__breakeven-body { flex: 1; min-width: 0; }
+.results__breakeven-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.results__breakeven-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.results__breakeven-value {
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.results__breakeven--safe .results__breakeven-value { color: #15803d; }
+.results__breakeven--risk .results__breakeven-value { color: #b91c1c; }
+.results__breakeven-note {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #475569);
+}
+
 /* Metric rows */
 .results__metric-row {
   display: flex; justify-content: space-between; align-items: center;

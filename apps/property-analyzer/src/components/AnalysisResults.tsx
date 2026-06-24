@@ -6,7 +6,7 @@ import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins, Share2, Download, Lock, Globe, Pencil, RefreshCw,
+  Coins, Share2, Download, Lock, Globe, Pencil, RefreshCw, Gauge,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -192,6 +192,27 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   const effectiveRent = params.rentOverride || rental.mid;
   const rentAdjusted = effectiveRent !== rental.mid;
 
+  // Break-even rent — the monthly rent at which cash flow hits exactly $0,
+  // recomputed live so it tracks the current price / rate / expense assumptions.
+  // Cash flow is linear in rent: rent * (1 - reserveRate) - fixedMonthly.
+  const breakEvenRent = useMemo(() => {
+    const reserveRate =
+      (params.vacancyPct + params.repairsPct + params.capexPct + (params.managementPct || 0)) / 100;
+    if (reserveRate >= 1) return null;
+    const fixedMonthly =
+      mortgage.monthlyPayment +
+      params.annualPropertyTax / 12 +
+      params.annualInsurance / 12 +
+      (params.monthlyHoa || 0);
+    return Math.round(fixedMonthly / (1 - reserveRate));
+  }, [mortgage.monthlyPayment, params]);
+
+  const rentCushion = breakEvenRent != null ? effectiveRent - breakEvenRent : null;
+  const rentCushionPct =
+    breakEvenRent != null && breakEvenRent > 0
+      ? Math.round(((effectiveRent - breakEvenRent) / breakEvenRent) * 100)
+      : null;
+
   // Single source of truth for ranking strategies — recomputed live so the KPI
   // strip, strategy comparison, and section nav always agree.
   const strategyComparison = useMemo(() => computeStrategyComparison({
@@ -213,12 +234,12 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     cashFlow,
     roi,
     rentalEstimate: rental,
-    breakEvenRent: results.breakEvenRent ?? null,
+    breakEvenRent,
     comparables: results.comparables,
     marketStatistics: results.marketStatistics,
     price: effectivePrice,
     strategyComparison,
-  }), [cashFlow, roi, rental, results.breakEvenRent, results.comparables, results.marketStatistics, effectivePrice, strategyComparison]);
+  }), [cashFlow, roi, rental, breakEvenRent, results.comparables, results.marketStatistics, effectivePrice, strategyComparison]);
 
   // ── "What changed" — diff current assumptions against the saved baseline ──
   const baselineParams = useMemo<AnalysisParams>(() => ({
@@ -642,11 +663,25 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                 : cashFlow.monthlyCashFlow > -200
                   ? `Nearly breaks even — you'd cover a small ${fmt(Math.abs(cashFlow.monthlyCashFlow))}/mo gap.`
                   : `You'd fund a ${fmt(Math.abs(cashFlow.monthlyCashFlow))}/mo shortfall out of pocket.`}
-              {results.breakEvenRent != null && (
-                <> Break-even rent is {fmt(results.breakEvenRent)}/mo.</>
-              )}
             </div>
           </div>
+
+          {breakEvenRent != null && rentCushion != null && (
+            <div className={`results__breakeven results__breakeven--${rentCushion >= 0 ? 'safe' : 'risk'}`}>
+              <Gauge size={20} className="results__breakeven-icon" />
+              <div className="results__breakeven-body">
+                <div className="results__breakeven-head">
+                  <span className="results__breakeven-label">Break-even rent</span>
+                  <span className="results__breakeven-value">{fmt(breakEvenRent)}/mo</span>
+                </div>
+                <p className="results__breakeven-note">
+                  {rentCushion >= 0
+                    ? `Today's rent of ${fmt(effectiveRent)} clears break-even with a ${fmt(rentCushion)}/mo cushion${rentCushionPct != null ? ` (${rentCushionPct}% above)` : ''}.`
+                    : `Today's rent of ${fmt(effectiveRent)} sits ${fmt(Math.abs(rentCushion))}/mo below break-even — rent must reach ${fmt(breakEvenRent)} to cover every cost.`}
+                </p>
+              </div>
+            </div>
+          )}
 
           <ROIScorecard roi={roi} />
 
