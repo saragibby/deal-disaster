@@ -74,3 +74,43 @@ export function estimateAnnualInsurance(price: number, state?: string): number {
   const factor = STATE_INSURANCE_FACTORS[normalizeState(state)] ?? 1.0;
   return Math.max(INSURANCE_FLOOR, Math.round(price * BASE_INSURANCE_RATE * factor));
 }
+
+/** Fallback maintenance reserves (% of rent) when the build year is unknown. */
+const DEFAULT_REPAIRS_PCT = 10;
+const DEFAULT_CAPEX_PCT = 10;
+
+/**
+ * Estimate repairs & capex reserves (each as a % of monthly rent) from the
+ * home's age. Older homes need larger maintenance and capital-expenditure
+ * reserves; newer construction needs less. Falls back to the flat defaults when
+ * the build year is missing or implausible.
+ */
+export function estimateMaintenancePct(
+  yearBuilt?: number,
+): { repairsPct: number; capexPct: number } {
+  const currentYear = new Date().getFullYear();
+  if (!yearBuilt || yearBuilt < 1800 || yearBuilt > currentYear + 1) {
+    return { repairsPct: DEFAULT_REPAIRS_PCT, capexPct: DEFAULT_CAPEX_PCT };
+  }
+  const age = currentYear - yearBuilt;
+  if (age <= 10) return { repairsPct: 6, capexPct: 6 };
+  if (age <= 25) return { repairsPct: 8, capexPct: 8 };
+  if (age <= 50) return { repairsPct: 10, capexPct: 11 };
+  return { repairsPct: 12, capexPct: 13 };
+}
+
+/** Single-family midpoint for cost-segregation reclassification. */
+const DEFAULT_COST_SEG_PCT = 22.5;
+
+/**
+ * Estimate the cost-segregation reclassification percentage (share of basis
+ * moved to short-life property) from the property type. Multifamily reclassifies
+ * more; condos/manufactured homes less. Falls back to a single-family midpoint.
+ */
+export function estimateCostSegPct(propertyType?: string): number {
+  const t = (propertyType || '').toLowerCase();
+  if (/(multi|duplex|triplex|fourplex|4-?plex|2-?4|apartment)/.test(t)) return 28;
+  if (/(condo|townhouse|town_?house|townhome|co-?op|coop)/.test(t)) return 20;
+  if (/(manufactured|mobile)/.test(t)) return 15;
+  return DEFAULT_COST_SEG_PCT;
+}

@@ -4411,6 +4411,12 @@ a:hover { color: var(--primary-dark); }
 }
 
 /* ── Stress test / sensitivity ───────────────────────────────── */
+.results__tax-assumption {
+  margin: 0.85rem 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
 .sensitivity__intro {
   margin: 0.35rem 0 1.25rem;
   color: #64748b;

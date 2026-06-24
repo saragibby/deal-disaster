@@ -103,10 +103,11 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
     setResult(null);
 
     try {
-      // Omit tax/insurance so the server derives them from the home's price +
-      // state (the user can still override afterwards via the expense sliders).
-      const { annualPropertyTax, annualInsurance, ...autoParams } = params;
-      void annualPropertyTax; void annualInsurance;
+      // Omit the server-derived params (tax, insurance, age/type-based reserves
+      // and cost-seg) so the server computes property-aware values; the user can
+      // still override any of them afterwards via the assumption sliders.
+      const { annualPropertyTax, annualInsurance, repairsPct, capexPct, costSegPct, ...autoParams } = params;
+      void annualPropertyTax; void annualInsurance; void repairsPct; void capexPct; void costSegPct;
       const response = await api.runAndSaveAnalysis(url.trim(), autoParams);
       setResult(response);
       setHistoryRefreshKey(k => k + 1);

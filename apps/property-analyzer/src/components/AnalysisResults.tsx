@@ -103,8 +103,13 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     setReanalyzing(true);
     try {
       const payload: Partial<AnalysisParams> = { ...params };
+      // Omit any server-derived param the user hasn't overridden so it re-derives
+      // from the latest property data instead of pinning the stored value.
       if (params.annualPropertyTax === originalParams.annualPropertyTax) delete payload.annualPropertyTax;
       if (params.annualInsurance === originalParams.annualInsurance) delete payload.annualInsurance;
+      if (params.repairsPct === originalParams.repairsPct) delete payload.repairsPct;
+      if (params.capexPct === originalParams.capexPct) delete payload.capexPct;
+      if (params.costSegPct === originalParams.costSegPct) delete payload.costSegPct;
       const updated = await api.reAnalyze(analysis.slug, payload);
       onUpdate(updated);
     } catch (err: any) {
@@ -255,6 +260,21 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   const cashFlowDelta = cashFlow.monthlyCashFlow - baselineCashFlow.monthlyCashFlow;
 
   const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
+
+  // Plain-language explanation of how the age-based repairs/capex reserves were
+  // derived — surfaced in the row's info tooltip.
+  const homeAge = property.yearBuilt && property.yearBuilt > 1800
+    ? new Date().getFullYear() - property.yearBuilt
+    : null;
+  const ageDesc = homeAge != null
+    ? `built ${property.yearBuilt} (~${homeAge} yr${homeAge === 1 ? '' : 's'} old)`
+    : 'an unknown build year';
+  const maintenanceNote = (pct: number, overridden: boolean) =>
+    overridden
+      ? `Your custom override of ${pct}% of monthly rent.`
+      : `Estimated at ${pct}% of monthly rent from the home's age — ${ageDesc}. Newer homes use smaller reserves; older homes larger.`;
+  const repairsNote = maintenanceNote(params.repairsPct, params.repairsPct !== originalParams.repairsPct);
+  const capexNote = maintenanceNote(params.capexPct, params.capexPct !== originalParams.capexPct);
 
   return (
     <div className={`results${skipEntrance ? ' results--no-entrance' : ''}`} ref={resultsRef}>
@@ -581,9 +601,29 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                 : undefined
             }
           />
-          <AdjustableExpenseRow label="Vacancy Reserve" value={fmt(cashFlow.monthlyVacancy)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="Repairs Reserve" value={fmt(cashFlow.monthlyRepairs)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="CapEx Reserve" value={fmt(cashFlow.monthlyCapex)} readOnly={readOnly} onAdjust={openExpenseParams} />
+          <AdjustableExpenseRow
+            label="Vacancy Reserve"
+            value={fmt(cashFlow.monthlyVacancy)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={{ text: params.vacancyPct !== originalParams.vacancyPct ? 'Custom' : 'Estimated', variant: 'estimate' }}
+          />
+          <AdjustableExpenseRow
+            label="Repairs Reserve"
+            value={fmt(cashFlow.monthlyRepairs)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={{ text: params.repairsPct !== originalParams.repairsPct ? 'Custom' : 'Estimated', variant: 'estimate' }}
+            explainerNote={repairsNote}
+          />
+          <AdjustableExpenseRow
+            label="CapEx Reserve"
+            value={fmt(cashFlow.monthlyCapex)}
+            readOnly={readOnly}
+            onAdjust={openExpenseParams}
+            sourceBadge={{ text: params.capexPct !== originalParams.capexPct ? 'Custom' : 'Estimated', variant: 'estimate' }}
+            explainerNote={capexNote}
+          />
           {cashFlow.monthlyManagement > 0 && (
             <AdjustableExpenseRow label="Management" value={fmt(cashFlow.monthlyManagement)} readOnly={readOnly} onAdjust={openExpenseParams} />
           )}
@@ -638,6 +678,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                 <span className="results__tax-hero-caption">Cash flow + tax savings</span>
               </div>
             </div>
+            <p className="results__tax-assumption">
+              Assumes {params.costSegPct}% cost segregation
+              {params.costSegPct === originalParams.costSegPct ? ' (estimated from property type)' : ' (custom)'} at a{' '}
+              {params.taxRate}% marginal tax rate — adjust in assumptions.
+            </p>
           </div>
         </div>
       </div>
@@ -848,14 +893,19 @@ function AdjustableExpenseRow({
   readOnly,
   onAdjust,
   sourceBadge,
+  explainerNote,
 }: {
   label: string;
   value: string;
   readOnly?: boolean;
   onAdjust: () => void;
   sourceBadge?: { text: string; variant: 'api' | 'estimate' };
+  explainerNote?: string;
 }) {
-  const explainer = findExplainer(label);
+  const baseExplainer = findExplainer(label);
+  const explainer = baseExplainer && explainerNote
+    ? { ...baseExplainer, note: explainerNote }
+    : baseExplainer;
   if (readOnly) {
     return <MetricRow label={label} value={value} />;
   }

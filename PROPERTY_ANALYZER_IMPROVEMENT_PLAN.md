@@ -244,12 +244,23 @@ Accuracy work landed so far (single-property results view):
    data and recomputes with the current assumptions via `api.reAnalyze(slug, …)`, omitting any
    tax/insurance the user hasn't overridden so they re-derive. Results refresh in place through a new
    `onUpdate` callback on `AnalysisResults`; the button is hidden in the read-only shared view.
+9. **Property-aware reserves & cost-seg defaults.** Extended `expenseDefaultsService.ts` with
+   `estimateMaintenancePct(yearBuilt)` (repairs/capex scale with the home's age — e.g. ≤10 yrs 6%/6%,
+   26–50 yrs 10%/11%, 50+ yrs 12%/13%) and `estimateCostSegPct(propertyType)` (multifamily 28%,
+   condo/townhome 20%, manufactured 15%, single-family 22.5%). `/run` and `/re-analyze` derive these
+   when the caller doesn't override them; `PropertyAnalyzer.handleAnalyze` now also strips
+   `repairsPct`/`capexPct`/`costSegPct` (alongside tax/insurance) so the server computes them, and
+   the re-analyze handler omits any the user hasn't changed so older analyses self-heal. Vacancy,
+   Repairs and CapEx rows now carry **Estimated/Custom** badges, and the tax-savings panel shows an
+   assumption footnote ("Assumes X% cost segregation … at a Y% marginal rate"). Marginal tax rate
+   stays a transparent user assumption (personal, not property-derivable); vacancy stays a
+   conservative default (no reliable per-market vacancy source) but is now clearly badged.
 
 **Files touched:** `airDnaService.ts`, `propertyAnalyzer.ts`, `investmentAnalysisService.ts`,
 `rentalEstimationService.ts`, `expenseDefaultsService.ts` *(new)*, `shared-types/src/index.ts`,
 `AnalysisResults.tsx`, `PropertyAnalyzer.tsx`, `StrategyComparison.tsx`, `analyzer.css`. **Removed:** `DataConfidenceBanner.tsx`.
-**Still open in Phase 2:** MTR real data source, remaining hardcoded defaults (cost-seg %, marginal
-tax rate, vacancy/repairs/capex %), retire the dead Zillow comps path, prominent break-even surfacing.
+**Still open in Phase 2:** MTR real data source, retire the dead Zillow comps path, prominent
+break-even surfacing.
 
 ---
 

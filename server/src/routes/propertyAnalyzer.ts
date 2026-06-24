@@ -118,6 +118,18 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       insuranceSource = 'actual';
     }
 
+    // Repairs / capex reserves: scale by the home's age when not supplied.
+    if (userParams?.repairsPct == null || userParams?.capexPct == null) {
+      const maint = expenseDefaultsService.estimateMaintenancePct(property.yearBuilt);
+      if (userParams?.repairsPct == null) params.repairsPct = maint.repairsPct;
+      if (userParams?.capexPct == null) params.capexPct = maint.capexPct;
+    }
+
+    // Cost-segregation %: scale by property type when not supplied.
+    if (userParams?.costSegPct == null) {
+      params.costSegPct = expenseDefaultsService.estimateCostSegPct(property.propertyType);
+    }
+
     // HOA fee: prefer API data, then estimate by property type
     let hoaSource: 'zillow' | 'estimate' | 'none' = 'none';
 
@@ -459,6 +471,18 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
     } else {
       newParams.annualInsurance = expenseDefaultsService.estimateAnnualInsurance(property.price, property.state);
       insuranceSource = 'estimate';
+    }
+
+    // Repairs / capex / cost-seg: (re-)derive from the home's age and type when
+    // the caller didn't supply an explicit override, so older saved analyses
+    // self-heal away from the flat legacy defaults.
+    if (bodyParams.repairsPct == null || bodyParams.capexPct == null) {
+      const maint = expenseDefaultsService.estimateMaintenancePct(property.yearBuilt);
+      if (bodyParams.repairsPct == null) newParams.repairsPct = maint.repairsPct;
+      if (bodyParams.capexPct == null) newParams.capexPct = maint.capexPct;
+    }
+    if (bodyParams.costSegPct == null) {
+      newParams.costSegPct = expenseDefaultsService.estimateCostSegPct(property.propertyType);
     }
 
     // Re-estimate rent using stored comps; if none, fetch fresh real comps.
