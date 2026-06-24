@@ -5,6 +5,7 @@ import type {
   RentalEstimate,
   STREstimate,
   MTREstimate,
+  MTRMarketComps,
   ComparableProperty,
   CashFlowBreakdown,
   ROIMetrics,
@@ -18,7 +19,7 @@ import {
   TrendingUp, BarChart3, Info,
   DollarSign, Star, TrendingDown,
   CircleCheck, CircleAlert, CircleMinus,
-  Shield,
+  Shield, MapPin,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import StrategyComparison from './StrategyComparison';
@@ -354,7 +355,7 @@ function MTRPanel({
     monthlyRate, occupancyRate, grossMonthlyRevenue, netMonthlyRevenue,
     utilityCosts, turnoverCosts, platformFees, managementCosts,
     furnishingCosts, demandFactors, source,
-    seasonality, revenueRange,
+    seasonality, revenueRange, marketComps,
   } = mtrEstimate;
 
   const mtrVsLtr = ltrRent > 0 ? ((netMonthlyRevenue - ltrRent) / ltrRent) * 100 : 0;
@@ -453,6 +454,9 @@ function MTRPanel({
 
         {/* Revenue range */}
         <RevenueRange revenueRange={revenueRange} source={source} label="MTR Revenue Range" />
+
+        {/* Furnished Finder comps */}
+        <MTRCompsSection marketComps={marketComps} />
       </div>
 
       {/* MTR Cash Flow */}
@@ -895,6 +899,53 @@ function RevenueRange({ revenueRange, source, label }: {
           <span className="rental-insights__range-label rental-insights__range-label--mid">{fmt(mid)}/mo</span>
           <span className="rental-insights__range-label">{fmt(high)}/mo</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  MTR Furnished Comps (Furnished Finder)                            */
+/* ================================================================== */
+function formatPropertyType(type: string | null): string {
+  if (!type) return '—';
+  return type
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function MTRCompsSection({ marketComps }: { marketComps?: MTRMarketComps }) {
+  if (!marketComps || marketComps.comps.length === 0) return null;
+
+  const { radiusMiles, sampleSize, totalListings, comps } = marketComps;
+
+  return (
+    <div className="rental-insights__deep-section">
+      <h5 className="rental-insights__deep-heading">
+        <MapPin size={13} /> Furnished Comps
+        <span className="rental-insights__badge rental-insights__badge--source">Furnished Finder</span>
+      </h5>
+      <div className="rental-insights__context-pills" style={{ marginBottom: '0.6rem' }}>
+        <span className="rental-insights__pill">Within ~{radiusMiles} mi</span>
+        <span className="rental-insights__pill">{sampleSize} comparable comps</span>
+        <span className="rental-insights__pill">{totalListings} furnished listings nearby</span>
+      </div>
+      <div className="rental-insights__comps-table">
+        <div className="rental-insights__comps-row rental-insights__comps-row--head">
+          <span>Beds</span>
+          <span>Baths</span>
+          <span>Property Type</span>
+          <span className="rental-insights__comps-rate">Rate / mo</span>
+        </div>
+        {comps.map((c, i) => (
+          <div key={i} className="rental-insights__comps-row">
+            <span>{c.bedrooms ?? '—'}</span>
+            <span>{c.bathrooms ?? '—'}</span>
+            <span>{formatPropertyType(c.propertyType)}</span>
+            <span className="rental-insights__comps-rate">{fmt(c.monthlyRate)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

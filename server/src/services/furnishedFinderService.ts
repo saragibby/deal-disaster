@@ -29,7 +29,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PropertyData } from '@deal-platform/shared-types';
+import type { PropertyData, MTRComp } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
 
@@ -40,6 +40,8 @@ const REQUEST_TIMEOUT_MS = 8000;
 const BEDROOM_TOLERANCE = 1;
 /** Minimum comparable comps required to trust the market rate. */
 const MIN_COMPARABLE = 3;
+/** Max comps retained for display (keeps the stored analysis JSON small). */
+const MAX_DISPLAY_COMPS = 15;
 /** Primary and fallback search radii (miles). Thin markets get a wider box. */
 const PRIMARY_RADIUS_MILES = 6;
 const WIDE_RADIUS_MILES = 15;
@@ -90,6 +92,10 @@ export interface MTRMarketData {
   sampleSize: number;
   /** Total furnished listings returned in the searched area. */
   totalListings: number;
+  /** Search radius (miles) the comps were pulled from. */
+  radiusMiles: number;
+  /** The comparable furnished listings (capped for display). */
+  comps: MTRComp[];
 }
 
 interface FFListing {
@@ -184,26 +190,45 @@ async function fetchListings(location: { viewport: unknown }): Promise<FFListing
 }
 
 /** Reduce raw listings to a market signal for a subject with `bedrooms`. */
-function reduceToMarketData(listings: FFListing[], bedrooms: number): MTRMarketData | null {
+function reduceToMarketData(
+  listings: FFListing[],
+  bedrooms: number,
+  radiusMiles: number,
+): MTRMarketData | null {
   const priced = listings
-    .map((l) => ({ rent: parseRent(l), beds: l.bedroomCount }))
-    .filter((l): l is { rent: number; beds: number | null } => l.rent != null);
+    .map((l) => ({ listing: l, rent: parseRent(l) }))
+    .filter((l): l is { listing: FFListing; rent: number } => l.rent != null);
 
   if (priced.length === 0) return null;
 
-  const comparable = priced
-    .filter((l) => l.beds != null && Math.abs((l.beds as number) - bedrooms) <= BEDROOM_TOLERANCE)
-    .map((l) => l.rent)
-    .sort((a, b) => a - b);
+  const comparable = priced.filter(
+    (l) =>
+      l.listing.bedroomCount != null &&
+      Math.abs(l.listing.bedroomCount - bedrooms) <= BEDROOM_TOLERANCE,
+  );
 
   if (comparable.length < MIN_COMPARABLE) return null;
 
+  const rents = comparable.map((l) => l.rent).sort((a, b) => a - b);
+
+  const comps: MTRComp[] = comparable
+    .map((l) => ({
+      bedrooms: l.listing.bedroomCount,
+      bathrooms: l.listing.bathroomCount,
+      propertyType: l.listing.propertyType,
+      monthlyRate: l.rent,
+    }))
+    .sort((a, b) => a.monthlyRate - b.monthlyRate)
+    .slice(0, MAX_DISPLAY_COMPS);
+
   return {
-    monthlyRate: percentile(comparable, 0.5),
-    low: percentile(comparable, 0.25),
-    high: percentile(comparable, 0.75),
+    monthlyRate: percentile(rents, 0.5),
+    low: percentile(rents, 0.25),
+    high: percentile(rents, 0.75),
     sampleSize: comparable.length,
     totalListings: priced.length,
+    radiusMiles,
+    comps,
   };
 }
 
@@ -238,12 +263,12 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
 
   // Primary (~6mi) box.
   let listings = await fetchListings(viewportFromRadius(latitude, longitude, PRIMARY_RADIUS_MILES));
-  let market = listings ? reduceToMarketData(listings, beds) : null;
+  let market = listings ? reduceToMarketData(listings, beds, PRIMARY_RADIUS_MILES) : null;
 
   // Thin market? Widen the box once (~15mi).
   if (!market) {
     listings = await fetchListings(viewportFromRadius(latitude, longitude, WIDE_RADIUS_MILES));
-    market = listings ? reduceToMarketData(listings, beds) : null;
+    market = listings ? reduceToMarketData(listings, beds, WIDE_RADIUS_MILES) : null;
   }
 
   setCache(cacheKey, market);

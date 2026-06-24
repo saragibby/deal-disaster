@@ -472,6 +472,22 @@ export interface MTRRevenueRange {
   high: number;
 }
 
+/** A single furnished comparable pulled from a real MTR marketplace. */
+export interface MTRComp {
+  bedrooms: number | null;
+  bathrooms: number | null;
+  propertyType: string | null;
+  monthlyRate: number;            // furnished monthly rent, USD
+}
+
+/** Real furnished comps + the area they were pulled from (e.g. Furnished Finder). */
+export interface MTRMarketComps {
+  radiusMiles: number;            // search radius used to gather comps
+  sampleSize: number;             // bedroom-matched comps used for the rate
+  totalListings: number;          // total furnished listings found in the area
+  comps: MTRComp[];               // comparable listings (capped for display)
+}
+
 export interface MTREstimate {
   monthlyRate: number;
   furnishedPremium: number;       // multiplier over LTR, e.g. 1.35
@@ -490,6 +506,8 @@ export interface MTREstimate {
   source: 'algorithm' | 'furnished-finder' | 'padsplit';
   seasonality?: MTRSeasonalityMonth[];
   revenueRange?: MTRRevenueRange;
+  /** Real furnished comps from a marketplace (present when source !== algorithm). */
+  marketComps?: MTRMarketComps;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -5539,6 +5539,47 @@ a:hover { color: var(--primary-dark); }
   white-space: nowrap;
 }
 
+/* ── Furnished comps table (MTR / Furnished Finder) ── */
+.rental-insights__comps-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rental-insights__comps-row {
+  display: grid;
+  grid-template-columns: 0.6fr 0.6fr 1.6fr 0.9fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+.rental-insights__comps-row:first-child {
+  border-top: none;
+}
+.rental-insights__comps-row:nth-child(even) {
+  background: var(--bg);
+}
+.rental-insights__comps-row--head {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  background: var(--bg);
+}
+.rental-insights__comps-rate {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rental-insights__comps-row--head .rental-insights__comps-rate {
+  font-weight: 700;
+}
+
 /* ── Market Trend Badge ── */
 .strategy-comparison__market-trend {
   display: flex;

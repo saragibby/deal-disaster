@@ -190,6 +190,16 @@ export function estimateMTR(
         high: Math.round(grossMonthlyRevenue * 1.15),
       };
 
+  // Surface the real furnished comps (and the area they came from) for the UI.
+  const marketComps = marketData
+    ? {
+        radiusMiles: marketData.radiusMiles,
+        sampleSize: marketData.sampleSize,
+        totalListings: marketData.totalListings,
+        comps: marketData.comps,
+      }
+    : undefined;
+
   return {
     monthlyRate,
     furnishedPremium: Math.round(premium * 100) / 100,
@@ -208,6 +218,7 @@ export function estimateMTR(
     source,
     seasonality: buildMTRSeasonality(monthlyRate, occupancy),
     revenueRange,
+    marketComps,
   };
 }
 
