@@ -5685,3 +5685,156 @@ a:hover { color: var(--primary-dark); }
     grid-column: span 2;
   }
 }
+
+/* ================================================================== */
+/*  Rental strategy selection + strategy-aware cash flow              */
+/* ================================================================== */
+
+.strategy-comparison__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: -0.25rem 0 0.75rem;
+}
+
+.strategy-comparison__card--selectable {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.strategy-comparison__card--selectable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+}
+.strategy-comparison__card--selected {
+  box-shadow: 0 0 0 2px var(--primary, #2563eb);
+  border-top-width: 3px;
+}
+.strategy-comparison__card--ltr.strategy-comparison__card--selected { box-shadow: 0 0 0 2px #3b82f6; }
+.strategy-comparison__card--mtr.strategy-comparison__card--selected { box-shadow: 0 0 0 2px #10b981; }
+.strategy-comparison__card--str.strategy-comparison__card--selected { box-shadow: 0 0 0 2px #8b5cf6; }
+.strategy-comparison__card--best.strategy-comparison__card--selected { box-shadow: 0 0 0 2px currentColor, 0 0 0 4px rgba(234, 179, 8, 0.4); }
+
+.strategy-comparison__selected-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--success, #16a34a);
+  color: #fff;
+}
+.strategy-comparison__revenue-monthly--neg { color: var(--danger, #dc2626); }
+.strategy-comparison__bar-fill--neg { background: linear-gradient(90deg, #ef4444, #f87171) !important; }
+.strategy-comparison__bar-value--neg { color: var(--danger, #dc2626); }
+
+/* Strategy badge on card titles + print header */
+.results__strategy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  margin-left: auto;
+  color: #fff;
+}
+.results__strategy-badge--ltr { background: #3b82f6; }
+.results__strategy-badge--mtr { background: #10b981; }
+.results__strategy-badge--str { background: #8b5cf6; }
+
+.results__line-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0.5rem;
+}
+
+/* Break-even row */
+.results__breakeven {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.results__breakeven-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.results__breakeven-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* Upfront furnished investment */
+.results__upfront {
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+}
+.results__upfront-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+.results__upfront-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 0.2rem 0;
+  color: var(--text);
+}
+
+/* Furnished params divider in the loan calculator */
+.loan-calc__params-divider {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Folded strategy details (left card) */
+.strategy-details {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.strategy-details__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
+.analysis-print-header__strategy {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0;
+}

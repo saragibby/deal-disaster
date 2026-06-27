@@ -10,6 +10,7 @@ import type {
   ROIMetrics,
   FullAnalysisResult,
   MarketStatistics,
+  RentalStrategy,
 } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
@@ -95,7 +96,7 @@ export function RentalSummaryStrip({
       <button
         type="button"
         className={`rental-tabs__summary-card rental-tabs__summary-card--signal-${bestSignal}`}
-        onClick={() => scrollTo('strategy-tabs')}
+        onClick={() => scrollTo('rental-strategy')}
         title={`${best.key} strategy yields ${fmt(best.net)}/mo net — click to see all strategy details`}
       >
         <span className="rental-tabs__summary-value">{best.key}</span>
@@ -109,7 +110,7 @@ export function RentalSummaryStrip({
         <button
           type="button"
           className={`rental-tabs__summary-card rental-tabs__summary-card--signal-${demandSignal}`}
-          onClick={() => scrollTo('strategy-tabs')}
+          onClick={() => scrollTo('rental-strategy')}
           title={`MTR demand score ${demandScore}/100 — ${demandSignal === 'good' ? 'strong demand for mid-term rentals' : demandSignal === 'fair' ? 'moderate demand' : 'low demand area'}`}
         >
           <span className="rental-tabs__summary-value">{demandScore}/100</span>
@@ -242,6 +243,126 @@ export default function RentalTabs({
 export { StrategyComparison };
 export { DemandIndicators };
 export { MarketTrendChart };
+
+/* ================================================================== */
+/*  Strategy Details — folded deep-dive for the selected strategy      */
+/* ================================================================== */
+export function StrategyDetails({
+  strategy, mtrEstimate, strEstimate, dataSources,
+}: {
+  strategy: RentalStrategy;
+  mtrEstimate?: MTREstimate;
+  strEstimate?: STREstimate;
+  dataSources?: FullAnalysisResult['dataSources'];
+}) {
+  if (strategy === 'mtr' && mtrEstimate) {
+    const { furnishingCosts, demandFactors, source, seasonality, revenueRange } = mtrEstimate;
+    const demandColor = demandFactors.overallScore >= 75
+      ? 'rental-insights__demand-badge--green'
+      : demandFactors.overallScore >= 50
+        ? 'rental-insights__demand-badge--yellow'
+        : 'rental-insights__demand-badge--red';
+    return (
+      <div className="strategy-details">
+        <h4 className="strategy-details__heading">
+          <Building2 size={15} /> Mid-Term Rental Details
+        </h4>
+
+        <div className="rental-insights__mtr-furnishing">
+          <span>Furnishing: <strong>{fmt(furnishingCosts.totalCost)}</strong> ({furnishingCosts.quality} quality)</span>
+          <span className="rental-insights__dot">·</span>
+          <span>Amortized: <strong>{fmt(furnishingCosts.amortizedMonthly)}/mo</strong> over {furnishingCosts.usefulLifeYears} yrs</span>
+        </div>
+
+        <div className="rental-insights__mtr-demand">
+          <TermExplainer info={findExplainer('MTR Demand Score')!} />
+          <span className={`rental-insights__demand-badge ${demandColor}`}>
+            MTR Demand Score: {demandFactors.overallScore}/100
+          </span>
+        </div>
+
+        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="rental-insights__deep-section">
+            <h5 className="rental-insights__deep-heading">Demand Breakdown</h5>
+            <div className="rental-insights__context-pills">
+              <DemandPill label="Bedroom Score" score={demandFactors.bedroomScore} />
+              <DemandPill label="Property Type Score" score={demandFactors.propertyTypeScore} />
+            </div>
+          </div>
+
+          {demandFactors.nearbyInstitutions && demandFactors.nearbyInstitutions.length > 0 && (
+            <div className="rental-insights__deep-section">
+              <h5 className="rental-insights__deep-heading">
+                <Building2 size={13} /> Nearby Institutions
+              </h5>
+              <div className="rental-insights__institutions-grid">
+                {demandFactors.nearbyInstitutions.map((inst, i) => (
+                  <div key={i} className="rental-insights__institution-row">
+                    <span className="rental-insights__institution-emoji">{inst.emoji}</span>
+                    <span className="rental-insights__institution-name">{inst.name}</span>
+                    {inst.miles > 0 && (
+                      <span className="rental-insights__institution-miles">{inst.miles} mi</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <SeasonalityChart
+            seasonality={seasonality}
+            source={dataSources?.mtr || source}
+            label="MTR Monthly Revenue Seasonality"
+            barColors={{ best: '#22c55e', worst: '#f59e0b', default: '#0d9488' }}
+          />
+          <RevenueRange revenueRange={revenueRange} source={dataSources?.mtr || source} label="MTR Revenue Range" />
+        </div>
+      </div>
+    );
+  }
+
+  if (strategy === 'str' && strEstimate) {
+    const { source, seasonality, revenueRange, marketContext } = strEstimate;
+    return (
+      <div className="strategy-details">
+        <h4 className="strategy-details__heading">
+          <Sparkles size={15} /> Short-Term Rental Details
+        </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <SeasonalityChart
+            seasonality={seasonality}
+            source={dataSources?.str || source}
+            label="Monthly Revenue Seasonality"
+            barColors={{ best: '#22c55e', worst: '#f59e0b', default: '#8b5cf6' }}
+          />
+          <RevenueRange revenueRange={revenueRange} source={dataSources?.str || source} label="Revenue Range" />
+          {marketContext && (
+            <div className="rental-insights__deep-section">
+              <h5 className="rental-insights__deep-heading">Market Context</h5>
+              <div className="rental-insights__context-pills">
+                <span className="rental-insights__pill">
+                  <Building2 size={13} /> {marketContext.activeListings.toLocaleString()} active listings
+                </span>
+                {marketContext.avgRating != null && (
+                  <span className="rental-insights__pill">
+                    <Star size={13} /> {marketContext.avgRating.toFixed(1)}★ avg rating
+                  </span>
+                )}
+                {marketContext.supplyGrowth != null && (
+                  <span className="rental-insights__pill">
+                    <TrendingDown size={13} /> {marketContext.supplyGrowth > 0 ? '+' : ''}{(marketContext.supplyGrowth * 100).toFixed(0)}% supply YoY
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
 
 /* ================================================================== */
 /*  LTR Panel                                                          */
