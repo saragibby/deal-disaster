@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
+import type { PropertyAnalysis, AnalysisParams, RentalStrategy, StrategyCashFlow, MortgageBreakdown, CashFlowBreakdown } from '@deal-platform/shared-types';
 import { api } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
-  Coins, Share2, Download, Lock, Globe, Pencil,
+  Coins, Share2, Download, Lock, Globe, Pencil, Sparkles, Gauge,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
-import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart } from './RentalTabs';
+import { RentalSummaryStrip, StrategyComparison, DemandIndicators, MarketTrendChart, StrategyDetails } from './RentalTabs';
 import ROIScorecard from './ROIScorecard';
 import WealthProjection from './FiveYearProjection';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
@@ -18,10 +18,36 @@ import TermExplainer, { findExplainer } from './TermExplainer';
 import useExportAnalysis from '../hooks/useExportAnalysis';
 import {
   calculateMortgage,
-  calculateCashFlow,
-  calculateROI,
+  calculateStrategyCashFlow,
+  calculateStrategyROI,
   calculateTaxSavings,
+  deriveFurnishedDefaults,
 } from '../utils/calculations';
+
+const STRATEGY_META: Record<RentalStrategy, { label: string; full: string; icon: React.ReactNode }> = {
+  ltr: { label: 'Long-Term', full: 'Long-Term Rental', icon: <Home size={16} /> },
+  mtr: { label: 'Mid-Term', full: 'Mid-Term Rental', icon: <Building2 size={16} /> },
+  str: { label: 'Short-Term', full: 'Short-Term Rental', icon: <Sparkles size={16} /> },
+};
+
+/** Maps a generic StrategyCashFlow into the legacy CashFlowBreakdown shape WealthProjection expects. */
+function strategyToCashFlowBreakdown(scf: StrategyCashFlow, mortgage: MortgageBreakdown): CashFlowBreakdown {
+  const pick = (key: string) => scf.expenseLines.find(l => l.key === key)?.amount ?? 0;
+  return {
+    monthlyRent: scf.monthlyIncome,
+    monthlyMortgage: mortgage.monthlyPayment,
+    monthlyTax: pick('tax'),
+    monthlyInsurance: pick('insurance'),
+    monthlyHoa: pick('hoa'),
+    monthlyVacancy: pick('vacancy'),
+    monthlyRepairs: pick('repairs'),
+    monthlyCapex: pick('capex'),
+    monthlyManagement: pick('management'),
+    totalMonthlyExpenses: scf.totalMonthlyExpenses,
+    monthlyCashFlow: scf.monthlyCashFlow,
+    annualCashFlow: scf.annualCashFlow,
+  };
+}
 
 interface Props {
   analysis: PropertyAnalysis;
@@ -89,6 +115,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
   });
   const [showAllParams, setShowAllParams] = useState(false);
   const [showOfferSlider, setShowOfferSlider] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<RentalStrategy>('ltr');
   const offerRef = useRef<HTMLDivElement>(null);
 
   // Open expense params panel and scroll to it
@@ -141,7 +168,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
   const priceDelta = effectivePrice - property.price;
   const priceDeltaPct = ((priceDelta / property.price) * 100).toFixed(1);
 
-  const { mortgage, cashFlow, roi, tax } = useMemo(() => {
+  const { mortgage, scfByStrategy } = useMemo(() => {
     const price = params.offerPrice > 0 ? params.offerPrice : property.price;
     const m = calculateMortgage(
       price,
@@ -149,22 +176,65 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
       params.interestRate,
       params.loanTermYears,
     );
-    const cf = calculateCashFlow(params.rentOverride || rental.mid, m, params);
-    const r = calculateROI(price, cf, m);
-    const t = calculateTaxSavings(
-      price,
+    const ctx = {
+      mortgage: m,
+      params,
+      ltrRent: params.rentOverride || rental.mid,
+      bedrooms: property.bedrooms,
+      mtrEstimate: results.mtrEstimate,
+      strEstimate: results.strEstimate,
+    };
+    const scf: Record<RentalStrategy, StrategyCashFlow | undefined> = {
+      ltr: calculateStrategyCashFlow('ltr', ctx),
+      mtr: results.mtrEstimate ? calculateStrategyCashFlow('mtr', ctx) : undefined,
+      str: results.strEstimate ? calculateStrategyCashFlow('str', ctx) : undefined,
+    };
+    return { mortgage: m, scfByStrategy: scf };
+  }, [params, property.price, property.bedrooms, rental.mid, results.mtrEstimate, results.strEstimate]);
+
+  const selectedScf = scfByStrategy[selectedStrategy] ?? scfByStrategy.ltr!;
+
+  const roi = useMemo(
+    () => calculateStrategyROI(effectivePrice, selectedScf, mortgage),
+    [effectivePrice, selectedScf, mortgage],
+  );
+  const tax = useMemo(
+    () => calculateTaxSavings(
+      effectivePrice,
       params.costSegPct,
       params.taxRate,
-      r.totalCashInvested,
-      cf.annualCashFlow,
-    );
-    return { mortgage: m, cashFlow: cf, roi: r, tax: t };
-  }, [params, property.price, rental.mid]);
+      roi.totalCashInvested,
+      selectedScf.annualCashFlow,
+    ),
+    [effectivePrice, params.costSegPct, params.taxRate, roi.totalCashInvested, selectedScf.annualCashFlow],
+  );
+
+  // Net monthly cash flow per available strategy (drives the comparison cards).
+  const netByStrategy = useMemo(() => {
+    const out: Partial<Record<RentalStrategy, number>> = {};
+    (Object.keys(scfByStrategy) as RentalStrategy[]).forEach(k => {
+      const s = scfByStrategy[k];
+      if (s) out[k] = s.monthlyCashFlow;
+    });
+    return out;
+  }, [scfByStrategy]);
+
+  // Adapter so WealthProjection (expects CashFlowBreakdown) reflects the selection.
+  const cashFlow = useMemo(() => strategyToCashFlowBreakdown(selectedScf, mortgage), [selectedScf, mortgage]);
 
   const effectiveRent = params.rentOverride || rental.mid;
   const rentAdjusted = effectiveRent !== rental.mid;
 
-  const cashFlowPositive = cashFlow.monthlyCashFlow >= 0;
+  const isFurnishedStrategy = selectedStrategy === 'mtr' || selectedStrategy === 'str';
+  const furnishedDefaults = useMemo(
+    () => deriveFurnishedDefaults(selectedStrategy, params, {
+      bedrooms: property.bedrooms,
+      mtrEstimate: results.mtrEstimate,
+    }),
+    [selectedStrategy, params, property.bedrooms, results.mtrEstimate],
+  );
+
+  const cashFlowPositive = selectedScf.monthlyCashFlow >= 0;
 
   return (
     <div className={`results${skipEntrance ? ' results--no-entrance' : ''}`} ref={resultsRef}>
@@ -179,6 +249,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
           </span>
         </div>
         <p className="analysis-print-header__address">{property.address}, {property.city}, {property.state} {property.zip}</p>
+        <p className="analysis-print-header__strategy">Strategy: {STRATEGY_META[selectedStrategy].full}</p>
       </div>
 
       {/* Action toolbar */}
@@ -321,11 +392,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
 
       {/* Two column grid */}
       <div className="results__grid results__section">
-        {/* Rental Estimate Card */}
-        <div className="results__card results__section">
+        {/* Strategy Decision Card */}
+        <div id="rental-strategy" className="results__card results__section">
           <h3 className="results__card-title">
             <span className="results__icon results__icon--blue">🏘️</span>
-            Rental Estimate
+            Choose Your Rental Strategy
           </h3>
 
           <div className="results__rent-compact">
@@ -377,6 +448,9 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             rentalEstimate={rental}
             dataSources={results.dataSources}
             marketStatistics={results.marketStatistics}
+            netByStrategy={netByStrategy}
+            selected={selectedStrategy}
+            onSelect={setSelectedStrategy}
           />
           <DemandIndicators
             property={property}
@@ -384,13 +458,25 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             effectiveRent={effectiveRent}
           />
           <MarketTrendChart zip={property.zip} />
+
+          {/* Folded deep-dive detail for the selected strategy */}
+          <StrategyDetails
+            strategy={selectedStrategy}
+            mtrEstimate={results.mtrEstimate}
+            strEstimate={results.strEstimate}
+            dataSources={results.dataSources}
+          />
         </div>
 
-        {/* Cash Flow Card */}
+        {/* Cash Flow Card — reflects the selected strategy */}
         <div id="cash-flow" className="results__card results__section">
           <h3 className="results__card-title">
             <span className="results__icon results__icon--green">💵</span>
             Cash Flow Analysis
+            <span className={`results__strategy-badge results__strategy-badge--${selectedStrategy}`}>
+              {STRATEGY_META[selectedStrategy].icon}
+              {STRATEGY_META[selectedStrategy].full}
+            </span>
           </h3>
           {!readOnly && (
             <p className="results__adjust-hint">
@@ -399,39 +485,72 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             </p>
           )}
 
-          <MetricRow label="Monthly Rent Income" value={fmt(cashFlow.monthlyRent)} positive />
-          <AdjustableExpenseRow label="Mortgage (P&I)" value={fmt(cashFlow.monthlyMortgage)} readOnly={readOnly} onAdjust={scrollToLoanCalc} />
-          <AdjustableExpenseRow label="Property Tax" value={fmt(cashFlow.monthlyTax)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="Insurance" value={fmt(cashFlow.monthlyInsurance)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow
-            label="HOA Fees"
-            value={fmt(cashFlow.monthlyHoa)}
-            readOnly={readOnly}
-            onAdjust={openExpenseParams}
-            sourceBadge={
-              results.dataSources?.hoa === 'zillow'
-                ? { text: 'From Zillow', variant: 'api' }
-                : results.dataSources?.hoa === 'estimate'
-                ? { text: 'Estimated', variant: 'estimate' }
-                : undefined
-            }
-          />
-          <AdjustableExpenseRow label="Vacancy Reserve" value={fmt(cashFlow.monthlyVacancy)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="Repairs Reserve" value={fmt(cashFlow.monthlyRepairs)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          <AdjustableExpenseRow label="CapEx Reserve" value={fmt(cashFlow.monthlyCapex)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          {cashFlow.monthlyManagement > 0 && (
-            <AdjustableExpenseRow label="Management" value={fmt(cashFlow.monthlyManagement)} readOnly={readOnly} onAdjust={openExpenseParams} />
-          )}
+          {selectedScf.incomeLines.map(line => (
+            <div key={line.key}>
+              <MetricRow label={line.label} value={fmt(line.amount)} positive />
+              {line.note && <p className="results__line-note">{line.note}</p>}
+            </div>
+          ))}
+
+          {selectedScf.expenseLines.map(line => {
+            const onAdjust = line.key === 'mortgage' ? scrollToLoanCalc : openExpenseParams;
+            const sourceBadge = line.key === 'hoa'
+              ? (results.dataSources?.hoa === 'zillow'
+                  ? { text: 'From Zillow', variant: 'api' as const }
+                  : results.dataSources?.hoa === 'estimate'
+                  ? { text: 'Estimated', variant: 'estimate' as const }
+                  : undefined)
+              : line.badge
+              ? { text: line.badge, variant: 'estimate' as const }
+              : undefined;
+            return (
+              <AdjustableExpenseRow
+                key={line.key}
+                label={line.label}
+                value={fmt(line.amount)}
+                readOnly={readOnly}
+                onAdjust={onAdjust}
+                sourceBadge={sourceBadge}
+              />
+            );
+          })}
 
           <div className="results__big-number" style={{ marginTop: '0.75rem' }}>
             <div className="results__big-label">Monthly Cash Flow</div>
             <div className={`results__big-value ${cashFlowPositive ? 'results__big-value--positive' : 'results__big-value--negative'}`}>
-              {fmt(cashFlow.monthlyCashFlow)}
+              {fmt(selectedScf.monthlyCashFlow)}
             </div>
             <div className="results__big-caption">
-              {fmt(cashFlow.annualCashFlow)}/year after all expenses
+              {fmt(selectedScf.annualCashFlow)}/year after all expenses
             </div>
           </div>
+
+          {/* Break-even */}
+          <div className="results__breakeven">
+            <span className="results__breakeven-label">
+              <Gauge size={14} />
+              {selectedStrategy === 'ltr' ? 'Break-Even Rent' : 'Break-Even Revenue'}
+            </span>
+            <span className="results__breakeven-value">{fmt(selectedScf.breakEvenIncome)}/mo</span>
+          </div>
+
+          {/* Upfront furnished investment (MTR / STR) */}
+          {selectedScf.cashInvestedLines.length > 0 && (
+            <div className="results__upfront">
+              <h4 className="results__upfront-title">
+                <Coins size={14} /> Upfront Furnished Investment
+              </h4>
+              {selectedScf.cashInvestedLines.map(line => (
+                <div key={line.key} className="results__upfront-row">
+                  <span>{line.label}</span>
+                  <span>{fmt(line.amount)}</span>
+                </div>
+              ))}
+              <p className="results__line-note">
+                One-time costs are included in cash invested and reduce cash-on-cash ROI.
+              </p>
+            </div>
+          )}
 
           <ROIScorecard roi={roi} />
 
@@ -463,6 +582,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
                 <span className="results__tax-hero-caption">Cash flow + tax savings</span>
               </div>
             </div>
+            <p className="results__line-note">Property cost segregation only — excludes furniture/appliance depreciation.</p>
           </div>
         </div>
       </div>
@@ -472,6 +592,10 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
         <h3 className="results__card-title">
           <span className="results__icon results__icon--blue">📈</span>
           Wealth Projection
+          <span className={`results__strategy-badge results__strategy-badge--${selectedStrategy}`}>
+            {STRATEGY_META[selectedStrategy].icon}
+            {STRATEGY_META[selectedStrategy].full}
+          </span>
         </h3>
         <WealthProjection
           purchasePrice={effectivePrice}
@@ -479,22 +603,6 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
           mortgage={mortgage}
           roi={roi}
           vacancyPct={params.vacancyPct}
-        />
-      </div>
-
-      {/* Rental Strategy Tabs — full width */}
-      <div id="strategy-tabs" className="results__section">
-        <RentalTabs
-          property={property}
-          rental={rental}
-          strEstimate={results.strEstimate}
-          mtrEstimate={results.mtrEstimate}
-          comparables={results.comparables}
-          effectiveRent={effectiveRent}
-          cashFlow={cashFlow}
-          roi={roi}
-          dataSources={results.dataSources}
-          marketStatistics={results.marketStatistics}
         />
       </div>
 
@@ -619,6 +727,18 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly }: Pr
             )}
             <SliderInput label="Cost Seg" value={params.costSegPct} onChange={v => updateParam('costSegPct', v)} min={10} max={35} step={0.5} suffix="%" />
             <SliderInput label="Tax Rate" value={params.taxRate} onChange={v => updateParam('taxRate', v)} min={0} max={50} step={1} suffix="%" />
+            {isFurnishedStrategy && (
+              <>
+                <div className="loan-calc__params-divider">
+                  {STRATEGY_META[selectedStrategy].full} furnished costs
+                </div>
+                <SliderInput label="Furnishing" value={furnishedDefaults.furnishingCost} onChange={v => updateParam('furnishingCost', v)} min={0} max={60000} step={500} suffix="" isCurrency />
+                <SliderInput label="Appliances" value={furnishedDefaults.applianceCost} onChange={v => updateParam('applianceCost', v)} min={0} max={20000} step={250} suffix="" isCurrency />
+                <SliderInput label="Furnishing Life" value={furnishedDefaults.furnishingLifeYears} onChange={v => updateParam('furnishingLifeYears', v)} min={1} max={15} step={1} suffix=" yrs" />
+                <SliderInput label="Furniture & Appliance Repair" value={furnishedDefaults.furnitureRepairMonthly} onChange={v => updateParam('furnitureRepairMonthly', v)} min={0} max={1000} step={10} suffix="/mo" isCurrency />
+                <SliderInput label="Cleaning Service" value={furnishedDefaults.cleaningMonthly} onChange={v => updateParam('cleaningMonthly', v)} min={0} max={2000} step={25} suffix="/mo" isCurrency />
+              </>
+            )}
           </div>
         )}
       </div>
