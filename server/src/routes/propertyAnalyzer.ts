@@ -364,7 +364,7 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-                analysis_results, rental_comps, is_shared, created_at
+                analysis_results, rental_comps, user_overrides, is_shared, created_at
          FROM property_analyses
          WHERE user_id = $1
          ORDER BY created_at DESC
@@ -394,7 +394,7 @@ router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Re
   try {
     const result = await pool.query(
       `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-              analysis_results, rental_comps, is_shared, created_at
+              analysis_results, rental_comps, user_overrides, is_shared, created_at
        FROM property_analyses WHERE slug = $1 AND user_id = $2`,
       [req.params.slug, req.userId],
     );
@@ -616,6 +616,7 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       analysis_params: newParams,
       analysis_results: results,
       rental_comps: rentalEstimate.comps || [],
+      user_overrides: row.user_overrides ?? null,
       created_at: saved.created_at,
     });
   } catch (err: any) {
@@ -647,6 +648,71 @@ router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest,
     res.json(result.rows[0]);
   } catch (err: any) {
     console.error('[analyzer/share]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /history/:slug/overrides ───────────────────────────────────────
+// Persist user-made fine-tuning (operating costs, revenue, furniture/appliances,
+// selected strategy, changed params). Lightweight — no external data fetch.
+// The client sends its already-computed derived figures, which are merged into
+// the stored analysis_results so the values flow into property comparisons.
+// Gross revenue is left RAW; only net figures are updated so a reload recomputes
+// identically from the raw gross + overrides (no double-counting).
+router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { overrides, derived } = req.body as {
+      overrides?: Record<string, unknown>;
+      derived?: {
+        cashFlow?: unknown;
+        roi?: unknown;
+        strategyComparison?: unknown;
+        strNet?: number | null;
+        mtrNet?: number | null;
+      };
+    };
+
+    if (overrides == null || typeof overrides !== 'object') {
+      return res.status(400).json({ error: '"overrides" must be an object.' });
+    }
+
+    const existing = await pool.query(
+      `SELECT analysis_results FROM property_analyses WHERE slug = $1 AND user_id = $2`,
+      [req.params.slug, req.userId],
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    const results = existing.rows[0].analysis_results || {};
+    const d = derived || {};
+
+    if (d.cashFlow != null) results.cashFlow = d.cashFlow;
+    if (d.roi != null) results.roi = d.roi;
+    if (d.strategyComparison != null) results.strategyComparison = d.strategyComparison;
+    if (d.strNet != null && results.strEstimate) {
+      results.strEstimate.netMonthlyRevenue = d.strNet;
+    }
+    if (d.mtrNet != null && results.mtrEstimate) {
+      results.mtrEstimate.netMonthlyRevenue = d.mtrNet;
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE property_analyses
+       SET analysis_results = $1, user_overrides = $2
+       WHERE slug = $3 AND user_id = $4
+       RETURNING slug`,
+      [JSON.stringify(results), JSON.stringify(overrides), req.params.slug, req.userId],
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[analyzer/overrides]', err.message);
     res.status(500).json({ error: err.message });
   }
 });

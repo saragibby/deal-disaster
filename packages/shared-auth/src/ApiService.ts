@@ -520,6 +520,25 @@ export class ApiService {
     );
   }
 
+  async saveAnalysisAdjustments(
+    slug: string,
+    payload: {
+      overrides: Record<string, any>;
+      derived?: {
+        cashFlow?: any;
+        roi?: any;
+        strategyComparison?: any;
+        strNet?: number | null;
+        mtrNet?: number | null;
+      };
+    },
+  ) {
+    return this.fetchJson<{ success: boolean }>(
+      `/api/analyzer/history/${encodeURIComponent(slug)}/overrides`,
+      { method: 'PATCH', auth: true, body: JSON.stringify(payload) },
+    );
+  }
+
   async getSharedAnalysis(slug: string) {
     return this.fetchJson<{ analysis: any }>(`/api/analyzer/shared/${encodeURIComponent(slug)}`);
   }

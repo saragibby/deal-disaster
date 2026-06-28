@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { DealVerdict } from '@deal-platform/shared-types';
-import { CheckCircle2, AlertTriangle, ShieldAlert, Minus, MessageCircleQuestion } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ShieldAlert, Minus, MessageCircleQuestion, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   verdict: DealVerdict;
@@ -21,6 +22,7 @@ function ReasonIcon({ impact }: { impact: 'positive' | 'neutral' | 'negative' })
 
 export default function DealVerdictCard({ verdict, address }: Props) {
   const meta = RATING_META[verdict.rating];
+  const [expanded, setExpanded] = useState(true);
 
   const askWill = () => {
     const question = address
@@ -31,7 +33,7 @@ export default function DealVerdictCard({ verdict, address }: Props) {
 
   return (
     <div className={`deal-verdict deal-verdict--${verdict.rating}`}>
-      <div className="deal-verdict__main">
+      <div className="deal-verdict__header">
         <div className="deal-verdict__badge">
           <span className="deal-verdict__icon">{meta.icon}</span>
           <div className="deal-verdict__badge-text">
@@ -39,28 +41,45 @@ export default function DealVerdictCard({ verdict, address }: Props) {
             <span className="deal-verdict__score">Deal score {verdict.score}/100</span>
           </div>
         </div>
-        <p className="deal-verdict__headline">{verdict.headline}</p>
-        <button type="button" className="deal-verdict__ask no-print" onClick={askWill}>
-          <MessageCircleQuestion size={15} />
-          Ask Will to explain this verdict
-        </button>
+        <div className="deal-verdict__header-actions no-print">
+          <button type="button" className="deal-verdict__ask" onClick={askWill}>
+            <MessageCircleQuestion size={15} />
+            Ask Will to explain this verdict
+          </button>
+          <button
+            type="button"
+            className="deal-verdict__toggle"
+            onClick={() => setExpanded((e) => !e)}
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Collapse details' : 'Expand details'}
+            title={expanded ? 'Collapse details' : 'Expand details'}
+          >
+            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+        </div>
       </div>
 
-      {verdict.reasons.length > 0 && (
-        <ul className="deal-verdict__reasons">
-          {verdict.reasons.map((r) => (
-            <li key={r.code} className={`deal-verdict__reason deal-verdict__reason--${r.impact}`}>
-              <ReasonIcon impact={r.impact} />
-              <span>{r.label}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {expanded && (
+        <>
+          <p className="deal-verdict__headline">{verdict.headline}</p>
 
-      <p className="deal-verdict__disclaimer">
-        Rules-based summary of the numbers below — not financial advice. Adjust the assumptions to see
-        how the verdict changes.
-      </p>
+          {verdict.reasons.length > 0 && (
+            <ul className="deal-verdict__reasons">
+              {verdict.reasons.map((r) => (
+                <li key={r.code} className={`deal-verdict__reason deal-verdict__reason--${r.impact}`}>
+                  <ReasonIcon impact={r.impact} />
+                  <span>{r.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="deal-verdict__disclaimer">
+            Rules-based summary of the numbers below — not financial advice. Adjust the assumptions to see
+            how the verdict changes.
+          </p>
+        </>
+      )}
     </div>
   );
 }

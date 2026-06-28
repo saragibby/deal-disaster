@@ -3,6 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot, Line,
 } from 'recharts';
+import { TrendingUp } from 'lucide-react';
 import type { CashFlowBreakdown, MortgageBreakdown, ROIMetrics } from '@deal-platform/shared-types';
 import TermExplainer, { findExplainer } from './TermExplainer';
 
@@ -228,9 +229,19 @@ export default function WealthProjection({
         ? 'wealth-projection__metric-value--yellow'
         : 'wealth-projection__metric-value--red';
 
+  // Negative cash flow means you keep feeding the property money on top of the
+  // initial investment — surface the true cumulative cash outlay.
+  const isNegativeCashFlow = cashFlow.annualCashFlow < 0;
+  const cumCashFlowAtRecoup = cashFlow.annualCashFlow * atRecoupYears;
+  const totalCashOutOfPocket = roi.totalCashInvested + Math.max(0, -cumCashFlowAtRecoup);
+  const annualBleed = Math.abs(cashFlow.annualCashFlow);
+
   return (
     <div className="wealth-projection">
-      <h3 className="wealth-projection__title">Wealth Projection</h3>
+      <h3 className="wealth-projection__title">
+        <TrendingUp size={16} />
+        Wealth Projection
+      </h3>
 
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={trimmedData} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
@@ -292,7 +303,7 @@ export default function WealthProjection({
                 stroke="#fff"
                 strokeWidth={2}
                 label={{
-                  value: `Recoup — Yr ${recoupYearIndex}`,
+                  value: `Equity Break-Even — Yr ${recoupYearIndex}`,
                   position: 'top',
                   offset: 14,
                   fontSize: 12,
@@ -320,13 +331,23 @@ export default function WealthProjection({
         </div>
         <div className="wealth-projection__metric">
           <span className="wealth-projection__metric-label">
-            Time to Recoup
-            {findExplainer('recoup') && <TermExplainer info={findExplainer('recoup')!} />}
+            Equity Break-Even
+            {findExplainer('equity break-even') && <TermExplainer info={findExplainer('equity break-even')!} />}
           </span>
           <span className={`wealth-projection__metric-value ${recoupColorClass}`}>
             {recoupDisplay}
           </span>
         </div>
+        {isNegativeCashFlow && (
+          <div className="wealth-projection__metric">
+            <span className="wealth-projection__metric-label">
+              Cash Out of Pocket {showRecoup ? `by Yr ${atRecoupYears}` : `by Yr ${chartYears}`}
+            </span>
+            <span className="wealth-projection__metric-value wealth-projection__metric-value--red">
+              {fmt(totalCashOutOfPocket)}
+            </span>
+          </div>
+        )}
         <div className="wealth-projection__metric">
           <span className="wealth-projection__metric-label">
             Appreciation {showRecoup ? `at Yr ${atRecoupYears}` : `at Yr ${chartYears}`}
@@ -344,6 +365,15 @@ export default function WealthProjection({
           </span>
         </div>
       </div>
+      {isNegativeCashFlow && (
+        <p className="wealth-projection__caveat">
+          ⚠️ This deal is cash-flow negative. Equity break-even leans on the{' '}
+          {Math.round(annualAppreciation * 100)}% appreciation assumption — your cash flow stays
+          negative the whole way, so you keep feeding the property ~{fmt(annualBleed)}/yr on top of
+          your initial investment. The equity is on paper only until you sell (minus selling costs
+          and taxes).
+        </p>
+      )}
     </div>
   );
 }

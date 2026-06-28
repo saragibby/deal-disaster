@@ -9,6 +9,8 @@ interface Props {
   price: number;
   /** Effective monthly rent (rent override if set, otherwise estimate mid). */
   rent: number;
+  /** Render as a compact 3-card block (e.g. embedded above the wealth chart). */
+  embedded?: boolean;
 }
 
 const money = (n: number) =>
@@ -59,7 +61,7 @@ interface DriverRow {
   cushion: string;
 }
 
-export default function SensitivityCard({ params, price, rent }: Props) {
+export default function SensitivityCard({ params, price, rent, embedded = false }: Props) {
   const drivers = useMemo<DriverRow[]>(() => {
     // Cash flow for a single overridden driver; everything else held constant.
     // Price/rate flow through the mortgage; rent flows through income + the
@@ -185,17 +187,31 @@ export default function SensitivityCard({ params, price, rent }: Props) {
     Math.max(0, Math.min(100, ((v - row.rangeMin) / (row.rangeMax - row.rangeMin)) * 100));
 
   return (
-    <div className="sensitivity">
-      <h3 className="results__card-title">
-        <span className="results__icon results__icon--amber"><Activity size={18} /></span>
-        Stress Test
-      </h3>
-      <p className="sensitivity__intro">
-        How much each assumption can move before this deal stops cash-flowing. The marker is today's
-        value; the line is the break-even point.
-      </p>
+    <div className={`sensitivity${embedded ? ' sensitivity--embedded' : ''}`}>
+      {embedded ? (
+        <div className="sensitivity__embedded-head">
+          <h4 className="sensitivity__embedded-title">
+            <Activity size={16} />
+            Stress Test
+          </h4>
+          <p className="sensitivity__intro">
+            How far each assumption can move before this deal stops cash-flowing.
+          </p>
+        </div>
+      ) : (
+        <>
+          <h3 className="results__card-title">
+            <span className="results__icon results__icon--amber"><Activity size={18} /></span>
+            Stress Test
+          </h3>
+          <p className="sensitivity__intro">
+            How much each assumption can move before this deal stops cash-flowing. The marker is today's
+            value; the line is the break-even point.
+          </p>
+        </>
+      )}
 
-      <div className="sensitivity__rows">
+      <div className={`sensitivity__rows${embedded ? ' sensitivity__rows--cards' : ''}`}>
         {drivers.map((row) => {
           const curPos = pos(row, row.current);
           const bePos = row.breakEven != null ? pos(row, row.breakEven) : null;

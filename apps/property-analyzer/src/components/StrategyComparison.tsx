@@ -7,6 +7,7 @@ import type {
 } from '@deal-platform/shared-types';
 import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, ShieldAlert, TrendingDown, Minus } from 'lucide-react';
 import { findExplainer } from './TermExplainer';
+import { estimateApplianceCost, estimateFurnitureCost } from '../utils/calculations';
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -21,6 +22,12 @@ interface Props {
   marketStatistics?: MarketStatistics;
   /** Single source of truth for ranking; cards display its net cash flow figures. */
   strategyComparison: StrategyComparisonData;
+  /** Currently selected rental type, driven by the rent slider above the cards. */
+  selectedKey?: 'ltr' | 'mtr' | 'str';
+  /** Called when a card is clicked to make it the active rental type. */
+  onSelectKey?: (key: 'ltr' | 'mtr' | 'str') => void;
+  /** Bedroom count — drives furniture / appliance upfront-cost estimates. */
+  bedrooms: number;
 }
 
 interface StrategyCard {
@@ -185,21 +192,52 @@ function MarketTrendBadge({ stats }: { stats?: MarketStatistics }) {
   );
 }
 
-function ComparisonBar({ cards, maxRevenue }: { cards: StrategyCard[]; maxRevenue: number }) {
+function ComparisonBar({ cards }: { cards: StrategyCard[] }) {
+  // Scale every bar against the largest income or expense figure so the
+  // income vs. expense bars are directly comparable across rental types.
+  const maxVal = Math.max(
+    1,
+    ...cards.map((c) => Math.max(c.grossMonthly, Math.max(0, c.grossMonthly - c.netMonthly)))
+  );
   return (
     <div className="strategy-comparison__bars">
+      <div className="strategy-comparison__bars-legend">
+        <span className="strategy-comparison__bars-legend-item">
+          <span className="strategy-comparison__bars-legend-swatch strategy-comparison__bars-legend-swatch--income" />
+          Income
+        </span>
+        <span className="strategy-comparison__bars-legend-item">
+          <span className="strategy-comparison__bars-legend-swatch strategy-comparison__bars-legend-swatch--expense" />
+          Expenses
+        </span>
+      </div>
       {cards.map((card) => {
-        const width = maxRevenue > 0 ? (card.netMonthly / maxRevenue) * 100 : 0;
+        const expenses = Math.max(0, card.grossMonthly - card.netMonthly);
+        const incomeWidth = (card.grossMonthly / maxVal) * 100;
+        const expenseWidth = (expenses / maxVal) * 100;
         return (
-          <div key={card.key} className="strategy-comparison__bar-row">
+          <div key={card.key} className="strategy-comparison__bar-group">
             <span className="strategy-comparison__bar-label">{card.label}</span>
-            <div className="strategy-comparison__bar-track">
-              <div
-                className={`strategy-comparison__bar-fill strategy-comparison__bar-fill--${card.key}`}
-                style={{ width: `${width}%` }}
-              />
+            <div className="strategy-comparison__bar-stack">
+              <div className="strategy-comparison__bar-row">
+                <div className="strategy-comparison__bar-track">
+                  <div
+                    className={`strategy-comparison__bar-fill strategy-comparison__bar-fill--income strategy-comparison__bar-fill--income-${card.key}`}
+                    style={{ width: `${incomeWidth}%` }}
+                  />
+                </div>
+                <span className="strategy-comparison__bar-value">{fmt(card.grossMonthly)}</span>
+              </div>
+              <div className="strategy-comparison__bar-row">
+                <div className="strategy-comparison__bar-track">
+                  <div
+                    className="strategy-comparison__bar-fill strategy-comparison__bar-fill--expense"
+                    style={{ width: `${expenseWidth}%` }}
+                  />
+                </div>
+                <span className="strategy-comparison__bar-value">{fmt(expenses)}</span>
+              </div>
             </div>
-            <span className="strategy-comparison__bar-value">{fmt(card.netMonthly)}</span>
           </div>
         );
       })}
@@ -210,12 +248,21 @@ function ComparisonBar({ cards, maxRevenue }: { cards: StrategyCard[]; maxRevenu
 function CostComparisonRow({
   mtrEstimate,
   strEstimate,
+  bedrooms,
   strategies,
 }: {
   mtrEstimate?: MTREstimate;
   strEstimate?: STREstimate;
+  bedrooms: number;
   strategies: StrategyCard[];
 }) {
+  // Upfront cost mirrors the cash-flow card's one-time setup costs: appliances
+  // apply to every strategy (landlord-provided), and furnished strategies add a
+  // furniture package on top.
+  const appliances = estimateApplianceCost(bedrooms);
+  const mtrUpfront = mtrEstimate ? mtrEstimate.furnishingCosts.totalCost + appliances : undefined;
+  const strUpfront = strEstimate ? estimateFurnitureCost(bedrooms) + appliances : undefined;
+
   const rows: { label: string; icon: React.ReactNode; values: Record<string, string> }[] = [
     {
       label: 'Management effort',
@@ -239,9 +286,9 @@ function CostComparisonRow({
       label: 'Upfront cost',
       icon: <DollarSign size={16} />,
       values: {
-        ltr: 'None',
-        mtr: mtrEstimate ? fmt(mtrEstimate.furnishingCosts.totalCost) : '—',
-        str: strEstimate ? 'Varies' : 'None',
+        ltr: fmt(appliances),
+        mtr: mtrUpfront != null ? fmt(mtrUpfront) : '—',
+        str: strUpfront != null ? fmt(strUpfront) : '—',
       },
     },
   ];
@@ -286,7 +333,7 @@ function CostComparisonRow({
 /*  Main Component                                                     */
 /* ================================================================== */
 
-export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison }: Props) {
+export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison, selectedKey, onSelectKey, bedrooms }: Props) {
   // Render nothing if neither MTR nor STR data is available
   if (!mtrEstimate && !strEstimate) return null;
 
@@ -346,9 +393,16 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
   ];
 
   const activeStrategies = strategies.filter((s) => s.available);
-  const maxRevenue = Math.max(...activeStrategies.map((s) => s.netMonthly));
   const bestKey = strategyComparison.bestKey.toLowerCase();
   const lowConfidence = activeStrategies.filter((s) => s.confidence === 'low').map((s) => s.label);
+
+  // Resolve the currently selected card (default to the best strategy).
+  const fallbackKey =
+    (activeStrategies.find((s) => s.key === bestKey) ?? activeStrategies[0]).key;
+  const selKey =
+    selectedKey && activeStrategies.some((s) => s.key === selectedKey)
+      ? selectedKey
+      : fallbackKey;
 
   return (
     <div className="strategy-comparison">
@@ -367,10 +421,21 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       >
         {activeStrategies.map((strategy) => {
           const isBest = strategy.key === bestKey && activeStrategies.length > 1;
+          const isSelected = strategy.key === selKey;
           return (
           <div
             key={strategy.key}
-            className={`strategy-comparison__card strategy-comparison__card--${strategy.key}${isBest ? ' strategy-comparison__card--best' : ''}`}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isSelected}
+            onClick={() => onSelectKey?.(strategy.key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectKey?.(strategy.key);
+              }
+            }}
+            className={`strategy-comparison__card strategy-comparison__card--${strategy.key}${isBest ? ' strategy-comparison__card--best' : ''}${isSelected ? ' strategy-comparison__card--selected' : ''}`}
           >
             <div className="strategy-comparison__card-header">
               <span className={`strategy-comparison__icon strategy-comparison__icon--${strategy.key}`}>
@@ -412,13 +477,14 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
         })}
       </div>
 
-      {/* Revenue comparison bars */}
-      <ComparisonBar cards={activeStrategies} maxRevenue={maxRevenue} />
+      {/* Income vs. expense comparison bars */}
+      <ComparisonBar cards={activeStrategies} />
 
       {/* Cost / effort comparison */}
       <CostComparisonRow
         mtrEstimate={mtrEstimate}
         strEstimate={strEstimate}
+        bedrooms={bedrooms}
         strategies={strategies}
       />
 

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { computeStrategyComparison } from '@deal-platform/shared-types';
 import {
   Home, DollarSign, BarChart3, GitCompareArrows,
-  TrendingUp, Gavel, Calculator,
+  TrendingUp, LineChart, Gavel, Calculator,
 } from 'lucide-react';
 
 export type SignalLevel = 'good' | 'fair' | 'caution' | null;
@@ -29,29 +29,65 @@ const SIGNAL_COLORS: Record<string, string> = {
 
 export function SectionNav({ signals }: SectionNavProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  // While a programmatic (click) scroll is animating, ignore the scroll-spy so
+  // it can't transiently flip the highlight to a section being scrolled past.
+  const lockUntilRef = useRef(0);
 
-  // Scroll-spy: highlight whichever section is currently under the sticky header.
+  // Distance from the top of the viewport to the line that marks the boundary
+  // between "above the fold" and "current" — accounts for the two stacked
+  // sticky bars (app header + section nav).
+  const getActiveLine = () => {
+    const header = document.querySelector('.analyzer-app__header') as HTMLElement | null;
+    const nav = document.querySelector('.results__nav-bar') as HTMLElement | null;
+    return (header?.offsetHeight ?? 0) + (nav?.offsetHeight ?? 0) + 24;
+  };
+
+  // Scroll-spy: highlight the section whose top has most recently crossed above
+  // the sticky bars. Position-based (not intersection-ratio based) so sections
+  // of very different heights — and the loan calculator nested inside the
+  // foreclosures row — are compared reliably.
   useEffect(() => {
-    const elements = signals
-      .map(s => document.getElementById(s.id))
-      .filter((el): el is HTMLElement => el != null);
-    if (elements.length === 0) return;
+    const ids = signals.map(s => s.id);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter(e => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]?.target.id) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: '-80px 0px -55% 0px', threshold: [0, 0.25, 0.5, 1] },
-    );
-    elements.forEach(el => observer.observe(el));
-    return () => observer.disconnect();
+    const update = () => {
+      if (Date.now() < lockUntilRef.current) return;
+      const line = getActiveLine();
+      let best: string | null = null;
+      let bestTop = -Infinity;
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        // Candidate if its top has scrolled to or above the line; among those,
+        // pick the one closest to the line (greatest top). Ties keep the
+        // earlier section so an outer row wins over a nested child.
+        if (top - line <= 1 && top > bestTop) {
+          bestTop = top;
+          best = id;
+        }
+      }
+      setActiveId(best ?? ids[0]);
+    };
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
   }, [signals]);
 
   const scrollTo = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Reflect the click intent immediately and suppress the scroll-spy until the
+    // smooth-scroll animation settles on the target.
+    setActiveId(id);
+    lockUntilRef.current = Date.now() + 900;
+    const offset = getActiveLine() - 8;
+    const top = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
   };
 
   return (
@@ -191,6 +227,13 @@ export function deriveSignals(analysis: PropertyAnalysis): SectionSignal[] {
       icon: <TrendingUp size={14} />,
       signal: housingSignal,
       tooltip: housingTip,
+    },
+    {
+      id: 'stress-test',
+      label: 'Long-Term',
+      icon: <LineChart size={14} />,
+      signal: null,
+      tooltip: 'Stress test & long-term wealth projection',
     },
     {
       id: 'bottom-tools',

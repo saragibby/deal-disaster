@@ -1,38 +1,36 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@deal-platform/shared-auth';
 import type {
   PropertyAnalysis,
   AnalysisParams,
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
-import { Search, GitCompareArrows } from 'lucide-react';
+import { Search } from 'lucide-react';
 import type { AskWillProps } from '@deal-platform/shared-ui';
-import type { SectionSignal } from './SectionNav.js';
-import { deriveSignals } from './SectionNav.js';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
 import PropertyComparison from './PropertyComparison.js';
 
+type AnalyzerTab = 'analyze' | 'history' | 'compare';
+
 interface PropertyAnalyzerProps {
   onAnalysisComplete?: (context: AskWillProps['propertyAnalysis']) => void;
-  onSignalsChange?: (signals: SectionSignal[] | null) => void;
+  activeTab: AnalyzerTab;
+  onTabChange: (tab: AnalyzerTab) => void;
 }
 
-export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }: PropertyAnalyzerProps = {}) {
+export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabChange }: PropertyAnalyzerProps) {
   const { id: analysisSlug } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PropertyAnalysis | null>(null);
   const [wasLoading, setWasLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'history' | 'compare'>(
-    location.pathname.endsWith('/compare') ? 'compare' : 'analyze'
-  );
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [inputExpanded, setInputExpanded] = useState(false);
 
   // Analysis params — use defaults (adjustable in Loan Calculator after results)
   const [params] = useState<AnalysisParams>({ ...DEFAULT_ANALYSIS_PARAMS });
@@ -61,19 +59,13 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
     });
   }, [result, onAnalysisComplete]);
 
-  // Derive section nav signals when result changes
-  useEffect(() => {
-    if (!onSignalsChange) return;
-    onSignalsChange(result ? deriveSignals(result) : null);
-  }, [result, onSignalsChange]);
-
   // Auto-load analysis from URL param
   useEffect(() => {
     if (!analysisSlug) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setActiveTab('analyze');
+    onTabChange('analyze');
 
     api.getAnalysis(analysisSlug)
       .then((resp: any) => {
@@ -111,6 +103,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
       const response = await api.runAndSaveAnalysis(url.trim(), autoParams);
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
+      setInputExpanded(false);
       // Navigate to the analysis URL so it's shareable
       if (response.slug) {
         navigate(`/analysis/${response.slug}`, { replace: true });
@@ -134,68 +127,56 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
   return (
     <div className="analyzer">
       {/* Page Header */}
-      <div className="analyzer__header">
-        <h1 className="page-title">⚡ Property Analyzer</h1>
-        <p className="page-subtitle">
-          Paste a Zillow link and get comprehensive investment analysis in seconds
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div className="analyzer__tabs">
-        <button
-          className={`analyzer__tab ${activeTab === 'analyze' ? 'analyzer__tab--active' : ''}`}
-          onClick={() => setActiveTab('analyze')}
-        >
-          <Search size={16} />
-          Analyze
-        </button>
-        <button
-          className={`analyzer__tab ${activeTab === 'history' ? 'analyzer__tab--active' : ''}`}
-          onClick={() => setActiveTab('history')}
-        >
-          📋 History
-        </button>
-        <button
-          className={`analyzer__tab ${activeTab === 'compare' ? 'analyzer__tab--active' : ''}`}
-          onClick={() => { setActiveTab('compare'); navigate('/compare', { replace: true }); }}
-        >
-          <GitCompareArrows size={16} />
-          Compare
-        </button>
-      </div>
+      {!(result && activeTab === 'analyze') && (
+        <div className="analyzer__header">
+          <h1 className="page-title">⚡ Property Analyzer</h1>
+          <p className="page-subtitle">
+            Paste a Zillow link and get comprehensive investment analysis in seconds
+          </p>
+        </div>
+      )}
 
       {activeTab === 'analyze' && (
         <>
-          {/* URL Input Section */}
-          <div className="analyzer__input-card">
-            <div className="analyzer__input-row">
-              <input
-                type="text"
-                className="analyzer__url-input"
-                placeholder="Enter an address or paste a link from Zillow, Redfin, Realtor.com, or Trulia"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-                disabled={loading}
-              />
-              <button
-                className="btn btn--primary analyzer__submit-btn"
-                onClick={handleAnalyze}
-                disabled={loading || !url.trim()}
-              >
-                {loading ? (
-                  <span className="analyzer-spinner analyzer-spinner--sm" />
-                ) : (
-                  <>
-                    <Search size={18} />
-                    Analyze
-                  </>
-                )}
-              </button>
+          {/* URL Input — hidden once a property is analyzed (re-shown via "Analyze another") */}
+          {(!result || inputExpanded) && (
+            <div className="analyzer__input-card">
+              <div className="analyzer__input-row">
+                <input
+                  type="text"
+                  className="analyzer__url-input"
+                  placeholder="Enter an address or paste a link from Zillow, Redfin, Realtor.com, or Trulia"
+                  value={url}
+                  onChange={e => setUrl(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+                  disabled={loading}
+                />
+                <button
+                  className="btn btn--primary analyzer__submit-btn"
+                  onClick={handleAnalyze}
+                  disabled={loading || !url.trim()}
+                >
+                  {loading ? (
+                    <span className="analyzer-spinner analyzer-spinner--sm" />
+                  ) : (
+                    <>
+                      <Search size={18} />
+                      Analyze
+                    </>
+                  )}
+                </button>
+              </div>
+              {result && !loading && (
+                <button
+                  type="button"
+                  className="analyzer__advanced-toggle"
+                  onClick={() => setInputExpanded(false)}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
-
-          </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -209,7 +190,12 @@ export default function PropertyAnalyzer({ onAnalysisComplete, onSignalsChange }
 
           {/* Results */}
           {result && !loading && (
-            <AnalysisResults analysis={result} skipEntrance={wasLoading} onUpdate={handleResultUpdate} />
+            <AnalysisResults
+              analysis={result}
+              skipEntrance={wasLoading}
+              onUpdate={handleResultUpdate}
+              onAnalyzeAnother={() => { setInputExpanded(true); setUrl(''); }}
+            />
           )}
         </>
       )}

@@ -324,6 +324,25 @@ export interface AnalysisParams {
   rentOverride: number;
 }
 
+/**
+ * User-made adjustments to a saved analysis. Persisted alongside the analysis
+ * so manual fine-tuning is restored on reload and reflected in property
+ * comparisons. `params` holds only the keys the user changed from the model's
+ * estimate baseline (a diff), so untouched estimates can still self-heal on
+ * re-analyze and the "Custom / Estimated" badges keep working.
+ */
+export interface AnalysisUserOverrides {
+  selectedStrategy?: 'ltr' | 'mtr' | 'str' | null;
+  mtrRevenue?: number | null;
+  strRevenue?: number | null;
+  operating?: Record<string, number>;
+  furniture?: number | null;
+  appliances?: number | null;
+  params?: Partial<AnalysisParams>;
+  /** How furniture/appliance upfront costs are depreciated in year 1. */
+  depreciationMethod?: 'full' | 'straight';
+}
+
 export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
   downPaymentPct: 20,
   interestRate: 7.0,
@@ -375,6 +394,12 @@ export interface TaxSavingsBreakdown {
   depreciationDeduction: number;
   taxSavings: number;
   effectiveFirstYearReturn: number;
+  /** Year-1 depreciation on the building via cost segregation. */
+  buildingDepreciation?: number;
+  /** Furniture + appliance cost basis eligible for personal-property depreciation. */
+  personalPropertyBasis?: number;
+  /** Year-1 depreciation taken on furniture + appliances (method-dependent). */
+  personalPropertyDepreciation?: number;
 }
 
 export interface ComparableProperty {
@@ -873,7 +898,7 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
       ? `Strong deal${asStrategy} — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : 'tight cash flow'} and a ${coc.toFixed(1)}% cash-on-cash return.`
       : rating === 'marginal'
         ? `Marginal deal${asStrategy} — ${cf >= 0 ? `${dollars(cf)}/mo cash flow` : `${dollars(cf)}/mo today`}, but some metrics are borderline.`
-        : `Proceed with caution — ${cf < 0 ? `${dollars(cf)}/mo cash flow` : 'weak returns'}${usingAltStrategy ? ` even as a ${bestStrategy!.label.toLowerCase()} rental` : ''} relative to the cash invested.`;
+        : `${cf < 0 ? `${dollars(cf)}/mo cash flow` : 'Weak returns'}${usingAltStrategy ? ` even as a ${bestStrategy!.label.toLowerCase()} rental` : ''} relative to the cash invested.`;
 
   return { rating, score, headline, reasons };
 }
@@ -890,6 +915,7 @@ export interface PropertyAnalysis {
   analysis_params: AnalysisParams;
   analysis_results: FullAnalysisResult;
   rental_comps?: RentalComp[];
+  user_overrides?: AnalysisUserOverrides;
   is_shared?: boolean;
   created_at: string;
 }

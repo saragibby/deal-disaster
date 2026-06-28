@@ -16,6 +16,7 @@ import xomeRoutes from './routes/xome.js';
 import aiComparisonRoutes from './routes/aiComparison.js';
 import comparisonsRoutes from './routes/comparisons.js';
 import { initializeScheduledTasks } from './scheduler.js';
+import { pool } from './db/pool.js';
 
 dotenv.config();
 
@@ -80,7 +81,13 @@ if (process.env.NODE_ENV === 'production') {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  
+
+  // Idempotent self-heal for the persisted-adjustments column so saving
+  // overrides works without a manual migration step.
+  pool
+    .query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS user_overrides JSONB')
+    .catch((err: Error) => console.error('[startup] ensure user_overrides column:', err.message));
+
   // Initialize scheduled tasks
   initializeScheduledTasks();
 });
