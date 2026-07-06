@@ -219,7 +219,7 @@ export default function WealthProjection({
 
   const recoupDisplay = recoupYears > 0
     ? `${recoupYears} year${recoupYears !== 1 ? 's' : ''}`
-    : 'N/A (negative cash flow)';
+    : 'N/A';
 
   const recoupColorClass = recoupYears <= 0
     ? 'wealth-projection__metric-value--red'
@@ -336,6 +336,9 @@ export default function WealthProjection({
           </span>
           <span className={`wealth-projection__metric-value ${recoupColorClass}`}>
             {recoupDisplay}
+            {recoupYears <= 0 && (
+              <span className="wealth-projection__metric-note">negative cash flow</span>
+            )}
           </span>
         </div>
         {isNegativeCashFlow && (

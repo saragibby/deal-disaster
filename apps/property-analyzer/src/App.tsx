@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
 import { AskWill } from '@deal-platform/shared-ui';
 import type { AskWillProps } from '@deal-platform/shared-ui';
-import { LogOut, User, Search, GitCompareArrows, History, Home } from 'lucide-react';
+import { LogOut, User, Search, GitCompareArrows, History, Home, Menu, X } from 'lucide-react';
 import { Footer } from '@deal-platform/shared-ui';
 import PropertyAnalyzer from './components/PropertyAnalyzer';
 
@@ -15,6 +15,7 @@ export default function App() {
   const navigate = useNavigate();
   const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<AnalyzerTab>(
     location.pathname.endsWith('/compare') ? 'compare' : 'analyze'
@@ -22,8 +23,13 @@ export default function App() {
 
   const changeTab = useCallback((tab: AnalyzerTab) => {
     setActiveTab(tab);
+    setMobileMenuOpen(false);
     if (tab === 'compare') navigate('/compare', { replace: true });
   }, [navigate]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Toggle a solid/elevated header once the user scrolls past the hero.
   useEffect(() => {
@@ -80,39 +86,51 @@ export default function App() {
             </a>
           </div>
 
-          <nav className="analyzer-app__nav">
+          <nav className="analyzer-app__nav" aria-label="Property Analyzer navigation">
             <button
               type="button"
-              className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'analyze' ? ' analyzer-app__nav-tab--active' : ''}`}
-              onClick={() => changeTab('analyze')}
+              className="analyzer-app__menu-toggle"
+              onClick={() => setMobileMenuOpen(open => !open)}
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
             >
-              <Search size={16} /> Analyze
-            </button>
-            <button
-              type="button"
-              className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'compare' ? ' analyzer-app__nav-tab--active' : ''}`}
-              onClick={() => changeTab('compare')}
-            >
-              <GitCompareArrows size={16} /> Compare
-            </button>
-            <button
-              type="button"
-              className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'history' ? ' analyzer-app__nav-tab--active' : ''}`}
-              onClick={() => changeTab('history')}
-            >
-              <History size={16} /> History
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
 
-            {isAuthenticated && user ? (
-              <>
-                <a href={buildAppUrl('/profile')} className="analyzer-app__user">
-                  <User size={16} /> {user.name || user.email}
-                </a>
-                <button className="analyzer-app__logout" onClick={handleLogout} title="Sign out">
-                  <LogOut size={14} />
-                </button>
-              </>
-            ) : null}
+            <div className={`analyzer-app__nav-menu${mobileMenuOpen ? ' analyzer-app__nav-menu--open' : ''}`}>
+              <button
+                type="button"
+                className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'analyze' ? ' analyzer-app__nav-tab--active' : ''}`}
+                onClick={() => changeTab('analyze')}
+              >
+                <Search size={16} /> Analyze
+              </button>
+              <button
+                type="button"
+                className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'compare' ? ' analyzer-app__nav-tab--active' : ''}`}
+                onClick={() => changeTab('compare')}
+              >
+                <GitCompareArrows size={16} /> Compare
+              </button>
+              <button
+                type="button"
+                className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'history' ? ' analyzer-app__nav-tab--active' : ''}`}
+                onClick={() => changeTab('history')}
+              >
+                <History size={16} /> History
+              </button>
+
+              {isAuthenticated && user ? (
+                <>
+                  <a href={buildAppUrl('/profile')} className="analyzer-app__user" onClick={() => setMobileMenuOpen(false)}>
+                    <User size={16} /> {user.name || user.email}
+                  </a>
+                  <button className="analyzer-app__logout" onClick={handleLogout} title="Sign out">
+                    <LogOut size={14} />
+                  </button>
+                </>
+              ) : null}
+            </div>
           </nav>
         </div>
       </header>

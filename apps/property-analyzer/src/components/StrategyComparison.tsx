@@ -417,7 +417,7 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       {/* Cards */}
       <div
         className="strategy-comparison__cards"
-        style={{ gridTemplateColumns: `repeat(${activeStrategies.length}, 1fr)` }}
+        style={{ '--strategy-card-columns': `repeat(${activeStrategies.length}, 1fr)` } as React.CSSProperties}
       >
         {activeStrategies.map((strategy) => {
           const isBest = strategy.key === bestKey && activeStrategies.length > 1;

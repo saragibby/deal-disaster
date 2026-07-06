@@ -739,6 +739,11 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
               <div>
                 <h2 className="results__property-address">
                   <Home size={20} /> {property.address || 'Property'}
+                </h2>
+                <p className="results__property-location">
+                  {[property.city, property.state, property.zip].filter(Boolean).join(', ')}
+                </p>
+                <div className="results__property-links">
                   {(() => {
                     const zillowQuery = [property.address, property.city, property.state, property.zip]
                       .filter(Boolean)
@@ -772,10 +777,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                       <span className="results__property-link-text">Street View</span>
                     </button>
                   )}
-                </h2>
-                <p className="results__property-location">
-                  {[property.city, property.state, property.zip].filter(Boolean).join(', ')}
-                </p>
+                </div>
               </div>
               <div className="results__property-price-block" ref={offerRef}>
                 <div className="results__property-price">
