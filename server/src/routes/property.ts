@@ -86,7 +86,7 @@ router.get('/rental-estimate', authenticateToken, async (req: AuthRequest, res: 
     }
 
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const blended = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    const blended = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     res.json({ rentalEstimate: blended });
   } catch (err: any) {
@@ -121,7 +121,7 @@ router.post('/analyze', authenticateToken, async (req: AuthRequest, res: Respons
     // Fetch rental data (private-zillow has no comps endpoint; algorithmic only)
     const apiComps: any[] = [];
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // Use property tax from tax history if available and user didn't override
     if (

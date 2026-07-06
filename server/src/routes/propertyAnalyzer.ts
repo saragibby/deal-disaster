@@ -176,8 +176,9 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       apiComps = await realtyInUsService.getRentalComps(property);
       if (apiComps.length > 0) compSource = 'realtor';
     }
+    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
     const algorithmic = rentalEstimationService.estimateRent(property);
-    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // Also try RentCast's AVM rent estimate as a cross-check
     const rentCastEstimate = await rentCastService.getRentEstimate(property);
@@ -497,8 +498,9 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       apiComps = await realtyInUsService.getRentalComps(property);
       if (apiComps.length > 0) compSource = 'realtor';
     }
+    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
     const algorithmic = rentalEstimationService.estimateRent(property);
-    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // No comps? Anchor to Zillow's area rental-market median (real data, high confidence).
     const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;

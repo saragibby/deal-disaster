@@ -16,6 +16,7 @@
  */
 
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
+import { filterPlausibleRentalComps } from './rentalEstimationService.js';
 
 const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
 const HOST = 'realty-in-us.p.rapidapi.com';
@@ -98,12 +99,13 @@ export async function getRentalComps(
           source: 'api' as const,
         };
       });
+    const plausibleComps = filterPlausibleRentalComps(comps, property);
 
     // Keep comps comparable: prefer those within ±1 bedroom of the subject,
     // but never filter down to zero in sparse markets.
-    let relevant = comps;
+    let relevant = plausibleComps;
     if (property.bedrooms) {
-      const filtered = comps.filter(
+      const filtered = plausibleComps.filter(
         (c) => c.bedrooms == null || Math.abs((c.bedrooms || 0) - property.bedrooms) <= 1,
       );
       if (filtered.length >= 1) relevant = filtered;
