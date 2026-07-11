@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 // ===== Property & Game Types =====
 
 /** Grouping for the lien library; drives survival rules and education. */
@@ -992,6 +994,241 @@ export interface SavedComparison {
   property_slugs: string[];
   created_at: string;
   updated_at: string;
+}
+
+// ===== Property Analyzer Wrapper/Core Contract Types =====
+
+export type AnalyzerRoute =
+  | { kind: 'analyze'; slug?: string }
+  | { kind: 'history' }
+  | { kind: 'compare'; propertySlugs?: string[] }
+  | { kind: 'shared'; slug: string };
+
+export interface PropertyAnalyzerCoreProps {
+  basePath: string;
+  initialRoute: AnalyzerRoute;
+  adapters: PropertyAnalyzerAdapters;
+  features: PropertyAnalyzerFeatureFlags;
+  branding: PropertyAnalyzerBranding;
+  shellSlots?: PropertyAnalyzerShellSlots;
+  onAnalysisContextChange?: (context: AnalyzerAssistantContext | null) => void;
+}
+
+export interface PropertyAnalyzerAdapters {
+  auth: AnalyzerAuthAdapter;
+  api: AnalyzerApiClient;
+  navigation: AnalyzerNavigationAdapter;
+  storage: AnalyzerStorageAdapter;
+  shareUrls: AnalyzerShareUrlBuilder;
+  events?: Partial<PropertyAnalyzerCoreEvents>;
+}
+
+export type AnalyzerExportKind =
+  | 'analysis-pdf'
+  | 'analysis-print'
+  | 'comparison-pdf'
+  | 'comparison-print';
+
+export interface PropertyAnalyzerCoreEvents {
+  navigate(route: AnalyzerRoute, options?: AnalyzerNavigationOptions): void;
+  analysisCompleted(analysis: PropertyAnalysis): void;
+  analysisUpdated(analysis: PropertyAnalysis): void;
+  shareLinkCopied(url: string): void;
+  exportStarted(kind: AnalyzerExportKind): void;
+  error(error: AnalyzerError): void;
+}
+
+export interface AnalyzerAuthAdapter {
+  getSession(): Promise<AnalyzerSession | null>;
+  requireSession(reason: AnalyzerSessionRequirement): Promise<AnalyzerSession>;
+  onUnauthorized(error: unknown): void;
+}
+
+export type AnalyzerSessionRequirement =
+  | 'private-analysis'
+  | 'history'
+  | 'comparison'
+  | 'export'
+  | 'assistant';
+
+export interface AnalyzerSession {
+  userId: string;
+  email?: string;
+  displayName?: string;
+  token?: string;
+  tenantId?: string;
+  roles: string[];
+  permissions: AnalyzerPermission[];
+}
+
+export type AnalyzerPlatform = 'asset-dashboard' | 'property-analyzer-saas';
+
+export interface OwnerContext {
+  actorUserId: string;
+  ownerUserId?: string;
+  tenantId: string;
+  platform: AnalyzerPlatform;
+  permissions: AnalyzerPermission[];
+  roles: string[];
+  requestId?: string;
+}
+
+export type AnalyzerPermission =
+  | 'analysis:read'
+  | 'analysis:write'
+  | 'analysis:delete'
+  | 'analysis:share'
+  | 'comparison:read'
+  | 'comparison:write'
+  | 'provider-cache:read'
+  | 'provider-cache:write'
+  | 'admin:tenant';
+
+export interface AnalyzerApiAdapter {
+  runAnalysis(input: RunAnalysisInput): Promise<PropertyAnalysis>;
+  getHistory(input: PageInput): Promise<PagedResult<PropertyAnalysis>>;
+  getAnalysis(slug: string): Promise<PropertyAnalysis>;
+  deleteAnalysis(slug: string): Promise<void>;
+  reAnalyze(slug: string, params: Partial<AnalysisParams>): Promise<PropertyAnalysis>;
+  saveAdjustments(slug: string, payload: SaveAdjustmentsPayload): Promise<void>;
+  setShared(slug: string, shared: boolean): Promise<AnalyzerShareState>;
+  getSharedAnalysis(slug: string): Promise<PropertyAnalysis>;
+  saveComparison(name: string, propertySlugs: string[]): Promise<SavedComparison>;
+  getSavedComparisons(input: PageInput): Promise<PagedResult<SavedComparison>>;
+  getSavedComparison(id: number): Promise<SavedComparison>;
+  updateComparisonSlugs(id: number, propertySlugs: string[]): Promise<SavedComparison>;
+  deleteSavedComparison(id: number): Promise<void>;
+  getComparisonSummary(propertySlugs: string[]): Promise<AIComparisonSummary>;
+  getPropertyNarratives(propertySlugs: string[]): Promise<AIPropertyNarrative[]>;
+}
+
+export type AnalyzerApiClient = AnalyzerApiAdapter;
+
+export interface RunAnalysisInput {
+  url: string;
+  params?: Partial<AnalysisParams>;
+}
+
+export interface PageInput {
+  page?: number;
+  limit?: number;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SaveAdjustmentsPayload {
+  overrides: AnalysisUserOverrides;
+  derived?: AnalyzerDerivedAdjustments;
+}
+
+export interface AnalyzerDerivedAdjustments {
+  cashFlow?: CashFlowBreakdown;
+  roi?: ROIMetrics;
+  strategyComparison?: StrategyComparison;
+  strNet?: number | null;
+  mtrNet?: number | null;
+}
+
+export interface AnalyzerShareState {
+  slug: string;
+  isShared: boolean;
+}
+
+export interface AnalyzerNavigationOptions {
+  replace?: boolean;
+}
+
+export interface AnalyzerNavigationAdapter {
+  currentUrl(): URL;
+  toUrl(route: AnalyzerRoute): string;
+  navigate(route: AnalyzerRoute, options?: AnalyzerNavigationOptions): void;
+  external(path: string): string;
+}
+
+export interface PropertyAnalyzerBranding {
+  productName: string;
+  platformName: string;
+  logoText?: string;
+  homeLabel: string;
+  themeClassName?: string;
+}
+
+export interface PropertyAnalyzerShellSlots {
+  header?: ReactNode;
+  footer?: ReactNode;
+  assistant?: (context: AnalyzerAssistantContext | null) => ReactNode;
+  loadingFallback?: ReactNode;
+  publicSharedBanner?: ReactNode;
+}
+
+export interface AnalyzerStorageAdapter {
+  get<T>(key: string): T | null;
+  set<T>(key: string, value: T): void;
+  remove(key: string): void;
+}
+
+export interface PropertyAnalyzerFeatureFlags {
+  askWill: boolean;
+  comparisons: boolean;
+  savedComparisons: boolean;
+  publicSharing: boolean;
+  pdfExport: boolean;
+  streetView: boolean;
+  aiComparisonSummary: boolean;
+  aiPropertyNarratives: boolean;
+}
+
+export interface AnalyzerShareUrlBuilder {
+  analysis(analysisSlug: string): string;
+  publicAnalysis(sharedSlug: string): string;
+  privateComparison(propertySlugs: string[]): string;
+}
+
+export interface AnalyzerAssistantContext {
+  address: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  sqft: number;
+  yearBuilt: number;
+  propertyType?: string;
+  zestimate?: number;
+  rentEstimate?: number;
+  monthlyCashFlow?: number;
+  cashOnCashROI?: number;
+  capRate?: number;
+  monthlyMortgage?: number;
+  taxSavings?: number;
+  strNetMonthly?: number;
+}
+
+export type AnalyzerErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'not-found'
+  | 'validation'
+  | 'provider-unavailable'
+  | 'analysis-failed'
+  | 'history-failed'
+  | 'comparison-failed'
+  | 'sharing-failed'
+  | 'export-failed'
+  | 'network'
+  | 'unknown';
+
+export interface AnalyzerError {
+  code: AnalyzerErrorCode;
+  message: string;
+  cause?: unknown;
+  route?: AnalyzerRoute;
+  status?: number;
+  retryable?: boolean;
+  details?: Record<string, unknown>;
 }
 
 // ── Lien & Issue Library ─────────────────────────────────────────────────
