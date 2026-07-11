@@ -167,8 +167,8 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
 
   const handleLogout = useCallback(() => {
     adapters.auth.signOut?.();
-    window.location.href = logoutUrl;
-  }, [adapters.auth, logoutUrl]);
+    adapters.navigation.navigateExternal(logoutUrl);
+  }, [adapters.auth, adapters.navigation, logoutUrl]);
 
   if (isSharedRoute) {
     return (

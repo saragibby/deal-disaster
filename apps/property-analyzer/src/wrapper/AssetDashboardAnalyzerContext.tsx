@@ -187,6 +187,14 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
     external(path) {
       return buildAppUrl(path);
     },
+    navigateExternal(path, options) {
+      const url = buildAppUrl(path);
+      if (options?.replace) {
+        window.location.replace(url);
+        return;
+      }
+      window.location.href = url;
+    },
   }), [navigate]);
 
   const shareUrls = useMemo<AnalyzerShareUrlBuilder>(() => ({

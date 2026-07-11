@@ -119,6 +119,18 @@ Deployed to Heroku via `heroku-postbuild` script + `Procfile`.
 - **CSS**: One `.css` file per component (not CSS modules). App-specific styles live alongside their components.
 - **Environment variables**: Frontend uses `VITE_` prefix (e.g., `VITE_API_URL`). Backend env is in `server/.env`. See `server/.env.example` for required variables.
 
+### Property Analyzer Core Guardrails
+- `@deal-platform/property-analyzer-core` must stay reusable and adapter-driven. It may import React, analyzer UI dependencies, and `@deal-platform/shared-types`, but it must not import app wrappers, server code, dashboard shell code, or auth globals directly.
+- Forbidden dependency categories for analyzer core:
+  - Dashboard or Property Analyzer app wrapper code from `apps/*`, including dashboard routes, navigation, shell state, or local route assumptions.
+  - Shared auth globals from `@deal-platform/shared-auth`, including `AuthProvider`, `useAuth`, the singleton `api`, token storage, or SSO/localStorage assumptions.
+  - Platform shell UI from `@deal-platform/shared-ui`, including `AppShell`, shared navigation, footer/chat chrome, or dashboard-owned layout.
+  - Server routes, middleware, database services, or Express-only modules from `server/*`.
+  - Browser persistence/navigation globals that imply platform coupling, including `localStorage`, `sessionStorage`, `document.cookie`, and dashboard route reads/writes via `window.location`.
+- Run `npm run check:property-analyzer-guardrails` from the repo root before changing analyzer extraction boundaries. This check is also part of `packages/property-analyzer-core` builds.
+- When reviewing Property Analyzer extraction PRs, confirm new behavior is passed through explicit core adapters/contracts instead of importing dashboard/auth/platform shell modules directly.
+- The top-level `src/` directory is a deprecated legacy game copy. Do not modify it for Property Analyzer extraction or guardrail work.
+
 ### Testing Conventions
 - **E2E test helpers** (`e2e/helpers.ts`) provide `loginViaAPI()`, `registerUserViaAPI()`, and `clearAuth()` to bypass UI for test setup. Use these instead of driving the login form in non-auth tests.
 - Tests run sequentially (`workers: 1`, `fullyParallel: false`) against Chromium only.
