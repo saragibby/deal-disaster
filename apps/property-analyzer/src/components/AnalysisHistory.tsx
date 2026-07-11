@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Trash2, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
 
@@ -27,8 +27,8 @@ export default function AnalysisHistory({ onView }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getAnalysisHistory(page, limit);
-      setAnalyses(data.analyses);
+      const data = await analyzerApi.getHistory({ page, limit });
+      setAnalyses(data.items);
       setTotal(data.total);
     } catch (err: any) {
       setError(err.message || 'Failed to load history.');
@@ -44,7 +44,7 @@ export default function AnalysisHistory({ onView }: Props) {
   const handleDelete = async (slug: string) => {
     if (!confirm('Delete this analysis?')) return;
     try {
-      await api.deleteAnalysis(slug);
+      await analyzerApi.deleteAnalysis(slug);
       fetchHistory();
     } catch (err: any) {
       alert(err.message || 'Failed to delete.');

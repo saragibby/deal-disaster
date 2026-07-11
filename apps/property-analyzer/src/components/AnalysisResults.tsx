@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
 import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
@@ -90,8 +90,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     if (!analysis.slug) return;
     setShareLoading(true);
     try {
-      const result = await api.toggleShareAnalysis(analysis.slug, !isShared);
-      setIsShared(result.is_shared);
+      const result = await analyzerApi.setShared(analysis.slug, !isShared);
+      setIsShared(result.isShared);
     } catch (err: any) {
       alert(err.message || 'Failed to update sharing.');
     } finally {
@@ -194,7 +194,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       if (params.repairsPct === originalParams.repairsPct) delete payload.repairsPct;
       if (params.capexPct === originalParams.capexPct) delete payload.capexPct;
       if (params.costSegPct === originalParams.costSegPct) delete payload.costSegPct;
-      const updated = await api.reAnalyze(analysis.slug, payload);
+      const updated = await analyzerApi.reAnalyze(analysis.slug, payload);
       onUpdate(updated);
     } catch (err: any) {
       alert(err?.message || 'Re-analyze failed. Please try again.');
@@ -371,7 +371,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
         params: paramDiff,
         depreciationMethod,
       };
-      api.saveAnalysisAdjustments(analysis.slug, {
+      analyzerApi.saveAdjustments(analysis.slug, {
         overrides,
         derived: {
           cashFlow,

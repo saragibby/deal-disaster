@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { shortAddr } from '../../utils/comparisonUtils.js';
 import { PROPERTY_COLORS } from '../ComparisonSelector.js';
@@ -25,9 +25,9 @@ export default function AIPropertyNarratives({ properties }: Props) {
     setError(null);
     try {
       const slugs = properties.map(p => p.slug);
-      const result = await api.getPropertyNarratives(slugs);
+      const result = await analyzerApi.getPropertyNarratives(slugs);
       const map: NarrativeMap = {};
-      result.narratives.forEach(n => { map[n.propertyId] = n.narrative; });
+      result.forEach(n => { map[n.propertyId] = n.narrative; });
       setNarratives(map);
       // Auto-expand all
       const exp: Record<string, boolean> = {};

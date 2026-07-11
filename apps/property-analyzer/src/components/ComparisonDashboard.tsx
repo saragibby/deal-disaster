@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import useExportComparison from '../hooks/useExportComparison.js';
 import { type ScenarioParams, DEFAULT_SCENARIO, applyScenario } from '../utils/comparisonUtils.js';
@@ -71,7 +71,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
     setSaving(true);
     try {
       const slugs = properties.map(p => p.slug);
-      await api.saveComparison(name, slugs);
+      await analyzerApi.saveComparison(name, slugs);
       setSaved(true);
       onSaved?.();
     } catch (err: any) {

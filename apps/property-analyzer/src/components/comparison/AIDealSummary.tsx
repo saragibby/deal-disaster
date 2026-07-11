@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import { Sparkles, RefreshCw } from 'lucide-react';
 
 interface Props {
@@ -17,7 +17,7 @@ export default function AIDealSummary({ properties }: Props) {
     setError(null);
     try {
       const slugs = properties.map(p => p.slug);
-      const result = await api.getComparisonSummary(slugs);
+      const result = await analyzerApi.getComparisonSummary(slugs);
       setSummary(result.summary);
     } catch (err: any) {
       setError(err.message || 'Failed to generate AI summary');

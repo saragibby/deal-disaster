@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
+import { useAuth, api, analyzerApi, buildAppUrl } from '@deal-platform/shared-auth';
 import { GameCard } from '@deal-platform/shared-ui';
 import type { GameInfo, UserStats, LeaderboardEntry, Resource, Tool, Announcement } from '@deal-platform/shared-types';
 import { Trophy, TrendingUp, Flame, Target, Star, ExternalLink, Megaphone, Wrench, Home as HomeIcon } from 'lucide-react';
@@ -79,8 +79,8 @@ export default function Home() {
       api.getCrossLeaderboard()
         .then((data) => setTopPlayers(data.leaderboard?.slice(0, 5) || []))
         .catch(console.error);
-      api.getAnalysisHistory(1, 2)
-        .then((data) => setRecentAnalyses(data.analyses || []))
+      analyzerApi.getHistory({ page: 1, limit: 2 })
+        .then((data) => setRecentAnalyses(data.items))
         .catch(console.error);
     }
   }, [isAuthenticated]);
