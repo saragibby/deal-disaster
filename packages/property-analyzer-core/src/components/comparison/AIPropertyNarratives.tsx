@@ -3,7 +3,7 @@ import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { shortAddr } from '../../utils/comparisonUtils.js';
 import { PROPERTY_COLORS } from '../ComparisonSelector.js';
-import { useAssetDashboardAnalyzer } from '../../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../../context.js';
 
 interface Props {
   properties: PropertyAnalysis[];
@@ -14,7 +14,7 @@ interface NarrativeMap {
 }
 
 export default function AIPropertyNarratives({ properties }: Props) {
-  const { adapters } = useAssetDashboardAnalyzer();
+  const { adapters } = usePropertyAnalyzerCore();
   const { api } = adapters;
   const [narratives, setNarratives] = useState<NarrativeMap>({});
   const [loading, setLoading] = useState(false);

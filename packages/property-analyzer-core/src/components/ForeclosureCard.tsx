@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { api } from '@deal-platform/shared-auth';
 import { Gavel, MapPin, ExternalLink, ChevronLeft, ChevronRight, Map as MapIcon, List } from 'lucide-react';
 import type { ReactNode } from 'react';
 import MapView from './MapView';
 import type { MapLayer, MapMarker } from './MapView';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 interface XomeListing {
   listingID: number;
@@ -36,6 +36,12 @@ interface XomeListing {
   };
 }
 
+interface ForeclosureSearchResponse {
+  data?: {
+    listings?: XomeListing[];
+  };
+}
+
 interface Props {
   zip: string;
   city: string;
@@ -47,6 +53,8 @@ interface Props {
 const PAGE_SIZE = 8;
 
 export default function ForeclosureCard({ zip, city, state, latitude, longitude }: Props) {
+  const { adapters } = usePropertyAnalyzerCore();
+  const { api } = adapters;
   const [listings, setListings] = useState<XomeListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +78,7 @@ export default function ForeclosureCard({ zip, city, state, latitude, longitude 
           latitude,
           longitude,
           limit: 50,
-        });
+        }) as ForeclosureSearchResponse;
 
         if (!cancelled) {
           const items: XomeListing[] = data?.data?.listings || [];

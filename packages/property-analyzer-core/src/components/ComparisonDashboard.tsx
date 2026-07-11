@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import useExportComparison from '../hooks/useExportComparison.js';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 import { type ScenarioParams, DEFAULT_SCENARIO, applyScenario } from '../utils/comparisonUtils.js';
 import ComparisonHeader from './comparison/ComparisonHeader.js';
 import DealSnapshotBanner, { useDealSnapshot } from './comparison/DealSnapshotBanner.js';
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export default function ComparisonDashboard({ properties, onBack, onSaved }: Props) {
-  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { adapters, features } = usePropertyAnalyzerCore();
   const { api, shareUrls } = adapters;
   const dashboardRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, exporting } = useExportComparison(dashboardRef);

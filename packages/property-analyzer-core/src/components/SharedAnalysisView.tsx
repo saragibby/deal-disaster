@@ -1,15 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Download, Printer } from 'lucide-react';
 import AnalysisResults from './AnalysisResults';
 import useExportAnalysis from '../hooks/useExportAnalysis';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 
-export default function SharedAnalysisView() {
-  const { adapters, branding, features, shellSlots } = useAssetDashboardAnalyzer();
+export default function SharedAnalysisView({ slug }: { slug: string }) {
+  const { adapters, branding, features, shellSlots } = usePropertyAnalyzerCore();
   const { api, navigation } = adapters;
-  const { slug } = useParams<{ slug: string }>();
   const [analysis, setAnalysis] = useState<PropertyAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +15,6 @@ export default function SharedAnalysisView() {
   const { exportToPdf, printAnalysis, exporting } = useExportAnalysis(resultsRef);
 
   useEffect(() => {
-    if (!slug) return;
     setLoading(true);
     setError(null);
 

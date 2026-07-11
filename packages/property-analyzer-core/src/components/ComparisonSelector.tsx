@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
 import { Search, X, ChevronLeft, ChevronRight, ChevronDown, Plus, GitCompareArrows, Building2, FolderOpen, Trash2, PlusCircle } from 'lucide-react';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 const MAX_PROPERTIES = 6;
 
@@ -26,7 +26,7 @@ function shortAddress(address: string): string {
 }
 
 export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadComparison, savedRefreshKey }: Props) {
-  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { adapters, features } = usePropertyAnalyzerCore();
   const { api } = adapters;
   const [selected, setSelected] = useState<PropertyAnalysis[]>([]);
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());

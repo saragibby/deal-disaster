@@ -1039,9 +1039,11 @@ export interface PropertyAnalyzerCoreEvents {
 }
 
 export interface AnalyzerAuthAdapter {
+  isLoading?: boolean;
   getSession(): Promise<AnalyzerSession | null>;
   requireSession(reason: AnalyzerSessionRequirement): Promise<AnalyzerSession>;
   onUnauthorized(error: unknown): void;
+  signOut?(): void;
 }
 
 export type AnalyzerSessionRequirement =
@@ -1100,6 +1102,9 @@ export interface AnalyzerApiAdapter {
   deleteSavedComparison(id: number): Promise<void>;
   getComparisonSummary(propertySlugs: string[]): Promise<AIComparisonSummary>;
   getPropertyNarratives(propertySlugs: string[]): Promise<AIPropertyNarrative[]>;
+  searchForeclosures(params: { latitude: number; longitude: number; radius?: number; limit?: number }): Promise<unknown>;
+  getMarketTrends(postalCode: string): Promise<unknown>;
+  submitFeedback(message: string): Promise<unknown>;
 }
 
 export type AnalyzerApiClient = AnalyzerApiAdapter;

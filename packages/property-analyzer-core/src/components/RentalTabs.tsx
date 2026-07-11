@@ -13,7 +13,6 @@ import type {
   MarketStatistics,
   StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
-import { api } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Sparkles,
   TrendingUp, BarChart3, Info,
@@ -24,6 +23,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import StrategyComparison from './StrategyComparison';
 import TermExplainer, { findExplainer } from './TermExplainer';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -1031,6 +1031,8 @@ interface MarketStat {
 }
 
 function MarketTrendChart({ zip }: { zip: string }) {
+  const { adapters } = usePropertyAnalyzerCore();
+  const { api } = adapters;
   const [stats, setStats] = useState<MarketStat[] | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);

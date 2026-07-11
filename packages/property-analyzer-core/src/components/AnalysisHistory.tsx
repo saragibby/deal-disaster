@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Trash2, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 interface Props {
   onView: (analysis: PropertyAnalysis) => void;
@@ -15,7 +15,7 @@ function fmt(n: number): string {
 }
 
 export default function AnalysisHistory({ onView }: Props) {
-  const { adapters } = useAssetDashboardAnalyzer();
+  const { adapters } = usePropertyAnalyzerCore();
   const { api } = adapters;
   const [analyses, setAnalyses] = useState<PropertyAnalysis[]>([]);
   const [total, setTotal] = useState(0);

@@ -20,7 +20,7 @@ import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import useExportAnalysis from '../hooks/useExportAnalysis';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 import {
   calculateMortgage,
   calculateCashFlow,
@@ -53,7 +53,7 @@ function pct(n: number): string {
 }
 
 export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUpdate, onAnalyzeAnother }: Props) {
-  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { adapters, features } = usePropertyAnalyzerCore();
   const { api, shareUrls } = adapters;
   const property = analysis.property_data;
   const results = analysis.analysis_results;

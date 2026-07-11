@@ -168,6 +168,18 @@ export function createAnalyzerApiClient(apiService: ApiService): AnalyzerApiClie
       });
       return response.narratives;
     },
+
+    searchForeclosures(params) {
+      return apiService.searchForeclosures(params);
+    },
+
+    getMarketTrends(postalCode) {
+      return apiService.getMarketTrends(postalCode);
+    },
+
+    submitFeedback(message) {
+      return apiService.submitFeedback(message);
+    },
   };
 }
 

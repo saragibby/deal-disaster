@@ -6,7 +6,6 @@ import { AuthProvider } from '@deal-platform/shared-auth';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AssetDashboardAnalyzerProvider } from './wrapper/AssetDashboardAnalyzerContext';
 import App from './App';
-import SharedAnalysisView from './components/SharedAnalysisView';
 import './styles/analyzer.css';
 
 const withAssetDashboardWrapper = (element: ReactElement) => (
@@ -17,7 +16,7 @@ const router = createBrowserRouter([
   { path: '/', element: withAssetDashboardWrapper(<App />) },
   { path: '/analysis/:id', element: withAssetDashboardWrapper(<App />) },
   { path: '/compare', element: withAssetDashboardWrapper(<App />) },
-  { path: '/shared/:slug', element: withAssetDashboardWrapper(<SharedAnalysisView />) },
+  { path: '/shared/:slug', element: withAssetDashboardWrapper(<App />) },
   { path: '/*', element: withAssetDashboardWrapper(<App />) },
 ], {
   basename: '/property-analyzer',

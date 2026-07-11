@@ -153,6 +153,7 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
 
   const session = useMemo(() => toAnalyzerSession(auth), [auth.isAuthenticated, auth.token, auth.user]);
   const authAdapter = useMemo<AnalyzerAuthAdapter>(() => ({
+    isLoading: auth.loading,
     async getSession() {
       return session;
     },
@@ -162,7 +163,10 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
     onUnauthorized() {
       redirectToLogin();
     },
-  }), [session]);
+    signOut() {
+      auth.logout();
+    },
+  }), [auth.loading, auth.logout, session]);
 
   const navigation = useMemo<AnalyzerNavigationAdapter>(() => ({
     currentUrl() {
