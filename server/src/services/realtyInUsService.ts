@@ -17,8 +17,9 @@
 
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import { filterPlausibleRentalComps } from './rentalEstimationService.js';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('realty-in-us');
 const HOST = 'realty-in-us.p.rapidapi.com';
 
 function headers() {
@@ -37,7 +38,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<RentalComp[]>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — rental listings change slowly
+const CACHE_TTL_MS = getProviderFreshnessMs('realty-in-us') ?? 0;
 
 /** Check if the RapidAPI key is configured. */
 export function isConfigured(): boolean {

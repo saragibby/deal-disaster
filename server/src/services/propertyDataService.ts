@@ -21,10 +21,11 @@
 
 import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
 // ---------- configuration ----------
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('private-zillow');
 const RAPIDAPI_HOST = () => process.env.RAPIDAPI_HOST || 'private-zillow.p.rapidapi.com';
 
 function rapidHeaders() {
@@ -42,7 +43,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — property data rarely changes
+const CACHE_TTL_MS = getProviderFreshnessMs('private-zillow', 'property') ?? 0;
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);

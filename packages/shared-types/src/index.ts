@@ -1073,6 +1073,78 @@ export interface OwnerContext {
   requestId?: string;
 }
 
+export type AnalyzerProviderId =
+  | 'private-zillow'
+  | 'rentcast'
+  | 'realty-in-us'
+  | 'airdna'
+  | 'furnished-finder'
+  | 'google-geocoding'
+  | 'google-places'
+  | 'us-census-geocoding'
+  | 'nominatim-geocoding';
+
+export type AnalyzerProviderCategory =
+  | 'property-data'
+  | 'rental-comps'
+  | 'str-market'
+  | 'mtr-market'
+  | 'geocoding'
+  | 'proximity';
+
+export type ProviderCredentialScope = 'none' | 'platform' | 'tenant' | 'owner';
+
+export interface ProviderCredentialReference {
+  kind: 'env';
+  credentialId: string;
+  envVar: string;
+  scope: Exclude<ProviderCredentialScope, 'none'>;
+}
+
+export interface ProviderCredentialPolicy {
+  scope: ProviderCredentialScope;
+  references: readonly ProviderCredentialReference[];
+}
+
+export type ProviderCacheSharing =
+  | 'global'
+  | 'platform'
+  | 'tenant'
+  | 'owner'
+  | 'disabled';
+
+export type ProviderCacheKeyPart =
+  | 'provider'
+  | 'platform'
+  | 'tenant'
+  | 'owner'
+  | 'credential-scope'
+  | 'input';
+
+export interface ProviderCacheFreshnessProfile {
+  freshnessMs: number | null;
+  notes?: string;
+}
+
+export interface ProviderCachePolicy {
+  sharing: ProviderCacheSharing;
+  freshnessMs: number | null;
+  durableCacheAllowed: boolean;
+  inMemoryCacheAllowed: boolean;
+  crossProductReuse: 'allowed' | 'forbidden';
+  cacheKeyIncludes: ProviderCacheKeyPart[];
+  profiles?: Record<string, ProviderCacheFreshnessProfile>;
+  notes?: string;
+}
+
+export interface AnalyzerProviderPolicy {
+  id: AnalyzerProviderId;
+  displayName: string;
+  category: AnalyzerProviderCategory;
+  credential: ProviderCredentialPolicy;
+  cache: ProviderCachePolicy;
+}
+
 export type AnalyzerPermission =
   | 'analysis:read'
   | 'analysis:write'

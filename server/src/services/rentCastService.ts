@@ -15,10 +15,11 @@
  */
 
 import type { RentalComp, PropertyData } from '@deal-platform/shared-types';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
 // ---------- configuration ----------
 
-const RENTCAST_API_KEY = () => process.env.RENTCAST_API_KEY || '';
+const RENTCAST_API_KEY = () => readProviderCredential('rentcast');
 const BASE_URL = 'https://api.rentcast.io/v1';
 
 function headers() {
@@ -36,8 +37,8 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — rental data changes infrequently
-const MARKET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days for market stats
+const CACHE_TTL_MS = getProviderFreshnessMs('rentcast', 'rentalComps') ?? 0;
+const MARKET_CACHE_TTL_MS = getProviderFreshnessMs('rentcast', 'marketStatistics') ?? 0;
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);

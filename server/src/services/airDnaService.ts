@@ -15,10 +15,11 @@
  */
 
 import type { PropertyData, STREstimate } from '@deal-platform/shared-types';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
 // ---------- configuration ----------
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('airdna');
 const AIRDNA_HOST = 'airdna1.p.rapidapi.com';
 
 function headers() {
@@ -36,7 +37,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — STR metrics change infrequently
+const CACHE_TTL_MS = getProviderFreshnessMs('airdna') ?? 0;
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);

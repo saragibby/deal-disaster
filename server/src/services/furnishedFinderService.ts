@@ -30,6 +30,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PropertyData, MTRComp } from '@deal-platform/shared-types';
+import { getProviderFreshnessMs } from './providerPolicyRegistry.js';
 
 // ---------- configuration ----------
 
@@ -65,7 +66,7 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<MTRMarketData | null>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — furnished inventory moves slowly
+const CACHE_TTL_MS = getProviderFreshnessMs('furnished-finder') ?? 0;
 
 function getCached(key: string): { hit: boolean; value: MTRMarketData | null } {
   const entry = cache.get(key);

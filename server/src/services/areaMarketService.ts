@@ -11,13 +11,14 @@
 
 import { pool } from '../db/pool.js';
 import type { HousingMarket, RentalMarketTrends } from '@deal-platform/shared-types';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
 // ── configuration ──────────────────────────────────────────────────────
 
-const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MEM_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour — avoid repeated DB reads
+const REFRESH_INTERVAL_MS = getProviderFreshnessMs('private-zillow', 'areaMarket') ?? 0;
+const MEM_CACHE_TTL_MS = getProviderFreshnessMs('private-zillow', 'areaMarketHot') ?? 0;
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('private-zillow');
 const RAPIDAPI_HOST = () => process.env.RAPIDAPI_HOST || 'private-zillow.p.rapidapi.com';
 
 function rapidHeaders() {
