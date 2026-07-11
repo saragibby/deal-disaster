@@ -954,6 +954,7 @@ export function computeDealVerdict(input: DealVerdictInput): DealVerdict {
 export interface PropertyAnalysis {
   id: number;
   slug: string;
+  public_share_id?: string | null;
   user_id: number;
   zillow_url: string;
   zpid?: string;
@@ -1137,6 +1138,7 @@ export interface AnalyzerDerivedAdjustments {
 export interface AnalyzerShareState {
   slug: string;
   isShared: boolean;
+  publicShareId?: string | null;
 }
 
 export interface AnalyzerNavigationOptions {

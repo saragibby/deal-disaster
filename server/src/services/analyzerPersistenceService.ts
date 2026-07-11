@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import type { OwnerContext, PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
@@ -38,11 +39,11 @@ interface AnalysisUpdateInput {
 
 const ANALYSIS_HISTORY_COLUMNS = `
   slug, zillow_url, zpid, property_data, analysis_params,
-  analysis_results, rental_comps, user_overrides, is_shared, created_at
+  analysis_results, rental_comps, user_overrides, is_shared, public_share_id, created_at
 `;
 
 const SHARED_ANALYSIS_COLUMNS = `
-  slug, property_data, analysis_params, analysis_results, rental_comps, created_at
+  slug, public_share_id, property_data, analysis_params, analysis_results, rental_comps, created_at
 `;
 
 const OWNER_PREDICATE = `
@@ -58,12 +59,92 @@ function ownerPredicateValues(ownerContext: OwnerContext): [string, string, numb
   return [ownerContext.tenantId, ownerContext.platform, getOwnerUserId(ownerContext)];
 }
 
+function generatePublicShareId(): string {
+  return randomBytes(18).toString('base64url');
+}
+
+const SENSITIVE_PUBLIC_KEYS = new Set([
+  'apikey',
+  'api_key',
+  'authorization',
+  'auth',
+  'credentials',
+  'credential',
+  'headers',
+  'is_shared',
+  'metadata',
+  'oauth_id',
+  'oauth_provider',
+  'owner_user_id',
+  'ownerid',
+  'owneruserid',
+  'password',
+  'platformuserid',
+  'permissions',
+  'privatecontrols',
+  'private_controls',
+  'providermetadata',
+  'provider_metadata',
+  'rapidapikey',
+  'rapidapi_key',
+  'raw',
+  'rawdata',
+  'raw_data',
+  'roles',
+  'secret',
+  'tenant_id',
+  'tenantid',
+  'token',
+  'user_overrides',
+  'user_id',
+  'userid',
+]);
+
+function sanitizePublicValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sanitizePublicValue);
+  }
+
+  if (value == null || typeof value !== 'object') {
+    return value;
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (SENSITIVE_PUBLIC_KEYS.has(key.toLowerCase())) {
+      continue;
+    }
+
+    sanitized[key] = sanitizePublicValue(nestedValue);
+  }
+
+  return sanitized;
+}
+
+export function toPublicAnalysisProjection(
+  analysis: Partial<PropertyAnalysis> | null,
+): Partial<PropertyAnalysis> | null {
+  if (analysis == null) {
+    return null;
+  }
+
+  return {
+    slug: analysis.slug,
+    public_share_id: analysis.public_share_id,
+    property_data: sanitizePublicValue(analysis.property_data) as PropertyAnalysis['property_data'],
+    analysis_params: sanitizePublicValue(analysis.analysis_params) as PropertyAnalysis['analysis_params'],
+    analysis_results: sanitizePublicValue(analysis.analysis_results) as PropertyAnalysis['analysis_results'],
+    rental_comps: sanitizePublicValue(analysis.rental_comps) as PropertyAnalysis['rental_comps'],
+    created_at: analysis.created_at,
+  };
+}
+
 export async function saveAnalysis(
   ownerContext: OwnerContext,
   input: AnalysisSaveInput,
-): Promise<{ slug: string; created_at: string }> {
+): Promise<{ slug: string; public_share_id: string | null; created_at: string }> {
   const ownerUserId = getOwnerUserId(ownerContext);
-  const result = await pool.query<{ slug: string; created_at: string }>(
+  const result = await pool.query<{ slug: string; public_share_id: string | null; created_at: string }>(
     `INSERT INTO property_analyses
       (user_id, tenant_id, platform, owner_user_id, slug, zillow_url, zpid, source_url, source_type, property_data, analysis_params, analysis_results, rental_comps)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -83,7 +164,7 @@ export async function saveAnalysis(
      WHERE property_analyses.tenant_id = EXCLUDED.tenant_id
        AND property_analyses.platform = EXCLUDED.platform
        AND property_analyses.owner_user_id = EXCLUDED.owner_user_id
-     RETURNING slug, created_at`,
+     RETURNING slug, public_share_id, created_at`,
     [
       ownerUserId,
       ownerContext.tenantId,
@@ -181,8 +262,8 @@ export async function deleteAnalysisBySlug(
 export async function updateAnalysisAfterReanalysis(
   ownerContext: OwnerContext,
   input: AnalysisUpdateInput,
-): Promise<{ slug: string; created_at: string } | null> {
-  const result = await pool.query<{ slug: string; created_at: string }>(
+): Promise<{ slug: string; public_share_id: string | null; created_at: string } | null> {
+  const result = await pool.query<{ slug: string; public_share_id: string | null; created_at: string }>(
     `UPDATE property_analyses
      SET property_data    = $4,
          analysis_params  = $5,
@@ -190,7 +271,7 @@ export async function updateAnalysisAfterReanalysis(
          rental_comps     = $7,
          created_at       = CURRENT_TIMESTAMP
      WHERE ${OWNER_PREDICATE} AND slug = $8
-     RETURNING slug, created_at`,
+     RETURNING slug, public_share_id, created_at`,
     [
       ...ownerPredicateValues(ownerContext),
       JSON.stringify(input.propertyData),
@@ -208,13 +289,18 @@ export async function setAnalysisShared(
   ownerContext: OwnerContext,
   slug: string,
   shared: boolean,
-): Promise<{ slug: string; is_shared: boolean } | null> {
-  const result = await pool.query<{ slug: string; is_shared: boolean }>(
+): Promise<{ slug: string; is_shared: boolean; public_share_id: string | null } | null> {
+  const publicShareId = shared ? generatePublicShareId() : null;
+  const result = await pool.query<{ slug: string; is_shared: boolean; public_share_id: string | null }>(
     `UPDATE property_analyses
-     SET is_shared = $4
-     WHERE ${OWNER_PREDICATE} AND slug = $5
-     RETURNING slug, is_shared`,
-    [...ownerPredicateValues(ownerContext), shared, slug],
+     SET is_shared = $4,
+         public_share_id = CASE
+           WHEN $4 = TRUE THEN COALESCE(public_share_id, $5)
+           ELSE public_share_id
+         END
+     WHERE ${OWNER_PREDICATE} AND slug = $6
+     RETURNING slug, is_shared, public_share_id`,
+    [...ownerPredicateValues(ownerContext), shared, publicShareId, slug],
   );
 
   return result.rows[0] ?? null;
@@ -256,20 +342,20 @@ export async function updateAnalysisOverrides(
   return result.rows.length > 0;
 }
 
-export async function getSharedAnalysisBySlug(slug: string): Promise<Partial<PropertyAnalysis> | null> {
+export async function getSharedAnalysisByPublicIdentifier(identifier: string): Promise<Partial<PropertyAnalysis> | null> {
   const result = await pool.query<Partial<PropertyAnalysis>>(
     `SELECT ${SHARED_ANALYSIS_COLUMNS}
      FROM property_analyses
      WHERE tenant_id = $1
        AND platform = $2
-       AND slug = $3
        AND is_shared = TRUE
-     ORDER BY created_at DESC
+       AND (public_share_id = $3 OR slug = $3)
+     ORDER BY CASE WHEN public_share_id = $3 THEN 0 ELSE 1 END, created_at DESC
      LIMIT 1`,
-    [ASSET_DASHBOARD_TENANT_ID, ASSET_DASHBOARD_PLATFORM, slug],
+    [ASSET_DASHBOARD_TENANT_ID, ASSET_DASHBOARD_PLATFORM, identifier],
   );
 
-  return result.rows[0] ?? null;
+  return toPublicAnalysisProjection(result.rows[0] ?? null);
 }
 
 export async function getOwnedAnalysesBySlugs(
