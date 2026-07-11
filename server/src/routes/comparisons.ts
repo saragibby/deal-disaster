@@ -10,8 +10,15 @@
 
 import { Router, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
-import { pool } from '../db/pool.js';
-import { buildAssetDashboardOwnerContext, getOwnerUserId } from '../middleware/ownerContext.js';
+import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
+import {
+  countOwnedAnalysisSlugs,
+  deleteComparisonById,
+  getComparisonById,
+  listComparisons,
+  saveComparison,
+  updateComparisonSlugs,
+} from '../services/analyzerPersistenceService.js';
 
 const router = Router();
 
@@ -33,26 +40,14 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
-    const userId = getOwnerUserId(ownerContext);
 
-    // Verify all slugs belong to this user
-    const { rows: validSlugs } = await pool.query(
-      `SELECT slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)`,
-      [userId, propertySlugs],
-    );
-
-    if (validSlugs.length !== propertySlugs.length) {
+    if (await countOwnedAnalysisSlugs(ownerContext, propertySlugs) !== propertySlugs.length) {
       return res.status(400).json({ error: 'One or more property slugs are invalid.' });
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, name, property_slugs, created_at, updated_at`,
-      [userId, ownerContext.tenantId, ownerContext.platform, userId, name.trim(), propertySlugs],
-    );
+    const comparison = await saveComparison(ownerContext, name.trim(), propertySlugs);
 
-    res.status(201).json({ comparison: rows[0] });
+    res.status(201).json({ comparison });
   } catch (err: any) {
     console.error('[comparisons] POST error:', err);
     res.status(500).json({ error: 'Failed to save comparison.' });
@@ -63,29 +58,15 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const ownerContext = await buildAssetDashboardOwnerContext(req);
-    const userId = getOwnerUserId(ownerContext);
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
     const offset = (page - 1) * limit;
 
-    const [dataResult, countResult] = await Promise.all([
-      pool.query(
-        `SELECT id, name, property_slugs, created_at, updated_at
-         FROM saved_comparisons
-         WHERE user_id = $1
-         ORDER BY updated_at DESC
-         LIMIT $2 OFFSET $3`,
-        [userId, limit, offset],
-      ),
-      pool.query(
-        `SELECT COUNT(*) FROM saved_comparisons WHERE user_id = $1`,
-        [userId],
-      ),
-    ]);
+    const { comparisons, total } = await listComparisons(ownerContext, limit, offset);
 
     res.json({
-      comparisons: dataResult.rows,
-      total: parseInt(countResult.rows[0].count, 10),
+      comparisons,
+      total,
       page,
       limit,
     });
@@ -105,20 +86,13 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
-    const userId = getOwnerUserId(ownerContext);
+    const comparison = await getComparisonById(ownerContext, compId);
 
-    const { rows } = await pool.query(
-      `SELECT id, name, property_slugs, created_at, updated_at
-       FROM saved_comparisons
-       WHERE id = $1 AND user_id = $2`,
-      [compId, userId],
-    );
-
-    if (rows.length === 0) {
+    if (comparison == null) {
       return res.status(404).json({ error: 'Comparison not found.' });
     }
 
-    res.json({ comparison: rows[0] });
+    res.json({ comparison });
   } catch (err: any) {
     console.error('[comparisons] GET single error:', err);
     res.status(500).json({ error: 'Failed to load comparison.' });
@@ -135,14 +109,8 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
-    const userId = getOwnerUserId(ownerContext);
 
-    const { rowCount } = await pool.query(
-      `DELETE FROM saved_comparisons WHERE id = $1 AND user_id = $2`,
-      [compId, userId],
-    );
-
-    if (rowCount === 0) {
+    if (!await deleteComparisonById(ownerContext, compId)) {
       return res.status(404).json({ error: 'Comparison not found.' });
     }
 
@@ -173,31 +141,18 @@ router.patch('/:id', authenticateToken, async (req: AuthRequest, res: Response) 
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
-    const userId = getOwnerUserId(ownerContext);
 
-    // Verify all slugs belong to this user
-    const { rows: validSlugs } = await pool.query(
-      `SELECT slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)`,
-      [userId, propertySlugs],
-    );
-
-    if (validSlugs.length !== propertySlugs.length) {
+    if (await countOwnedAnalysisSlugs(ownerContext, propertySlugs) !== propertySlugs.length) {
       return res.status(400).json({ error: 'One or more property slugs are invalid.' });
     }
 
-    const { rows, rowCount } = await pool.query(
-      `UPDATE saved_comparisons
-       SET property_slugs = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2 AND user_id = $3
-       RETURNING id, name, property_slugs, created_at, updated_at`,
-      [propertySlugs, compId, userId],
-    );
+    const comparison = await updateComparisonSlugs(ownerContext, compId, propertySlugs);
 
-    if (rowCount === 0) {
+    if (comparison == null) {
       return res.status(404).json({ error: 'Comparison not found.' });
     }
 
-    res.json({ comparison: rows[0] });
+    res.json({ comparison });
   } catch (err: any) {
     console.error('[comparisons] PATCH error:', err);
     res.status(500).json({ error: 'Failed to update comparison.' });
