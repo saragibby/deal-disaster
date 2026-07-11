@@ -1123,12 +1123,14 @@ export type ProviderCacheKeyPart =
 
 export interface ProviderCacheFreshnessProfile {
   freshnessMs: number | null;
+  staleIfErrorMs?: number | null;
   notes?: string;
 }
 
 export interface ProviderCachePolicy {
   sharing: ProviderCacheSharing;
   freshnessMs: number | null;
+  staleIfErrorMs: number | null;
   durableCacheAllowed: boolean;
   inMemoryCacheAllowed: boolean;
   crossProductReuse: 'allowed' | 'forbidden';

@@ -1,4 +1,5 @@
 import { pool } from './pool.js';
+import { PROVIDER_CACHE_SCHEMA_STATEMENTS } from './providerCacheSchema.js';
 
 export async function setupDatabase() {
   try {
@@ -123,6 +124,11 @@ export async function setupDatabase() {
       ON saved_comparisons(user_id, updated_at DESC)
     `);
     console.log('✅ Saved comparisons table created');
+
+    for (const statement of PROVIDER_CACHE_SCHEMA_STATEMENTS) {
+      await pool.query(statement);
+    }
+    console.log('✅ Provider cache table created');
 
     // Create leaderboard view
     await pool.query(`
