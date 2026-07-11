@@ -33,19 +33,17 @@ import type {
   MTRSeasonalityMonth,
 } from '@deal-platform/shared-types';
 import type { MTRMarketData } from './furnishedFinderService.js';
-import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 // ---------------------------------------------------------------------------
-// Proximity cache (in-memory, 7-day TTL)
+// Proximity cache (shared provider cache, 7-day TTL)
 // ---------------------------------------------------------------------------
 
 interface ProximityCacheEntry {
   boost: number;
   nearby: NearbyInstitution[];
-  expiresAt: number;
 }
-const proximityCache = new Map<string, ProximityCacheEntry>();
-const PROXIMITY_CACHE_TTL = getProviderFreshnessMs('google-places') ?? 0;
 
 // ---------------------------------------------------------------------------
 // Main estimator
@@ -380,11 +378,12 @@ export async function getProximityBoost(
   lat: number,
   lng: number,
 ): Promise<{ boost: number; nearby: NearbyInstitution[] }> {
-  const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
-  const cached = proximityCache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    return { boost: cached.boost, nearby: cached.nearby };
-  }
+  const cacheKey = { endpoint: 'nearbysearch', lat: lat.toFixed(3), lng: lng.toFixed(3) };
+  const cached = await readProviderCache<ProximityCacheEntry>({
+    providerId: 'google-places',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   const apiKey = readProviderCredential('google-places');
   if (!apiKey) return { boost: 0, nearby: [] };
@@ -473,7 +472,11 @@ export async function getProximityBoost(
   // Sort all results by distance
   nearby.sort((a, b) => a.miles - b.miles);
 
-  proximityCache.set(cacheKey, { boost, nearby, expiresAt: Date.now() + PROXIMITY_CACHE_TTL });
+  await writeProviderCache({
+    providerId: 'google-places',
+    key: cacheKey,
+    value: { boost, nearby },
+  });
   if (nearby.length > 0) {
     console.log(`[MTR] Proximity boost: +${boost} (${nearby.map(n => `${n.emoji} ${n.name} ${n.miles}mi`).join(', ')})`);
   }

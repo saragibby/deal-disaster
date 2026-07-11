@@ -30,7 +30,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PropertyData, MTRComp } from '@deal-platform/shared-types';
-import { getProviderFreshnessMs } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 // ---------- configuration ----------
 
@@ -57,27 +57,6 @@ const SEARCH_QUERY =
   '    }' +
   '  }' +
   '}';
-
-// ---------- cache ----------
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry<MTRMarketData | null>>();
-const CACHE_TTL_MS = getProviderFreshnessMs('furnished-finder') ?? 0;
-
-function getCached(key: string): { hit: boolean; value: MTRMarketData | null } {
-  const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return { hit: true, value: entry.data };
-  cache.delete(key);
-  return { hit: false, value: null };
-}
-
-function setCache(key: string, data: MTRMarketData | null): void {
-  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-}
 
 // ---------- types ----------
 
@@ -258,8 +237,16 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
   if (latitude == null || longitude == null) return null;
 
   const beds = Number.isFinite(bedrooms) ? (bedrooms as number) : 2;
-  const cacheKey = `ff:mtr:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${beds}`;
-  const cached = getCached(cacheKey);
+  const cacheKey = {
+    endpoint: 'graphql/search',
+    latitude: latitude.toFixed(3),
+    longitude: longitude.toFixed(3),
+    bedrooms: beds,
+  };
+  const cached = await readProviderCache<MTRMarketData | null>({
+    providerId: 'furnished-finder',
+    key: cacheKey,
+  });
   if (cached.hit) return cached.value;
 
   // Primary (~6mi) box.
@@ -272,6 +259,10 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
     market = listings ? reduceToMarketData(listings, beds, WIDE_RADIUS_MILES) : null;
   }
 
-  setCache(cacheKey, market);
+  await writeProviderCache({
+    providerId: 'furnished-finder',
+    key: cacheKey,
+    value: market,
+  });
   return market;
 }

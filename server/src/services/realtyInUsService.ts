@@ -17,7 +17,8 @@
 
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import { filterPlausibleRentalComps } from './rentalEstimationService.js';
-import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 const RAPIDAPI_KEY = () => readProviderCredential('realty-in-us');
 const HOST = 'realty-in-us.p.rapidapi.com';
@@ -29,16 +30,6 @@ function headers() {
     'x-rapidapi-host': HOST,
   };
 }
-
-// ---------- cache ----------
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry<RentalComp[]>>();
-const CACHE_TTL_MS = getProviderFreshnessMs('realty-in-us') ?? 0;
 
 /** Check if the RapidAPI key is configured. */
 export function isConfigured(): boolean {
@@ -58,9 +49,16 @@ export async function getRentalComps(
 ): Promise<RentalComp[]> {
   if (!isConfigured() || !property.zip) return [];
 
-  const cacheKey = `realty:rent:${property.zip}:${property.bedrooms || ''}`;
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) return cached.data;
+  const cacheKey = {
+    endpoint: 'properties/v3/list',
+    zip: property.zip,
+    bedrooms: property.bedrooms || '',
+  };
+  const cached = await readProviderCache<RentalComp[]>({
+    providerId: 'realty-in-us',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   try {
     const body = {
@@ -112,7 +110,11 @@ export async function getRentalComps(
       if (filtered.length >= 1) relevant = filtered;
     }
 
-    cache.set(cacheKey, { data: relevant, expiresAt: Date.now() + CACHE_TTL_MS });
+    await writeProviderCache({
+      providerId: 'realty-in-us',
+      key: cacheKey,
+      value: relevant,
+    });
     console.log(`[Realty-in-US] Found ${relevant.length} rental comps for ${property.zip}`);
     return relevant;
   } catch (err: any) {
