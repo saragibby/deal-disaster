@@ -21,10 +21,12 @@
 
 import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
+import { readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 // ---------- configuration ----------
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('private-zillow');
 const RAPIDAPI_HOST = () => process.env.RAPIDAPI_HOST || 'private-zillow.p.rapidapi.com';
 
 function rapidHeaders() {
@@ -32,30 +34,6 @@ function rapidHeaders() {
     'x-rapidapi-key': RAPIDAPI_KEY(),
     'x-rapidapi-host': RAPIDAPI_HOST(),
   };
-}
-
-// ---------- simple in-memory cache ----------
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — property data rarely changes
-
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cache.delete(key);
-    return null;
-  }
-  return entry.data as T;
-}
-
-function setCache<T>(key: string, data: T): void {
-  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 // ---------- public API ----------
@@ -83,9 +61,13 @@ export function parseZillowUrl(url: string): string {
  * Uses: GET /byzpid?zpid=<zpid>
  */
 export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
-  const cacheKey = `property:${zpid}`;
-  const cached = getCached<PropertyData>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'byzpid', zpid };
+  const cached = await readProviderCache<PropertyData>({
+    providerId: 'private-zillow',
+    profile: 'property',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   const host = RAPIDAPI_HOST();
   const url = `https://${host}/byzpid?zpid=${zpid}`;
@@ -122,7 +104,12 @@ export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
     if (!property.housingMarket) property.housingMarket = areaData.housingMarket;
   }
 
-  setCache(cacheKey, property);
+  await writeProviderCache({
+    providerId: 'private-zillow',
+    profile: 'property',
+    key: cacheKey,
+    value: property,
+  });
   return property;
 }
 
@@ -256,9 +243,13 @@ export async function searchProperties(query: string): Promise<PropertySummary[]
  * Results are cached for 30 minutes to minimise API calls.
  */
 export async function getSimilarProperties(zpid: string): Promise<ComparableProperty[]> {
-  const cacheKey = `similar:${zpid}`;
-  const cached = getCached<ComparableProperty[]>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'similar', zpid };
+  const cached = await readProviderCache<ComparableProperty[]>({
+    providerId: 'private-zillow',
+    profile: 'similarProperties',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   try {
     const host = RAPIDAPI_HOST();
@@ -310,7 +301,12 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
         };
       });
 
-    setCache(cacheKey, comps);
+    await writeProviderCache({
+      providerId: 'private-zillow',
+      profile: 'similarProperties',
+      key: cacheKey,
+      value: comps,
+    });
     return comps;
   } catch (err: any) {
     console.warn('[similar] Failed to fetch similar properties:', err.message);

@@ -15,10 +15,12 @@
  */
 
 import type { PropertyData, STREstimate } from '@deal-platform/shared-types';
+import { readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 // ---------- configuration ----------
 
-const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const RAPIDAPI_KEY = () => readProviderCredential('airdna');
 const AIRDNA_HOST = 'airdna1.p.rapidapi.com';
 
 function headers() {
@@ -26,27 +28,6 @@ function headers() {
     'x-rapidapi-key': RAPIDAPI_KEY(),
     'x-rapidapi-host': AIRDNA_HOST,
   };
-}
-
-// ---------- cache ----------
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — STR metrics change infrequently
-
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
-  cache.delete(key);
-  return null;
-}
-
-function setCache<T>(key: string, data: T): void {
-  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 // ---------- types for AirDNA responses ----------
@@ -143,21 +124,32 @@ export async function getSTREstimate(
 ): Promise<STREstimate | null> {
   if (!isConfigured()) return null;
 
-  const cacheKey = `airdna:str:${property.zpid}`;
-  const cached = getCached<STREstimate>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'str-estimate', zpid: property.zpid };
+  const cached = await readProviderCache<STREstimate>({
+    providerId: 'airdna',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   // Try property-level estimate first
   const estimate = await fetchPropertyEstimate(property);
   if (estimate) {
-    setCache(cacheKey, estimate);
+    await writeProviderCache({
+      providerId: 'airdna',
+      key: cacheKey,
+      value: estimate,
+    });
     return estimate;
   }
 
   // Fall back to market-level stats by zip
   const marketEstimate = await fetchMarketStats(property);
   if (marketEstimate) {
-    setCache(cacheKey, marketEstimate);
+    await writeProviderCache({
+      providerId: 'airdna',
+      key: cacheKey,
+      value: marketEstimate,
+    });
     return marketEstimate;
   }
 

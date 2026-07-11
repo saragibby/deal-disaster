@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { pool } from './pool.js';
+import { PROVIDER_CACHE_SCHEMA_STATEMENTS } from './providerCacheSchema.js';
 
 const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
 const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
@@ -321,6 +322,11 @@ export async function setupDatabase() {
       ON saved_comparison_members(analysis_id)
     `);
     console.log('✅ Saved comparison membership table created');
+
+    for (const statement of PROVIDER_CACHE_SCHEMA_STATEMENTS) {
+      await pool.query(statement);
+    }
+    console.log('✅ Provider cache table created');
 
     // Create leaderboard view
     await pool.query(`
