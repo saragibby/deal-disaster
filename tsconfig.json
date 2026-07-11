@@ -8,6 +8,7 @@
   },
   "references": [
     { "path": "packages/shared-types" },
+    { "path": "packages/property-analyzer-core" },
     { "path": "packages/shared-auth" },
     { "path": "packages/shared-ui" }
   ],
