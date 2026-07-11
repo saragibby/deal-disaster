@@ -322,6 +322,15 @@ export interface AnalysisParams {
   taxRate: number;
   offerPrice: number;
   rentOverride: number;
+
+  // ── Furnished-strategy costs (MTR / STR) ──────────────────────────
+  // Optional. Defaults are derived per-property when a furnished strategy
+  // is first selected (see calculations.deriveFurnishedDefaults).
+  furnishingCost?: number;        // one-time, furniture + decor
+  applianceCost?: number;         // one-time, appliances / electronics
+  furnishingLifeYears?: number;   // amortization horizon for the above
+  furnitureRepairMonthly?: number;// recurring repair/replacement of furniture & appliances
+  cleaningMonthly?: number;       // recurring cleaning not already in the estimate (MTR)
 }
 
 /**
@@ -359,6 +368,43 @@ export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
   offerPrice: 0,
   rentOverride: 0,
 };
+
+// ── Rental strategy + generic cash-flow line-item model ─────────────
+
+export type RentalStrategy = 'ltr' | 'mtr' | 'str';
+
+export interface CashFlowLine {
+  /** Stable key for the line (used for React keys / adjust wiring). */
+  key: string;
+  label: string;
+  /** Monthly amount (income/expense) or one-time amount (cash invested). */
+  amount: number;
+  /** Whether this line is user-adjustable via the params panel. */
+  adjustable?: boolean;
+  /** Source/category badge text, e.g. 'Estimated', 'From AirDNA'. */
+  badge?: string;
+  /** Optional caption shown under the line (e.g. occupancy assumption). */
+  note?: string;
+}
+
+export interface StrategyCashFlow {
+  strategy: RentalStrategy;
+  /** Gross monthly income lines (usually one). */
+  incomeLines: CashFlowLine[];
+  /** Monthly expense lines. */
+  expenseLines: CashFlowLine[];
+  /** One-time costs that increase cash invested (ROI denominator). */
+  cashInvestedLines: CashFlowLine[];
+  /** Derived totals. */
+  monthlyIncome: number;
+  totalMonthlyExpenses: number;
+  monthlyCashFlow: number;
+  annualCashFlow: number;
+  /** Break-even monthly income required to cover every cost. */
+  breakEvenIncome: number;
+  /** Occupancy assumption (0-1) for MTR/STR, undefined for LTR. */
+  occupancyRate?: number;
+}
 
 export interface MortgageBreakdown {
   monthlyPayment: number;

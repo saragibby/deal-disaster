@@ -515,7 +515,22 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   const changes = useMemo(() => {
     const money = (n: number) => fmt(n);
     const percent = (n: number) => `${n}%`;
-    const defs: { key: keyof AnalysisParams; label: string; format: (n: number) => string }[] = [
+    type ChangedParamKey =
+      | 'offerPrice'
+      | 'rentOverride'
+      | 'downPaymentPct'
+      | 'interestRate'
+      | 'loanTermYears'
+      | 'vacancyPct'
+      | 'repairsPct'
+      | 'capexPct'
+      | 'managementPct'
+      | 'annualPropertyTax'
+      | 'annualInsurance'
+      | 'monthlyHoa'
+      | 'costSegPct'
+      | 'taxRate';
+    const defs: { key: ChangedParamKey; label: string; format: (n: number) => string }[] = [
       { key: 'offerPrice', label: 'Offer price', format: money },
       { key: 'rentOverride', label: 'Monthly rent', format: money },
       { key: 'downPaymentPct', label: 'Down payment', format: percent },

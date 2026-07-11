@@ -207,7 +207,7 @@ export function deriveSignals(analysis: PropertyAnalysis): SectionSignal[] {
       tooltip: `${cfTip} · ${roiTip}`,
     },
     {
-      id: 'strategy-tabs',
+      id: 'rental-strategy',
       label: 'Strategies',
       icon: <BarChart3 size={14} />,
       signal: stratSignal,
