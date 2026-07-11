@@ -46,10 +46,10 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO saved_comparisons (user_id, name, property_slugs)
-       VALUES ($1, $2, $3)
+      `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, property_slugs, created_at, updated_at`,
-      [userId, name.trim(), propertySlugs],
+      [userId, ownerContext.tenantId, ownerContext.platform, userId, name.trim(), propertySlugs],
     );
 
     res.status(201).json({ comparison: rows[0] });
