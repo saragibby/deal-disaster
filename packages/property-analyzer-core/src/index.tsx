@@ -57,8 +57,8 @@ export type {
 
 export { usePropertyAnalyzerCore } from './context.js';
 
-function tabForRoute(route: AnalyzerRoute): AnalyzerTab {
-  if (route.kind === 'compare') return 'compare';
+function tabForRoute(route: AnalyzerRoute, comparisonsEnabled: boolean): AnalyzerTab {
+  if (route.kind === 'compare' && comparisonsEnabled) return 'compare';
   if (route.kind === 'history') return 'history';
   return 'analyze';
 }
@@ -74,7 +74,7 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
     onAnalysisContextChange,
   } = props;
   const [route, setRoute] = useState<AnalyzerRoute>(initialRoute);
-  const [activeTab, setActiveTab] = useState<AnalyzerTab>(tabForRoute(initialRoute));
+  const [activeTab, setActiveTab] = useState<AnalyzerTab>(tabForRoute(initialRoute, features.comparisons));
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionDisplayName, setSessionDisplayName] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -86,9 +86,9 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
 
   useEffect(() => {
     setRoute(initialRoute);
-    setActiveTab(tabForRoute(initialRoute));
+    setActiveTab(tabForRoute(initialRoute, features.comparisons));
     setMobileMenuOpen(false);
-  }, [initialRoute]);
+  }, [features.comparisons, initialRoute]);
 
   useEffect(() => {
     if (isSharedRoute) {
