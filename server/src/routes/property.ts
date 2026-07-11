@@ -19,6 +19,7 @@ import * as investmentAnalysisService from '../services/investmentAnalysisServic
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import type { AnalysisParams, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
+import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
 
 const router = Router();
 
@@ -85,6 +86,8 @@ router.get('/rental-estimate', authenticateToken, async (req: AuthRequest, res: 
       return res.status(400).json({ error: 'Provide zpid or price+bedrooms+sqft.' });
     }
 
+    await buildAssetDashboardOwnerContext(req);
+
     const algorithmic = rentalEstimationService.estimateRent(property);
     const blended = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
@@ -114,6 +117,8 @@ router.post('/analyze', authenticateToken, async (req: AuthRequest, res: Respons
     } else {
       return res.status(400).json({ error: 'Provide url, zpid, or property data.' });
     }
+
+    await buildAssetDashboardOwnerContext(req);
 
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
@@ -168,6 +173,8 @@ router.get('/search', authenticateToken, async (req: AuthRequest, res: Response)
     if (!q) {
       return res.status(400).json({ error: 'Provide a search query (?q=...).' });
     }
+
+    await buildAssetDashboardOwnerContext(req);
 
     const results = await propertyDataService.searchProperties(q);
     res.json({ results });

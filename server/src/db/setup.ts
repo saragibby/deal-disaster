@@ -1,5 +1,55 @@
 import { pool } from './pool.js';
 
+const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
+const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
+
+type AnalyzerOwnerTable = 'property_analyses' | 'saved_comparisons';
+
+async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
+  const beforeResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const beforeCount = beforeResult.rows[0].count;
+
+  await pool.query(
+    `UPDATE ${tableName}
+     SET
+       tenant_id = COALESCE(tenant_id, $1),
+       platform = COALESCE(platform, $2),
+       owner_user_id = COALESCE(owner_user_id, user_id)
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+    [ASSET_DASHBOARD_OWNER_TENANT_ID, ASSET_DASHBOARD_OWNER_PLATFORM],
+  );
+
+  const afterResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const afterCount = afterResult.rows[0].count;
+
+  if (afterCount !== beforeCount) {
+    throw new Error(
+      `Analyzer ownership backfill changed ${tableName} row count from ${beforeCount} to ${afterCount}.`,
+    );
+  }
+
+  const missingResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count
+     FROM ${tableName}
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+  );
+  const missingCount = missingResult.rows[0].count;
+
+  if (missingCount > 0) {
+    throw new Error(
+      `Analyzer ownership backfill left ${missingCount} ${tableName} rows without tenant, platform, or owner user fields.`,
+    );
+  }
+}
+
 export async function setupDatabase() {
   try {
     console.log('🔨 Setting up database...');
@@ -112,6 +162,9 @@ export async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS saved_comparisons (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+        platform VARCHAR(50) DEFAULT 'asset-dashboard',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         property_slugs TEXT[] NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -119,10 +172,90 @@ export async function setupDatabase() {
       )
     `);
     await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    `);
+    await backfillAnalyzerOwnership('saved_comparisons');
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
       ON saved_comparisons(user_id, updated_at DESC)
     `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_tenant_owner_updated
+      ON saved_comparisons(tenant_id, owner_user_id, updated_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_tenant_owner_id
+      ON saved_comparisons(tenant_id, owner_user_id, id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_platform_owner
+      ON saved_comparisons(platform, owner_user_id)
+    `);
     console.log('✅ Saved comparisons table created');
+
+    // Create property_analyses table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_analyses (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+        platform VARCHAR(50) DEFAULT 'asset-dashboard',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        slug VARCHAR(100) NOT NULL,
+        zillow_url VARCHAR(1000) NOT NULL,
+        zpid VARCHAR(50),
+        source_url VARCHAR(1000),
+        source_type VARCHAR(50) DEFAULT 'zillow',
+        property_data JSONB NOT NULL,
+        analysis_params JSONB NOT NULL,
+        analysis_results JSONB NOT NULL,
+        rental_comps JSONB,
+        user_overrides JSONB,
+        is_shared BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    `);
+    await backfillAnalyzerOwnership('property_analyses');
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_user
+      ON property_analyses(user_id, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_zpid
+      ON property_analyses(zpid)
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_user_slug
+      ON property_analyses(user_id, slug)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_tenant_owner_slug
+      ON property_analyses(tenant_id, owner_user_id, slug)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_tenant_owner_created
+      ON property_analyses(tenant_id, owner_user_id, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_platform_owner
+      ON property_analyses(platform, owner_user_id)
+    `);
+    console.log('✅ Property analyses table created');
 
     // Create leaderboard view
     await pool.query(`
