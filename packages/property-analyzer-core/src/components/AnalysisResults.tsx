@@ -6,7 +6,7 @@ import {
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
   Coins, Share2, Download, Lock, Globe, Pencil, RefreshCw, Gauge, ExternalLink, Plus, X,
-  MapPin,
+  MapPin, Printer,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
 import ForeclosureCard from './ForeclosureCard';
@@ -62,7 +62,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
   // Print / PDF export
   const resultsRef = useRef<HTMLDivElement>(null);
-  const { exportToPdf, exporting } = useExportAnalysis(resultsRef);
+  const { exportToPdf, printAnalysis, exporting } = useExportAnalysis(resultsRef);
 
   // Detect when the section nav is stuck below the header (to go full-width)
   const navBarRef = useRef<HTMLDivElement>(null);
@@ -112,12 +112,13 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     const shareIdentifier = publicShareId || analysis.public_share_id || analysis.slug;
     const url = shareUrls.publicAnalysis(shareIdentifier);
     navigator.clipboard.writeText(url).then(() => {
+      adapters.events?.shareLinkCopied?.(url);
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     }).catch(() => {
       prompt('Copy this link:', url);
     });
-  }, [analysis.public_share_id, analysis.slug, publicShareId, shareUrls]);
+  }, [adapters.events, analysis.public_share_id, analysis.slug, publicShareId, shareUrls]);
 
   // ── Adjustable parameters ────────────────────────────────────────
   // Persisted user adjustments (if any) are merged back in so manual
@@ -923,6 +924,14 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                   {exporting ? 'Exporting...' : 'Export PDF'}
                 </button>
               )}
+              <button
+                className="btn btn--outline btn--sm"
+                onClick={printAnalysis}
+                title="Print analysis"
+              >
+                <Printer size={14} />
+                Print
+              </button>
               {onUpdate && (
                 <button
                   className="btn btn--ghost btn--sm"

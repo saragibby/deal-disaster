@@ -27,7 +27,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
   const { adapters, features } = usePropertyAnalyzerCore();
   const { api, shareUrls } = adapters;
   const dashboardRef = useRef<HTMLDivElement>(null);
-  const { exportToPdf, exporting } = useExportComparison(dashboardRef);
+  const { exportToPdf, printComparison, exporting } = useExportComparison(dashboardRef);
 
   // Save comparison state
   const [saving, setSaving] = useState(false);
@@ -54,6 +54,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
   const handleShare = () => {
     const url = shareUrls.privateComparison(properties.map(p => p.slug));
     navigator.clipboard.writeText(url).then(() => {
+      adapters.events?.shareLinkCopied?.(url);
       alert('Comparison link copied to clipboard!');
     }).catch(() => {
       prompt('Copy this link:', url);
@@ -108,6 +109,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
         onBack={onBack}
         onShare={handleShare}
         onExportPdf={features.pdfExport ? exportToPdf : undefined}
+        onPrint={printComparison}
         onSave={features.savedComparisons ? handleSave : undefined}
         exporting={exporting}
         saving={saving}

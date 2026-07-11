@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { OwnerContext, PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
+import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import { getOwnerUserId } from '../middleware/ownerContext.js';
 
@@ -134,6 +135,72 @@ export function toPublicAnalysisProjection(
     rental_comps: sanitizePublicValue(analysis.rental_comps) as PropertyAnalysis['rental_comps'],
     created_at: analysis.created_at,
   };
+}
+
+async function resolveOwnedAnalysisIds(
+  client: PoolClient,
+  ownerContext: OwnerContext,
+  propertySlugs: string[],
+): Promise<number[] | null> {
+  const result = await client.query<{ id: number; slug: string }>(
+    `SELECT id, slug
+     FROM property_analyses
+     WHERE ${OWNER_PREDICATE} AND slug = ANY($4::text[])`,
+    [...ownerPredicateValues(ownerContext), propertySlugs],
+  );
+  const idsBySlug = new Map(result.rows.map(row => [row.slug, row.id]));
+  const analysisIds = propertySlugs.map(slug => idsBySlug.get(slug));
+
+  if (analysisIds.some(id => id == null)) {
+    return null;
+  }
+
+  return analysisIds as number[];
+}
+
+async function replaceComparisonMembers(
+  client: PoolClient,
+  comparisonId: number,
+  analysisIds: number[],
+) {
+  await client.query(
+    'DELETE FROM saved_comparison_members WHERE comparison_id = $1',
+    [comparisonId],
+  );
+
+  await client.query(
+    `INSERT INTO saved_comparison_members (comparison_id, analysis_id, position)
+     SELECT $1, member.analysis_id, member.ordinality::int
+     FROM unnest($2::int[]) WITH ORDINALITY AS member(analysis_id, ordinality)`,
+    [comparisonId, analysisIds],
+  );
+}
+
+async function getHydratedComparison(
+  client: PoolClient,
+  ownerContext: OwnerContext,
+  id: number,
+): Promise<SavedComparison | null> {
+  const result = await client.query<SavedComparison>(
+    `SELECT sc.id,
+            sc.name,
+            COALESCE(
+              array_agg(pa.slug ORDER BY scm.position) FILTER (WHERE pa.slug IS NOT NULL),
+              ARRAY[]::text[]
+            ) AS property_slugs,
+            sc.created_at,
+            sc.updated_at
+     FROM saved_comparisons sc
+     LEFT JOIN saved_comparison_members scm ON scm.comparison_id = sc.id
+     LEFT JOIN property_analyses pa ON pa.id = scm.analysis_id
+     WHERE sc.tenant_id = $1
+       AND sc.platform = $2
+       AND sc.owner_user_id = $3
+       AND sc.id = $4
+     GROUP BY sc.id, sc.name, sc.created_at, sc.updated_at`,
+    [...ownerPredicateValues(ownerContext), id],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function saveAnalysis(
@@ -388,15 +455,35 @@ export async function saveComparison(
   name: string,
   propertySlugs: string[],
 ): Promise<SavedComparison> {
+  const client = await pool.connect();
   const ownerUserId = getOwnerUserId(ownerContext);
-  const result = await pool.query<SavedComparison>(
-    `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id, name, property_slugs, created_at, updated_at`,
-    [ownerUserId, ownerContext.tenantId, ownerContext.platform, ownerUserId, name, propertySlugs],
-  );
+  try {
+    await client.query('BEGIN');
+    const analysisIds = await resolveOwnedAnalysisIds(client, ownerContext, propertySlugs);
+    if (analysisIds == null) {
+      throw new Error('One or more property slugs are invalid for this owner context.');
+    }
+    const result = await client.query<{ id: number }>(
+      `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [ownerUserId, ownerContext.tenantId, ownerContext.platform, ownerUserId, name, propertySlugs],
+    );
 
-  return result.rows[0];
+    await replaceComparisonMembers(client, result.rows[0].id, analysisIds);
+    const comparison = await getHydratedComparison(client, ownerContext, result.rows[0].id);
+    if (comparison == null) {
+      throw new Error('Saved comparison could not be hydrated after creation.');
+    }
+    await client.query('COMMIT');
+
+    return comparison;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function listComparisons(
@@ -407,10 +494,22 @@ export async function listComparisons(
   const ownerValues = ownerPredicateValues(ownerContext);
   const [dataResult, countResult] = await Promise.all([
     pool.query<SavedComparison>(
-      `SELECT id, name, property_slugs, created_at, updated_at
-       FROM saved_comparisons
-       WHERE ${OWNER_PREDICATE}
-       ORDER BY updated_at DESC
+      `SELECT sc.id,
+              sc.name,
+              COALESCE(
+                array_agg(pa.slug ORDER BY scm.position) FILTER (WHERE pa.slug IS NOT NULL),
+                ARRAY[]::text[]
+              ) AS property_slugs,
+              sc.created_at,
+              sc.updated_at
+       FROM saved_comparisons sc
+       LEFT JOIN saved_comparison_members scm ON scm.comparison_id = sc.id
+       LEFT JOIN property_analyses pa ON pa.id = scm.analysis_id
+       WHERE sc.tenant_id = $1
+         AND sc.platform = $2
+         AND sc.owner_user_id = $3
+       GROUP BY sc.id, sc.name, sc.created_at, sc.updated_at
+       ORDER BY sc.updated_at DESC
        LIMIT $4 OFFSET $5`,
       [...ownerValues, limit, offset],
     ),
@@ -430,14 +529,12 @@ export async function getComparisonById(
   ownerContext: OwnerContext,
   id: number,
 ): Promise<SavedComparison | null> {
-  const result = await pool.query<SavedComparison>(
-    `SELECT id, name, property_slugs, created_at, updated_at
-     FROM saved_comparisons
-     WHERE ${OWNER_PREDICATE} AND id = $4`,
-    [...ownerPredicateValues(ownerContext), id],
-  );
-
-  return result.rows[0] ?? null;
+  const client = await pool.connect();
+  try {
+    return await getHydratedComparison(client, ownerContext, id);
+  } finally {
+    client.release();
+  }
 }
 
 export async function deleteComparisonById(ownerContext: OwnerContext, id: number): Promise<boolean> {
@@ -455,13 +552,38 @@ export async function updateComparisonSlugs(
   id: number,
   propertySlugs: string[],
 ): Promise<SavedComparison | null> {
-  const result = await pool.query<SavedComparison>(
-    `UPDATE saved_comparisons
-     SET property_slugs = $4, updated_at = CURRENT_TIMESTAMP
-     WHERE ${OWNER_PREDICATE} AND id = $5
-     RETURNING id, name, property_slugs, created_at, updated_at`,
-    [...ownerPredicateValues(ownerContext), propertySlugs, id],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const analysisIds = await resolveOwnedAnalysisIds(client, ownerContext, propertySlugs);
+    if (analysisIds == null) {
+      throw new Error('One or more property slugs are invalid for this owner context.');
+    }
+    const result = await client.query<{ id: number }>(
+      `UPDATE saved_comparisons
+       SET property_slugs = $4, updated_at = CURRENT_TIMESTAMP
+       WHERE ${OWNER_PREDICATE} AND id = $5
+       RETURNING id`,
+      [...ownerPredicateValues(ownerContext), propertySlugs, id],
+    );
 
-  return result.rows[0] ?? null;
+    if (result.rows[0] == null) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await replaceComparisonMembers(client, id, analysisIds);
+    const comparison = await getHydratedComparison(client, ownerContext, id);
+    if (comparison == null) {
+      throw new Error('Saved comparison could not be hydrated after update.');
+    }
+    await client.query('COMMIT');
+
+    return comparison;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }

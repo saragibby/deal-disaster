@@ -8,7 +8,9 @@ import {
 import { AskWill, Footer } from '@deal-platform/shared-ui';
 import type {
   AnalyzerAssistantContext,
+  AnalyzerError,
   AnalyzerAuthAdapter,
+  AnalyzerExportKind,
   AnalyzerNavigationAdapter,
   AnalyzerPermission,
   AnalyzerRoute,
@@ -145,6 +147,10 @@ function createFeatureFlags(): PropertyAnalyzerFeatureFlags {
   };
 }
 
+function dispatchAnalyzerEvent<T>(name: string, detail: T) {
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
 export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const location = useLocation();
@@ -224,7 +230,9 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
       shareUrls,
       events: {
         navigate: navigation.navigate,
-        shareLinkCopied: () => undefined,
+        shareLinkCopied: (url: string) => dispatchAnalyzerEvent('property-analyzer:share-link-copied', { url }),
+        exportStarted: (kind: AnalyzerExportKind) => dispatchAnalyzerEvent('property-analyzer:export-started', { kind }),
+        error: (error: AnalyzerError) => dispatchAnalyzerEvent('property-analyzer:error', error),
       },
     },
     features,

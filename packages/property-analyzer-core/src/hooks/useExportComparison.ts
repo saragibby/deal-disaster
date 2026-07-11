@@ -1,4 +1,5 @@
 import { useState, useCallback, type RefObject } from 'react';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 const HEADER_HEIGHT = 14; // mm reserved for header on each page
 const FOOTER_HEIGHT = 6;  // mm reserved for footer
@@ -82,12 +83,14 @@ function neutralizeCrossOrigin(el: HTMLElement) {
 }
 
 export default function useExportComparison(ref: RefObject<HTMLDivElement | null>) {
+  const { adapters } = usePropertyAnalyzerCore();
   const [exporting, setExporting] = useState(false);
 
   const exportToPdf = useCallback(async () => {
     const el = ref.current;
     if (!el) return;
 
+    adapters.events?.exportStarted?.('comparison-pdf');
     setExporting(true);
     let restore: (() => void) | null = null;
     try {
@@ -220,16 +223,23 @@ export default function useExportComparison(ref: RefObject<HTMLDivElement | null
       pdf.save('property-comparison.pdf');
     } catch (err) {
       console.error('PDF export failed:', err);
+      adapters.events?.error?.({
+        code: 'export-failed',
+        message: 'Failed to export comparison PDF.',
+        cause: err,
+        retryable: true,
+      });
       alert('Failed to export PDF. Please try using Print instead.');
     } finally {
       if (restore) restore();
       setExporting(false);
     }
-  }, [ref]);
+  }, [adapters.events, ref]);
 
   const printComparison = useCallback(() => {
+    adapters.events?.exportStarted?.('comparison-print');
     window.print();
-  }, []);
+  }, [adapters.events]);
 
   return { exportToPdf, printComparison, exporting };
 }

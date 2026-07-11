@@ -18,6 +18,8 @@ dotenv.config({ path: resolve(__dirname, '../server/.env') });
 
 const { Pool } = pg;
 const FIXTURE_SLUG_PATTERN = 'e2e-pa-%';
+const FIXTURE_TENANT_ID = 'asset-dashboard';
+const FIXTURE_PLATFORM = 'asset-dashboard';
 
 export const PROPERTY_ANALYZER_FIXTURE_USERS = {
   owner: {
@@ -175,6 +177,20 @@ export async function ensurePropertyAnalyzerFixtureSchema(pool: pg.Pool) {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
     ON saved_comparisons(user_id, updated_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS saved_comparison_members (
+      comparison_id INTEGER NOT NULL REFERENCES saved_comparisons(id) ON DELETE CASCADE,
+      analysis_id INTEGER NOT NULL REFERENCES property_analyses(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position >= 1 AND position <= 6),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (comparison_id, analysis_id),
+      UNIQUE (comparison_id, position)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_saved_comparison_members_analysis
+    ON saved_comparison_members(analysis_id)
   `);
 }
 
@@ -440,7 +456,7 @@ export async function seedPropertyAnalysis(
        user_id, tenant_id, platform, owner_user_id, slug, zillow_url, zpid, source_url, source_type, property_data,
        analysis_params, analysis_results, rental_comps, user_overrides, is_shared, public_share_id, created_at
      )
-     VALUES ($1, 'asset-dashboard', 'asset-dashboard', $1, $2, $3, $4, $5, 'address', $6, $7, $8, $9, NULL, $10, $11, $12)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'address', $9, $10, $11, $12, NULL, $13, $14, $15)
      ON CONFLICT (user_id, slug) DO UPDATE SET
        tenant_id = EXCLUDED.tenant_id,
        platform = EXCLUDED.platform,
@@ -461,6 +477,9 @@ export async function seedPropertyAnalysis(
        property_data, analysis_params, analysis_results, rental_comps,
        user_overrides, is_shared, created_at`,
     [
+      options.userId,
+      FIXTURE_TENANT_ID,
+      FIXTURE_PLATFORM,
       options.userId,
       slug,
       property.zillowUrl,
@@ -489,22 +508,46 @@ export async function seedSavedComparison(
     throw new Error('Property Analyzer comparison fixtures must contain 2 to 6 property slugs.');
   }
 
-  const { rows: validRows } = await pool.query(
-    'SELECT slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)',
+  const { rows: validRows } = await pool.query<{ id: number; slug: string }>(
+    'SELECT id, slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)',
     [userId, propertySlugs],
   );
   if (validRows.length !== propertySlugs.length) {
     throw new Error('All comparison fixture slugs must belong to the seeded user.');
   }
 
-  const { rows } = await pool.query(
-    `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
-     VALUES ($1, 'asset-dashboard', 'asset-dashboard', $1, $2, $3)
-     RETURNING id, name, property_slugs, created_at, updated_at`,
-    [userId, name, propertySlugs],
-  );
+  const idsBySlug = new Map(validRows.map(row => [row.slug, row.id]));
+  const analysisIds = propertySlugs.map((slug) => {
+    const id = idsBySlug.get(slug);
+    if (id == null) {
+      throw new Error('All comparison fixture slugs must belong to the seeded user.');
+    }
+    return id;
+  });
 
-  return rows[0];
+  await pool.query('BEGIN');
+  try {
+    const { rows } = await pool.query<SeededSavedComparison>(
+      `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, property_slugs, created_at, updated_at`,
+      [userId, FIXTURE_TENANT_ID, FIXTURE_PLATFORM, userId, name, propertySlugs],
+    );
+    const comparison = rows[0];
+
+    await pool.query(
+      `INSERT INTO saved_comparison_members (comparison_id, analysis_id, position)
+       SELECT $1, member.analysis_id, member.ordinality::int
+       FROM unnest($2::int[]) WITH ORDINALITY AS member(analysis_id, ordinality)`,
+      [comparison.id, analysisIds],
+    );
+    await pool.query('COMMIT');
+
+    return comparison;
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    throw error;
+  }
 }
 
 export async function seedPropertyAnalyzerFixtures(options?: {

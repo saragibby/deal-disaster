@@ -405,19 +405,45 @@ propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => 
     await expect(page).toHaveURL(/\/login/);
   });
 
-  propertyAnalyzerTest('starts analysis and comparison PDF exports without surfacing errors', async ({ page, propertyFixtures }) => {
+  propertyAnalyzerTest('starts analysis and comparison PDF/print exports without uncaught browser errors', async ({ page, propertyFixtures }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.addInitScript(() => {
+      (window as any).__propertyAnalyzerExportEvents = [];
+      const originalAddEventListener = window.addEventListener.bind(window);
+      originalAddEventListener('property-analyzer:export-started', ((event: CustomEvent<{ kind: string }>) => {
+        (window as any).__propertyAnalyzerExportEvents.push(event.detail.kind);
+      }) as EventListener);
+      window.print = () => {
+        (window as any).__printCalls = ((window as any).__printCalls ?? 0) + 1;
+      };
+    });
     await loginAsFixtureOwner(page, propertyFixtures);
     await page.goto(`/property-analyzer/analysis/${propertyFixtures.ownedAnalyses[0].slug}`);
     await expectFixtureAnalysisVisible(page, propertyFixtures.ownedAnalyses[0]);
     page.on('dialog', dialog => dialog.dismiss());
     await page.locator('.results__property-actions button', { hasText: 'Export PDF' }).click();
     await expect(page.locator('.results__property-actions button', { hasText: /Export PDF|Exporting/ })).toBeVisible();
+    await page.locator('.results__property-actions button', { hasText: 'Print' }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).__printCalls ?? 0)).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => page.evaluate(() => (window as any).__propertyAnalyzerExportEvents)).toEqual([
+      'analysis-pdf',
+      'analysis-print',
+    ]);
 
     const [first, second] = propertyFixtures.ownedAnalyses;
     await page.goto(`/property-analyzer/compare?props=${first.slug},${second.slug}`);
     await expect(page.locator('.comparison-dashboard__title')).toContainText('Comparing 2 Properties', { timeout: 15000 });
     await page.locator('.comparison-dashboard__actions button', { hasText: 'PDF' }).click();
     await expect(page.locator('.comparison-dashboard__actions button', { hasText: /PDF|Exporting/ })).toBeVisible();
+    await page.locator('.comparison-dashboard__actions button', { hasText: 'Print' }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).__printCalls ?? 0)).toBeGreaterThanOrEqual(1);
+
+    await expect.poll(() => page.evaluate(() => (window as any).__propertyAnalyzerExportEvents)).toEqual([
+      'comparison-pdf',
+      'comparison-print',
+    ]);
+    expect(pageErrors).toEqual([]);
   });
 
   propertyAnalyzerTest('respects the AskWill disable feature flag while analyzer rendering continues', async ({ page, propertyFixtures }) => {

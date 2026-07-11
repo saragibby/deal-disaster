@@ -1,10 +1,11 @@
-import { ArrowLeft, Share2, Download, Save } from 'lucide-react';
+import { ArrowLeft, Share2, Download, Save, Printer } from 'lucide-react';
 
 interface Props {
   propertyCount: number;
   onBack: () => void;
   onShare: () => void;
   onExportPdf?: () => void;
+  onPrint: () => void;
   onSave?: () => void;
   exporting: boolean;
   saving: boolean;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 export default function ComparisonHeader({
-  propertyCount, onBack, onShare, onExportPdf, onSave, exporting, saving, saved,
+  propertyCount, onBack, onShare, onExportPdf, onPrint, onSave, exporting, saving, saved,
 }: Props) {
   return (
     <div className="comparison-dashboard__header">
@@ -48,6 +49,9 @@ export default function ComparisonHeader({
             {exporting ? 'Exporting...' : 'PDF'}
           </button>
         )}
+        <button className="btn btn--outline" onClick={onPrint} title="Print comparison">
+          <Printer size={16} /> Print
+        </button>
       </div>
     </div>
   );
