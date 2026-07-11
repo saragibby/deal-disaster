@@ -1,29 +1,30 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { analyzerApi } from '@deal-platform/shared-auth';
+import { useParams } from 'react-router-dom';
 import type {
+  AnalyzerAssistantContext,
   PropertyAnalysis,
   AnalysisParams,
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { Search } from 'lucide-react';
-import type { AskWillProps } from '@deal-platform/shared-ui';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
 import PropertyComparison from './PropertyComparison.js';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 
 type AnalyzerTab = 'analyze' | 'history' | 'compare';
 
 interface PropertyAnalyzerProps {
-  onAnalysisComplete?: (context: AskWillProps['propertyAnalysis']) => void;
+  onAnalysisComplete?: (context: AnalyzerAssistantContext) => void;
   activeTab: AnalyzerTab;
   onTabChange: (tab: AnalyzerTab) => void;
 }
 
 export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabChange }: PropertyAnalyzerProps) {
   const { id: analysisSlug } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { adapters } = useAssetDashboardAnalyzer();
+  const { api, navigation } = adapters;
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +68,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
     setError(null);
     onTabChange('analyze');
 
-    analyzerApi.getAnalysis(analysisSlug)
+    api.getAnalysis(analysisSlug)
       .then((analysis) => {
         if (!cancelled) {
           setResult(analysis);
@@ -81,7 +82,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
       });
 
     return () => { cancelled = true; };
-  }, [analysisSlug]);
+  }, [analysisSlug, api, onTabChange]);
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) {
@@ -100,20 +101,20 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
       // still override any of them afterwards via the assumption sliders.
       const { annualPropertyTax, annualInsurance, repairsPct, capexPct, costSegPct, ...autoParams } = params;
       void annualPropertyTax; void annualInsurance; void repairsPct; void capexPct; void costSegPct;
-      const response = await analyzerApi.runAnalysis({ url: url.trim(), params: autoParams });
+      const response = await api.runAnalysis({ url: url.trim(), params: autoParams });
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
       setInputExpanded(false);
       // Navigate to the analysis URL so it's shareable
       if (response.slug) {
-        navigate(`/analysis/${response.slug}`, { replace: true });
+        navigation.navigate({ kind: 'analyze', slug: response.slug }, { replace: true });
       }
     } catch (err: any) {
       setError(err.message || 'Analysis failed. Please check the URL and try again.');
     } finally {
       setLoading(false);
     }
-  }, [url, params]);
+  }, [api, navigation, url, params]);
 
   const handleResultUpdate = useCallback((updated: PropertyAnalysis) => {
     setResult(updated);
@@ -121,8 +122,8 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
   }, []);
 
   const handleViewHistoryItem = useCallback((analysis: PropertyAnalysis) => {
-    navigate(`/analysis/${analysis.slug}`);
-  }, [navigate]);
+    navigation.navigate({ kind: 'analyze', slug: analysis.slug });
+  }, [navigation]);
 
   return (
     <div className="analyzer">
@@ -213,4 +214,3 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
     </div>
   );
 }
-

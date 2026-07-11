@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { shortAddr } from '../../utils/comparisonUtils.js';
 import { PROPERTY_COLORS } from '../ComparisonSelector.js';
+import { useAssetDashboardAnalyzer } from '../../wrapper/AssetDashboardAnalyzerContext.js';
 
 interface Props {
   properties: PropertyAnalysis[];
@@ -14,6 +14,8 @@ interface NarrativeMap {
 }
 
 export default function AIPropertyNarratives({ properties }: Props) {
+  const { adapters } = useAssetDashboardAnalyzer();
+  const { api } = adapters;
   const [narratives, setNarratives] = useState<NarrativeMap>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export default function AIPropertyNarratives({ properties }: Props) {
     setError(null);
     try {
       const slugs = properties.map(p => p.slug);
-      const result = await analyzerApi.getPropertyNarratives(slugs);
+      const result = await api.getPropertyNarratives(slugs);
       const map: NarrativeMap = {};
       result.forEach(n => { map[n.propertyId] = n.narrative; });
       setNarratives(map);
@@ -38,7 +40,7 @@ export default function AIPropertyNarratives({ properties }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [properties]);
+  }, [api, properties]);
 
   const toggle = (slug: string) => {
     setExpanded(prev => ({ ...prev, [slug]: !prev[slug] }));

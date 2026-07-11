@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Trash2, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 
 interface Props {
   onView: (analysis: PropertyAnalysis) => void;
@@ -15,6 +15,8 @@ function fmt(n: number): string {
 }
 
 export default function AnalysisHistory({ onView }: Props) {
+  const { adapters } = useAssetDashboardAnalyzer();
+  const { api } = adapters;
   const [analyses, setAnalyses] = useState<PropertyAnalysis[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -27,7 +29,7 @@ export default function AnalysisHistory({ onView }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const data = await analyzerApi.getHistory({ page, limit });
+      const data = await api.getHistory({ page, limit });
       setAnalyses(data.items);
       setTotal(data.total);
     } catch (err: any) {
@@ -35,7 +37,7 @@ export default function AnalysisHistory({ onView }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [api, page]);
 
   useEffect(() => {
     fetchHistory();
@@ -44,7 +46,7 @@ export default function AnalysisHistory({ onView }: Props) {
   const handleDelete = async (slug: string) => {
     if (!confirm('Delete this analysis?')) return;
     try {
-      await analyzerApi.deleteAnalysis(slug);
+      await api.deleteAnalysis(slug);
       fetchHistory();
     } catch (err: any) {
       alert(err.message || 'Failed to delete.');

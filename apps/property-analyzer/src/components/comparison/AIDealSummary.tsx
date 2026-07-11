@@ -1,13 +1,15 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import { Sparkles, RefreshCw } from 'lucide-react';
+import { useAssetDashboardAnalyzer } from '../../wrapper/AssetDashboardAnalyzerContext.js';
 
 interface Props {
   properties: PropertyAnalysis[];
 }
 
 export default function AIDealSummary({ properties }: Props) {
+  const { adapters } = useAssetDashboardAnalyzer();
+  const { api } = adapters;
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,14 +19,14 @@ export default function AIDealSummary({ properties }: Props) {
     setError(null);
     try {
       const slugs = properties.map(p => p.slug);
-      const result = await analyzerApi.getComparisonSummary(slugs);
+      const result = await api.getComparisonSummary(slugs);
       setSummary(result.summary);
     } catch (err: any) {
       setError(err.message || 'Failed to generate AI summary');
     } finally {
       setLoading(false);
     }
-  }, [properties]);
+  }, [api, properties]);
 
   // Parse the plain-text summary into individual insight lines
   const insights = useMemo(() => {

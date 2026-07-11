@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
 import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import {
   Home, Building2, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
@@ -21,6 +20,7 @@ import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import useExportAnalysis from '../hooks/useExportAnalysis';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 import {
   calculateMortgage,
   calculateCashFlow,
@@ -53,6 +53,8 @@ function pct(n: number): string {
 }
 
 export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUpdate, onAnalyzeAnother }: Props) {
+  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { api, shareUrls } = adapters;
   const property = analysis.property_data;
   const results = analysis.analysis_results;
   const rental = results.rentalEstimate;
@@ -90,25 +92,24 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     if (!analysis.slug) return;
     setShareLoading(true);
     try {
-      const result = await analyzerApi.setShared(analysis.slug, !isShared);
+      const result = await api.setShared(analysis.slug, !isShared);
       setIsShared(result.isShared);
     } catch (err: any) {
       alert(err.message || 'Failed to update sharing.');
     } finally {
       setShareLoading(false);
     }
-  }, [analysis.slug, isShared]);
+  }, [analysis.slug, api, isShared]);
 
   const copyShareLink = useCallback(() => {
-    const origin = window.location.origin;
-    const url = `${origin}/property-analyzer/shared/${analysis.slug}`;
+    const url = shareUrls.publicAnalysis(analysis.slug);
     navigator.clipboard.writeText(url).then(() => {
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     }).catch(() => {
       prompt('Copy this link:', url);
     });
-  }, [analysis.slug]);
+  }, [analysis.slug, shareUrls]);
 
   // ── Adjustable parameters ────────────────────────────────────────
   // Persisted user adjustments (if any) are merged back in so manual
@@ -194,14 +195,14 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       if (params.repairsPct === originalParams.repairsPct) delete payload.repairsPct;
       if (params.capexPct === originalParams.capexPct) delete payload.capexPct;
       if (params.costSegPct === originalParams.costSegPct) delete payload.costSegPct;
-      const updated = await analyzerApi.reAnalyze(analysis.slug, payload);
+      const updated = await api.reAnalyze(analysis.slug, payload);
       onUpdate(updated);
     } catch (err: any) {
       alert(err?.message || 'Re-analyze failed. Please try again.');
     } finally {
       setReanalyzing(false);
     }
-  }, [analysis.slug, onUpdate, params, originalParams]);
+  }, [analysis.slug, api, onUpdate, params, originalParams]);
 
   // Scroll to loan calculator for mortgage adjustment
   const scrollToLoanCalc = useCallback(() => {
@@ -371,7 +372,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
         params: paramDiff,
         depreciationMethod,
       };
-      analyzerApi.saveAdjustments(analysis.slug, {
+      api.saveAdjustments(analysis.slug, {
         overrides,
         derived: {
           cashFlow,
@@ -389,7 +390,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     params, selectedStrategy, mtrRevenueOverride, strRevenueOverride,
     operatingOverrides, furnitureOverride, applianceOverride,
     cashFlow, roi, strategyComparison, adjustedStr, adjustedMtr,
-    paramsBaseline, readOnly, analysis.slug, depreciationMethod,
+    api, paramsBaseline, readOnly, analysis.slug, depreciationMethod,
   ]);
 
   // Active rental type for the slider (defaults to the best strategy).
@@ -780,7 +781,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                       </a>
                     );
                   })()}
-                  {streetViewSrc && (
+                  {features.streetView && streetViewSrc && (
                     <button
                       type="button"
                       className="results__property-link results__streetview-btn"
@@ -880,16 +881,18 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                   Analyze another
                 </button>
               )}
-              <button
-                className={`btn btn--outline btn--sm ${isShared ? 'btn--shared' : ''}`}
-                onClick={toggleShare}
-                disabled={shareLoading}
-                title={isShared ? 'Make private' : 'Make shareable'}
-              >
-                {isShared ? <Globe size={14} /> : <Lock size={14} />}
-                {shareLoading ? 'Updating...' : isShared ? 'Public' : 'Private'}
-              </button>
-              {isShared && (
+              {features.publicSharing && (
+                <button
+                  className={`btn btn--outline btn--sm ${isShared ? 'btn--shared' : ''}`}
+                  onClick={toggleShare}
+                  disabled={shareLoading}
+                  title={isShared ? 'Make private' : 'Make shareable'}
+                >
+                  {isShared ? <Globe size={14} /> : <Lock size={14} />}
+                  {shareLoading ? 'Updating...' : isShared ? 'Public' : 'Private'}
+                </button>
+              )}
+              {features.publicSharing && isShared && (
                 <button
                   className="btn btn--outline btn--sm"
                   onClick={copyShareLink}
@@ -899,15 +902,17 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                   {shareCopied ? 'Copied!' : 'Copy Link'}
                 </button>
               )}
-              <button
-                className="btn btn--outline btn--sm"
-                onClick={exportToPdf}
-                disabled={exporting}
-                title="Download as PDF"
-              >
-                {exporting ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <Download size={14} />}
-                {exporting ? 'Exporting...' : 'Export PDF'}
-              </button>
+              {features.pdfExport && (
+                <button
+                  className="btn btn--outline btn--sm"
+                  onClick={exportToPdf}
+                  disabled={exporting}
+                  title="Download as PDF"
+                >
+                  {exporting ? <span className="analyzer-spinner analyzer-spinner--sm" /> : <Download size={14} />}
+                  {exporting ? 'Exporting...' : 'Export PDF'}
+                </button>
+              )}
               {onUpdate && (
                 <button
                   className="btn btn--ghost btn--sm"
@@ -1372,7 +1377,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       </div>
       </div>{/* end results__bottom-grid */}
 
-      {showStreetView && streetViewSrc && (
+      {features.streetView && showStreetView && streetViewSrc && (
         <div className="streetview-modal-overlay" onClick={() => setShowStreetView(false)}>
           <div className="streetview-modal" onClick={e => e.stopPropagation()}>
             <div className="streetview-modal__header">

@@ -1,41 +1,30 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth, buildAppUrl } from '@deal-platform/shared-auth';
-import { AskWill } from '@deal-platform/shared-ui';
-import type { AskWillProps } from '@deal-platform/shared-ui';
 import { LogOut, User, Search, GitCompareArrows, History, Home, Menu, X } from 'lucide-react';
-import { Footer } from '@deal-platform/shared-ui';
 import PropertyAnalyzer from './components/PropertyAnalyzer';
+import { useAssetDashboardAnalyzer } from './wrapper/AssetDashboardAnalyzerContext';
+import type { AnalyzerAssistantContext } from '@deal-platform/shared-types';
 
 export type AnalyzerTab = 'analyze' | 'history' | 'compare';
 
-declare global {
-  interface Window {
-    __PROPERTY_ANALYZER_FLAGS__?: {
-      askWill?: boolean;
-    };
-  }
-}
-
 export default function App() {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading, user, logout } = useAuth();
+  const { adapters, features, branding, shellSlots, assistantContext, setAssistantContext } = useAssetDashboardAnalyzer();
   const location = useLocation();
-  const navigate = useNavigate();
-  const [propertyAnalysis, setPropertyAnalysis] = useState<AskWillProps['propertyAnalysis']>();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<AnalyzerTab>(
     location.pathname.endsWith('/compare') ? 'compare' : 'analyze'
   );
-  const askWillEnabled = import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' &&
-    window.__PROPERTY_ANALYZER_FLAGS__?.askWill !== false;
 
   const changeTab = useCallback((tab: AnalyzerTab) => {
+    if (tab === 'compare' && !features.comparisons) return;
     setActiveTab(tab);
     setMobileMenuOpen(false);
-    if (tab === 'compare') navigate('/compare', { replace: true });
-  }, [navigate]);
+    if (tab === 'compare') adapters.navigation.navigate({ kind: 'compare' }, { replace: true });
+  }, [adapters.navigation, features.comparisons]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -66,13 +55,12 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logout();
     window.location.href = '/login';
-  }, []);
+  }, [logout]);
 
   if (!loading && !isAuthenticated) {
-    window.location.href = '/login';
+    void adapters.auth.requireSession('private-analysis').catch(() => undefined);
     return null;
   }
 
@@ -85,14 +73,14 @@ export default function App() {
             <a
               href={buildAppUrl('/')}
               className="analyzer-app__home"
-              title="Passive Income Club home"
-              aria-label="Passive Income Club home"
+              title={branding.homeLabel}
+              aria-label={branding.homeLabel}
             >
               <Home size={20} />
             </a>
             <span className="analyzer-app__brand-divider" aria-hidden="true" />
             <a href={buildAppUrl('/property-analyzer/')} className="analyzer-app__logo">
-              ⚡ Property Analyzer
+              {branding.logoText ?? branding.productName}
             </a>
           </div>
 
@@ -115,13 +103,15 @@ export default function App() {
               >
                 <Search size={16} /> Analyze
               </button>
-              <button
-                type="button"
-                className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'compare' ? ' analyzer-app__nav-tab--active' : ''}`}
-                onClick={() => changeTab('compare')}
-              >
-                <GitCompareArrows size={16} /> Compare
-              </button>
+              {features.comparisons && (
+                <button
+                  type="button"
+                  className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'compare' ? ' analyzer-app__nav-tab--active' : ''}`}
+                  onClick={() => changeTab('compare')}
+                >
+                  <GitCompareArrows size={16} /> Compare
+                </button>
+              )}
               <button
                 type="button"
                 className={`analyzer-app__nav-link analyzer-app__nav-tab${activeTab === 'history' ? ' analyzer-app__nav-tab--active' : ''}`}
@@ -148,14 +138,14 @@ export default function App() {
       {/* Main content */}
       <main className="analyzer-app__content">
         <PropertyAnalyzer
-          onAnalysisComplete={setPropertyAnalysis}
+          onAnalysisComplete={(context: AnalyzerAssistantContext) => setAssistantContext(context)}
           activeTab={activeTab}
           onTabChange={changeTab}
         />
       </main>
 
-      {isAuthenticated && askWillEnabled && <AskWill propertyAnalysis={propertyAnalysis} />}
-      <Footer />
+      {shellSlots?.assistant?.(assistantContext)}
+      {shellSlots?.footer}
     </div>
   );
 }

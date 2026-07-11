@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import useExportComparison from '../hooks/useExportComparison.js';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 import { type ScenarioParams, DEFAULT_SCENARIO, applyScenario } from '../utils/comparisonUtils.js';
 import ComparisonHeader from './comparison/ComparisonHeader.js';
 import DealSnapshotBanner, { useDealSnapshot } from './comparison/DealSnapshotBanner.js';
@@ -24,6 +24,8 @@ interface Props {
 }
 
 export default function ComparisonDashboard({ properties, onBack, onSaved }: Props) {
+  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { api, shareUrls } = adapters;
   const dashboardRef = useRef<HTMLDivElement>(null);
   const { exportToPdf, exporting } = useExportComparison(dashboardRef);
 
@@ -50,7 +52,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
   const dealSnapshot = useDealSnapshot(adjusted);
 
   const handleShare = () => {
-    const url = window.location.href;
+    const url = shareUrls.privateComparison(properties.map(p => p.slug));
     navigator.clipboard.writeText(url).then(() => {
       alert('Comparison link copied to clipboard!');
     }).catch(() => {
@@ -71,7 +73,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
     setSaving(true);
     try {
       const slugs = properties.map(p => p.slug);
-      await analyzerApi.saveComparison(name, slugs);
+      await api.saveComparison(name, slugs);
       setSaved(true);
       onSaved?.();
     } catch (err: any) {
@@ -79,7 +81,7 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
     } finally {
       setSaving(false);
     }
-  }, [properties, onSaved]);
+  }, [api, properties, onSaved]);
 
   const printDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -105,22 +107,22 @@ export default function ComparisonDashboard({ properties, onBack, onSaved }: Pro
         propertyCount={properties.length}
         onBack={onBack}
         onShare={handleShare}
-        onExportPdf={exportToPdf}
-        onSave={handleSave}
+        onExportPdf={features.pdfExport ? exportToPdf : undefined}
+        onSave={features.savedComparisons ? handleSave : undefined}
         exporting={exporting}
         saving={saving}
         saved={saved}
       />
       <PropertyCards properties={adjusted} topPickIdx={dealSnapshot.topPickIdx} />
       <DealSnapshotBanner properties={adjusted} snapshot={dealSnapshot} />
-      <AIDealSummary properties={properties} />
+      {features.aiComparisonSummary && <AIDealSummary properties={properties} />}
       <ScenarioSliders
         scenario={scenario}
         originalVacancyPct={avgVacancy}
         onChange={setScenario}
         onReset={resetScenario}
       />
-      <AIPropertyNarratives properties={properties} />
+      {features.aiPropertyNarratives && <AIPropertyNarratives properties={properties} />}
       <PropertyRadar properties={adjusted} />
       <CashFlowWaterfall properties={adjusted} />
       <StrategyMatrix properties={adjusted} />
