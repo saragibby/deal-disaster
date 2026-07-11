@@ -2,10 +2,12 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   MTREstimate, STREstimate, RentalEstimate,
-  FullAnalysisResult, MarketStatistics, RentalStrategy,
+  FullAnalysisResult, MarketStatistics,
+  StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
-import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, TrendingDown, Minus, Check } from 'lucide-react';
+import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, ShieldAlert, TrendingDown, Minus } from 'lucide-react';
 import { findExplainer } from './TermExplainer';
+import { estimateApplianceCost, estimateFurnitureCost } from '../utils/calculations';
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -18,18 +20,21 @@ interface Props {
   rentalEstimate?: RentalEstimate;
   dataSources?: FullAnalysisResult['dataSources'];
   marketStatistics?: MarketStatistics;
-  /** Net monthly cash flow per strategy (true net, after all costs). */
-  netByStrategy?: Partial<Record<RentalStrategy, number>>;
-  /** Currently selected strategy. */
-  selected?: RentalStrategy;
-  /** Selection handler — makes the cards interactive. */
-  onSelect?: (strategy: RentalStrategy) => void;
+  /** Single source of truth for ranking; cards display its net cash flow figures. */
+  strategyComparison: StrategyComparisonData;
+  /** Currently selected rental type, driven by the rent slider above the cards. */
+  selectedKey?: 'ltr' | 'mtr' | 'str';
+  /** Called when a card is clicked to make it the active rental type. */
+  onSelectKey?: (key: 'ltr' | 'mtr' | 'str') => void;
+  /** Bedroom count — drives furniture / appliance upfront-cost estimates. */
+  bedrooms: number;
 }
 
 interface StrategyCard {
   key: 'ltr' | 'mtr' | 'str';
   label: string;
   icon: React.ReactNode;
+  grossMonthly: number;
   netMonthly: number;
   tagline: string;
   available: boolean;
@@ -80,6 +85,7 @@ function ConfidenceBadge({ confidence, source }: { confidence?: string; source?:
   };
   const color = colors[confidence] || '#94a3b8';
   const sourceLabel = source === 'rentcast' ? 'RentCast' : source === 'airdna' ? 'AirDNA'
+    : source === 'furnished-finder' ? 'Furnished Finder'
     : source === 'blended' ? 'Blended' : 'Estimated';
   const explainer = findExplainer(`confidence ${confidence}`);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -187,22 +193,51 @@ function MarketTrendBadge({ stats }: { stats?: MarketStatistics }) {
 }
 
 function ComparisonBar({ cards }: { cards: StrategyCard[] }) {
-  const maxAbs = Math.max(1, ...cards.map((c) => Math.abs(c.netMonthly)));
+  // Scale every bar against the largest income or expense figure so the
+  // income vs. expense bars are directly comparable across rental types.
+  const maxVal = Math.max(
+    1,
+    ...cards.map((c) => Math.max(c.grossMonthly, Math.max(0, c.grossMonthly - c.netMonthly)))
+  );
   return (
     <div className="strategy-comparison__bars">
+      <div className="strategy-comparison__bars-legend">
+        <span className="strategy-comparison__bars-legend-item">
+          <span className="strategy-comparison__bars-legend-swatch strategy-comparison__bars-legend-swatch--income" />
+          Income
+        </span>
+        <span className="strategy-comparison__bars-legend-item">
+          <span className="strategy-comparison__bars-legend-swatch strategy-comparison__bars-legend-swatch--expense" />
+          Expenses
+        </span>
+      </div>
       {cards.map((card) => {
-        const width = (Math.abs(card.netMonthly) / maxAbs) * 100;
-        const neg = card.netMonthly < 0;
+        const expenses = Math.max(0, card.grossMonthly - card.netMonthly);
+        const incomeWidth = (card.grossMonthly / maxVal) * 100;
+        const expenseWidth = (expenses / maxVal) * 100;
         return (
-          <div key={card.key} className="strategy-comparison__bar-row">
+          <div key={card.key} className="strategy-comparison__bar-group">
             <span className="strategy-comparison__bar-label">{card.label}</span>
-            <div className="strategy-comparison__bar-track">
-              <div
-                className={`strategy-comparison__bar-fill strategy-comparison__bar-fill--${card.key}${neg ? ' strategy-comparison__bar-fill--neg' : ''}`}
-                style={{ width: `${width}%` }}
-              />
+            <div className="strategy-comparison__bar-stack">
+              <div className="strategy-comparison__bar-row">
+                <div className="strategy-comparison__bar-track">
+                  <div
+                    className={`strategy-comparison__bar-fill strategy-comparison__bar-fill--income strategy-comparison__bar-fill--income-${card.key}`}
+                    style={{ width: `${incomeWidth}%` }}
+                  />
+                </div>
+                <span className="strategy-comparison__bar-value">{fmt(card.grossMonthly)}</span>
+              </div>
+              <div className="strategy-comparison__bar-row">
+                <div className="strategy-comparison__bar-track">
+                  <div
+                    className="strategy-comparison__bar-fill strategy-comparison__bar-fill--expense"
+                    style={{ width: `${expenseWidth}%` }}
+                  />
+                </div>
+                <span className="strategy-comparison__bar-value">{fmt(expenses)}</span>
+              </div>
             </div>
-            <span className={`strategy-comparison__bar-value${neg ? ' strategy-comparison__bar-value--neg' : ''}`}>{fmt(card.netMonthly)}</span>
           </div>
         );
       })}
@@ -213,12 +248,21 @@ function ComparisonBar({ cards }: { cards: StrategyCard[] }) {
 function CostComparisonRow({
   mtrEstimate,
   strEstimate,
+  bedrooms,
   strategies,
 }: {
   mtrEstimate?: MTREstimate;
   strEstimate?: STREstimate;
+  bedrooms: number;
   strategies: StrategyCard[];
 }) {
+  // Upfront cost mirrors the cash-flow card's one-time setup costs: appliances
+  // apply to every strategy (landlord-provided), and furnished strategies add a
+  // furniture package on top.
+  const appliances = estimateApplianceCost(bedrooms);
+  const mtrUpfront = mtrEstimate ? mtrEstimate.furnishingCosts.totalCost + appliances : undefined;
+  const strUpfront = strEstimate ? estimateFurnitureCost(bedrooms) + appliances : undefined;
+
   const rows: { label: string; icon: React.ReactNode; values: Record<string, string> }[] = [
     {
       label: 'Management effort',
@@ -242,9 +286,9 @@ function CostComparisonRow({
       label: 'Upfront cost',
       icon: <DollarSign size={16} />,
       values: {
-        ltr: 'None',
-        mtr: mtrEstimate ? fmt(mtrEstimate.furnishingCosts.totalCost) : '—',
-        str: strEstimate ? 'Varies' : 'None',
+        ltr: fmt(appliances),
+        mtr: mtrUpfront != null ? fmt(mtrUpfront) : '—',
+        str: strUpfront != null ? fmt(strUpfront) : '—',
       },
     },
   ];
@@ -289,21 +333,29 @@ function CostComparisonRow({
 /*  Main Component                                                     */
 /* ================================================================== */
 
-export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, netByStrategy, selected, onSelect }: Props) {
+export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison, selectedKey, onSelectKey, bedrooms }: Props) {
   // Render nothing if neither MTR nor STR data is available
   if (!mtrEstimate && !strEstimate) return null;
 
-  // Prefer true net cash flow (after all costs) when provided; fall back to
-  // the estimate figures for safety.
-  const netOf = (key: RentalStrategy, fallback: number) =>
-    netByStrategy?.[key] ?? fallback;
+  // Net cash flow per strategy from the single source of truth (after mortgage +
+  // shared carrying costs).  All cards display this so the comparison, the KPI
+  // strip, and the section nav can never disagree on the best strategy.  The
+  // prominent number is the potential gross rent/revenue; net cash flow sits
+  // beneath it.
+  const netByKey: Record<string, number> = {};
+  const grossByKey: Record<string, number> = {};
+  for (const s of strategyComparison.strategies) {
+    netByKey[s.key.toLowerCase()] = s.netCashFlow;
+    grossByKey[s.key.toLowerCase()] = s.grossMonthly;
+  }
 
   const strategies: StrategyCard[] = [
     {
       key: 'ltr',
       label: 'Long-Term',
       icon: <Home size={20} />,
-      netMonthly: netOf('ltr', ltrRent),
+      grossMonthly: grossByKey['ltr'] ?? ltrRent,
+      netMonthly: netByKey['ltr'] ?? ltrRent,
       tagline: 'Unfurnished · Long lease',
       available: true,
       confidence: rentalEstimate?.confidence,
@@ -314,7 +366,8 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       key: 'mtr',
       label: 'Mid-Term',
       icon: <Building2 size={20} />,
-      netMonthly: netOf('mtr', mtrEstimate?.netMonthlyRevenue ?? 0),
+      grossMonthly: grossByKey['mtr'] ?? (mtrEstimate?.grossMonthlyRevenue ?? 0),
+      netMonthly: netByKey['mtr'] ?? (mtrEstimate?.netMonthlyRevenue ?? 0),
       tagline: mtrEstimate
         ? `Furnished · ${mtrEstimate.avgStayMonths}mo avg stay`
         : '',
@@ -327,7 +380,8 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       key: 'str',
       label: 'Short-Term',
       icon: <Sparkles size={20} />,
-      netMonthly: netOf('str', strEstimate?.netMonthlyRevenue ?? 0),
+      grossMonthly: grossByKey['str'] ?? (strEstimate?.grossMonthlyRevenue ?? 0),
+      netMonthly: netByKey['str'] ?? (strEstimate?.netMonthlyRevenue ?? 0),
       tagline: strEstimate
         ? `${fmt(strEstimate.nightlyRate)}/night · ${pct(strEstimate.occupancyRate)} occ`
         : '',
@@ -339,19 +393,23 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
   ];
 
   const activeStrategies = strategies.filter((s) => s.available);
-  const bestKey = activeStrategies.reduce((best, s) =>
-    s.netMonthly > best.netMonthly ? s : best,
-  ).key;
+  const bestKey = strategyComparison.bestKey.toLowerCase();
+  const lowConfidence = activeStrategies.filter((s) => s.confidence === 'low').map((s) => s.label);
+
+  // Resolve the currently selected card (default to the best strategy).
+  const fallbackKey =
+    (activeStrategies.find((s) => s.key === bestKey) ?? activeStrategies[0]).key;
+  const selKey =
+    selectedKey && activeStrategies.some((s) => s.key === selectedKey)
+      ? selectedKey
+      : fallbackKey;
 
   return (
     <div className="strategy-comparison">
       <h3 className="strategy-comparison__title">
         <TrendingUp size={18} />
-        Compare &amp; Select a Strategy
+        Strategy Comparison
       </h3>
-      {onSelect && (
-        <p className="strategy-comparison__hint">Select a strategy to see its full cash flow analysis →</p>
-      )}
 
       {/* Market trend indicator */}
       <MarketTrendBadge stats={marketStatistics} />
@@ -359,21 +417,25 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
       {/* Cards */}
       <div
         className="strategy-comparison__cards"
-        style={{ gridTemplateColumns: `repeat(${activeStrategies.length}, 1fr)` }}
+        style={{ '--strategy-card-columns': `repeat(${activeStrategies.length}, 1fr)` } as React.CSSProperties}
       >
         {activeStrategies.map((strategy) => {
           const isBest = strategy.key === bestKey && activeStrategies.length > 1;
-          const isSelected = selected === strategy.key;
-          const selectable = !!onSelect;
+          const isSelected = strategy.key === selKey;
           return (
           <div
             key={strategy.key}
-            className={`strategy-comparison__card strategy-comparison__card--${strategy.key}${isBest ? ' strategy-comparison__card--best' : ''}${isSelected ? ' strategy-comparison__card--selected' : ''}${selectable ? ' strategy-comparison__card--selectable' : ''}`}
-            onClick={selectable ? () => onSelect!(strategy.key) : undefined}
-            role={selectable ? 'button' : undefined}
-            tabIndex={selectable ? 0 : undefined}
-            onKeyDown={selectable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect!(strategy.key); } } : undefined}
-            aria-pressed={selectable ? isSelected : undefined}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isSelected}
+            onClick={() => onSelectKey?.(strategy.key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectKey?.(strategy.key);
+              }
+            }}
+            className={`strategy-comparison__card strategy-comparison__card--${strategy.key}${isBest ? ' strategy-comparison__card--best' : ''}${isSelected ? ' strategy-comparison__card--selected' : ''}`}
           >
             <div className="strategy-comparison__card-header">
               <span className={`strategy-comparison__icon strategy-comparison__icon--${strategy.key}`}>
@@ -384,21 +446,27 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
             {isBest && (
               <span className="strategy-comparison__best-star">⭐</span>
             )}
-            {isSelected && (
-              <span className="strategy-comparison__selected-check"><Check size={14} /></span>
-            )}
 
             <ConfidenceBadge confidence={strategy.confidence} source={strategy.source} />
 
             <div className="strategy-comparison__revenue">
-              <span className={`strategy-comparison__revenue-monthly${strategy.netMonthly < 0 ? ' strategy-comparison__revenue-monthly--neg' : ''}`}>
-                {fmt(strategy.netMonthly)}
+              <span className="strategy-comparison__revenue-monthly">
+                {fmt(strategy.grossMonthly)}
               </span>
-              <span className="strategy-comparison__revenue-period">/mo net cash flow</span>
+              <span className="strategy-comparison__revenue-period">
+                {strategy.key === 'ltr' ? '/mo rent' : '/mo revenue'}
+              </span>
             </div>
 
             <div className="strategy-comparison__revenue-annual">
-              {fmt(strategy.netMonthly * 12)}/yr
+              {fmt(strategy.grossMonthly * 12)}/yr
+            </div>
+
+            <div
+              className={`strategy-comparison__net${strategy.netMonthly < 0 ? ' strategy-comparison__net--negative' : ''}`}
+            >
+              <span className="strategy-comparison__net-value">{fmt(strategy.netMonthly)}</span>
+              <span className="strategy-comparison__net-label">/mo net cash flow</span>
             </div>
 
             <RevenueRange range={strategy.revenueRange} />
@@ -409,15 +477,26 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
         })}
       </div>
 
-      {/* Revenue comparison bars */}
+      {/* Income vs. expense comparison bars */}
       <ComparisonBar cards={activeStrategies} />
 
       {/* Cost / effort comparison */}
       <CostComparisonRow
         mtrEstimate={mtrEstimate}
         strEstimate={strEstimate}
+        bedrooms={bedrooms}
         strategies={strategies}
       />
+
+      {/* Low-confidence caveat — surfaced here alongside the per-strategy badges */}
+      {lowConfidence.length > 0 && (
+        <div className="strategy-comparison__confidence-note">
+          <ShieldAlert size={15} />
+          <span>
+            {lowConfidence.join(' and ')} {lowConfidence.length > 1 ? 'estimates are' : 'estimate is'} low-confidence — less local market data was available, so treat {lowConfidence.length > 1 ? 'them' : 'it'} as a starting point and verify against local comps before committing.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

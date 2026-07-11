@@ -6,7 +6,43 @@
  * and safe to call from any context (routes, scripts, game generators).
  */
 
-import type { PropertyData, RentalComp, RentalEstimate, MarketStatistics } from '@deal-platform/shared-types';
+import type { PropertyData, RentalComp, RentalEstimate, MarketStatistics, RentalMarketTrends } from '@deal-platform/shared-types';
+
+const MIN_MONTHLY_RENT = 300;
+const MAX_MONTHLY_RENT = 50_000;
+const MAX_RENT_TO_PRICE_RATIO = 0.03;
+type RentConfidence = RentalEstimate['confidence'];
+
+export function isPlausibleMonthlyRent(rent: number, property?: PropertyData): boolean {
+  if (!Number.isFinite(rent) || rent < MIN_MONTHLY_RENT || rent > MAX_MONTHLY_RENT) {
+    return false;
+  }
+
+  if (property?.price && rent > property.price * MAX_RENT_TO_PRICE_RATIO) {
+    return false;
+  }
+
+  return true;
+}
+
+export function filterPlausibleRentalComps(
+  comps: RentalComp[],
+  property?: PropertyData,
+): RentalComp[] {
+  return comps.filter((comp) => isPlausibleMonthlyRent(comp.rent, property));
+}
+
+function getMarketRentSampleSize(trends: RentalMarketTrends): number {
+  const histogramCount = trends.rentHistogram?.reduce((sum, bucket) => sum + bucket.count, 0) || 0;
+  return Math.max(trends.availableRentals || 0, histogramCount);
+}
+
+function getMarketRentConfidence(trends: RentalMarketTrends): RentConfidence {
+  const sampleSize = getMarketRentSampleSize(trends);
+  if (sampleSize >= 5) return 'high';
+  if (sampleSize >= 3) return 'medium';
+  return 'low';
+}
 
 // ---------------------------------------------------------------------------
 // Algorithmic estimation
@@ -84,13 +120,16 @@ export function estimateRent(property: PropertyData): RentalEstimate {
 export function combineEstimates(
   apiComps: RentalComp[],
   algorithmicEstimate: RentalEstimate,
+  property?: PropertyData,
 ): RentalEstimate {
-  if (apiComps.length === 0) {
+  const plausibleComps = property ? filterPlausibleRentalComps(apiComps, property) : apiComps;
+
+  if (plausibleComps.length === 0) {
     return { ...algorithmicEstimate, confidence: 'low' };
   }
 
-  const apiAvg = apiComps.reduce((sum, c) => sum + c.rent, 0) / apiComps.length;
-  const apiWeight = apiComps.length >= 3 ? 0.70 : 0.50;
+  const apiAvg = plausibleComps.reduce((sum, c) => sum + c.rent, 0) / plausibleComps.length;
+  const apiWeight = plausibleComps.length >= 3 ? 0.70 : 0.50;
   const algoWeight = 1 - apiWeight;
 
   const blendedMid = Math.round(apiAvg * apiWeight + algorithmicEstimate.mid * algoWeight);
@@ -101,8 +140,42 @@ export function combineEstimates(
     low,
     mid: blendedMid,
     high,
-    confidence: apiComps.length >= 3 ? 'high' : 'medium',
-    comps: apiComps,
+    confidence: plausibleComps.length >= 3 ? 'high' : 'medium',
+    comps: plausibleComps,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Zillow area-market calibration
+// ---------------------------------------------------------------------------
+
+/**
+ * Anchor a rent estimate to Zillow's area rental-market median.
+ *
+ * When Zillow reports a median rent for the area, we treat it as a real
+ * market signal: the estimate is blended toward the median (while keeping the
+ * property-specific adjustments from the algorithm). Confidence reflects the
+ * amount of market sample data behind the median. Returns the estimate
+ * unchanged when no Zillow median is available.
+ */
+export function applyZillowMarketRent(
+  estimate: RentalEstimate,
+  trends: RentalMarketTrends | undefined | null,
+): RentalEstimate {
+  const median = trends?.medianRent;
+  if (!median || median <= 0) return estimate;
+
+  // Lean on the Zillow market median (real data) while preserving the
+  // property-specific signal (beds / sqft / age) from the algorithm.
+  const ZILLOW_WEIGHT = 0.65;
+  const blendedMid = Math.round(median * ZILLOW_WEIGHT + estimate.mid * (1 - ZILLOW_WEIGHT));
+
+  return {
+    low: Math.round(blendedMid * 0.9),
+    mid: blendedMid,
+    high: Math.round(blendedMid * 1.1),
+    confidence: getMarketRentConfidence(trends),
+    comps: estimate.comps,
   };
 }
 

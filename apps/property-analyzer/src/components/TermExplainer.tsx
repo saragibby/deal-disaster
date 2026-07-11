@@ -253,12 +253,12 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
     definition:
       'This estimate is algorithmically generated without external market data. Treat it as a rough guide — actual rents could differ significantly. Adding API keys (RentCast, AirDNA) or searching in markets with better data coverage will improve accuracy.',
   },
-  recoup: {
-    term: 'Time to Recoup',
+  'equity break-even': {
+    term: 'Equity Break-Even',
     definition:
-      'The number of months it takes for your accumulated monthly cash flow to equal your total cash invested (down payment, closing costs, rehab, etc.).',
-    formula: 'Total Cash Invested ÷ Monthly Cash Flow',
-    note: 'Only shown when monthly cash flow is positive. A shorter recoup period means you recover your out-of-pocket investment faster.',
+      'The year your total wealth from the property — cumulative cash flow + principal paydown + appreciation — equals the cash you put in. This is unrealized, on-paper equity, not cash in hand.',
+    formula: 'Cumulative Cash Flow + Principal Paydown + Appreciation ≥ Total Cash Invested',
+    note: 'This is net worth, not liquidity. Reaching it relies heavily on the appreciation assumption, only converts to cash if you sell (minus selling costs and taxes), and — if cash flow is negative — you keep feeding the property money the whole way there.',
   },
 };
 

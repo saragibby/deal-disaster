@@ -401,7 +401,7 @@ export default function CaseDisplay({
                               <span className="detail-label">Amount:</span>
                               <span className="detail-value">{formatCurrency(lien.amount)}</span>
                             </div>
-                            <div className="detail-row">
+                            <div className="detail-row after-foreclosure-row">
                               <span className="detail-label">After foreclosure:</span>
                               <span className="detail-value">
                                 {lien.survivesForeclosure

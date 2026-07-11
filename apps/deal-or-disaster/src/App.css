@@ -1495,7 +1495,7 @@ body {
 }
 
 .lien-card {
-  height: 230px;
+  height: 290px;
   perspective: 1200px;
   cursor: pointer;
   outline: none;
@@ -1579,6 +1579,10 @@ body {
 
 .lien-card-back .detail-value {
   font-size: 0.8rem;
+}
+
+.lien-card-back .after-foreclosure-row .detail-value {
+  text-align: right;
 }
 
 .lien-card-back .note-row {

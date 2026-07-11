@@ -23,8 +23,11 @@ import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
 import * as rentCastService from '../services/rentCastService.js';
+import * as realtyInUsService from '../services/realtyInUsService.js';
 import * as airDnaService from '../services/airDnaService.js';
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
+import * as furnishedFinderService from '../services/furnishedFinderService.js';
+import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { generatePropertySlug } from '../utils/slugify.js';
@@ -94,9 +97,38 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
 
-    // Use real tax data if available and user didn't supply their own
+    // Property tax: prefer the real tax record, otherwise scale by the home's
+    // price and the state's effective tax rate (far better than a flat default).
+    let taxSource: 'actual' | 'estimate' = 'estimate';
     if (property.taxHistory?.length && userParams?.annualPropertyTax == null) {
       params.annualPropertyTax = property.taxHistory[0].amount || params.annualPropertyTax;
+      taxSource = 'actual';
+    } else if (userParams?.annualPropertyTax == null) {
+      params.annualPropertyTax = expenseDefaultsService.estimateAnnualPropertyTax(property.price, property.state);
+      taxSource = 'estimate';
+    } else {
+      taxSource = 'actual';
+    }
+
+    // Insurance: scale by home value + state catastrophe risk when not supplied.
+    let insuranceSource: 'actual' | 'estimate' = 'estimate';
+    if (userParams?.annualInsurance == null) {
+      params.annualInsurance = expenseDefaultsService.estimateAnnualInsurance(property.price, property.state);
+      insuranceSource = 'estimate';
+    } else {
+      insuranceSource = 'actual';
+    }
+
+    // Repairs / capex reserves: scale by the home's age when not supplied.
+    if (userParams?.repairsPct == null || userParams?.capexPct == null) {
+      const maint = expenseDefaultsService.estimateMaintenancePct(property.yearBuilt);
+      if (userParams?.repairsPct == null) params.repairsPct = maint.repairsPct;
+      if (userParams?.capexPct == null) params.capexPct = maint.capexPct;
+    }
+
+    // Cost-segregation %: scale by property type when not supplied.
+    if (userParams?.costSegPct == null) {
+      params.costSegPct = expenseDefaultsService.estimateCostSegPct(property.propertyType);
     }
 
     // HOA fee: prefer API data, then estimate by property type
@@ -136,13 +168,17 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       hoaSource = property.hoaFee ? 'zillow' : 'none';
     }
 
-    // Rental estimation — prefer RentCast real comps, fall back to Zillow similar/algorithmic
+    // Rental estimation — real for-rent comps first (RentCast → Realtor.com),
+    // then Zillow area-median anchor, then the bare algorithm.
     let apiComps = await rentCastService.getRentalComps(property);
+    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
     if (apiComps.length === 0) {
-      apiComps = await propertyDataService.getRentalComps(zpid);
+      apiComps = await realtyInUsService.getRentalComps(property);
+      if (apiComps.length > 0) compSource = 'realtor';
     }
+    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // Also try RentCast's AVM rent estimate as a cross-check
     const rentCastEstimate = await rentCastService.getRentEstimate(property);
@@ -154,13 +190,21 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
       if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
     }
 
+    // No rental comps? Anchor to Zillow's area rental-market median (real data,
+    // high confidence) instead of falling back to the bare algorithm.
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    if (usedZillowRent) {
+      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
+    }
+
     // Short-term rental — prefer AirDNA real data, fall back to algorithmic
     let strEstimate = await airDnaService.getSTREstimate(property);
     if (!strEstimate) {
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
-    // Mid-term rental — algorithmic estimation with proximity scoring
+    // Mid-term rental — algorithmic estimation with proximity scoring,
+    // calibrated to real furnished comps (Furnished Finder) when available.
     let proximityBoost = 0;
     let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
     if (property.latitude && property.longitude) {
@@ -172,7 +216,13 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
         console.warn('[analyzer/run] Proximity scoring failed (non-fatal):', err.message);
       }
     }
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost);
+    let mtrMarketData = null;
+    try {
+      mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
+    } catch (err: any) {
+      console.warn('[analyzer/run] Furnished Finder MTR fetch failed (non-fatal):', err.message);
+    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost, mtrMarketData);
     if (nearbyInstitutions.length > 0) {
       mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
     }
@@ -193,10 +243,16 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     results.mtrEstimate = mtrEstimate;
     if (marketStatistics) results.marketStatistics = marketStatistics;
     results.dataSources = {
-      rental: apiComps.length > 0 ? 'rentcast' : (rentCastEstimate ? 'blended' : 'algorithm'),
+      rental: apiComps.length > 0
+        ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
+        : usedZillowRent
+          ? 'zillow'
+          : (rentCastEstimate ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
-      mtr: 'algorithm',
+      mtr: mtrEstimate.source,
       hoa: hoaSource,
+      tax: taxSource,
+      insurance: insuranceSource,
     };
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
@@ -243,6 +299,10 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 
     // Attach comparables to results
     results.comparables = comparables;
+
+    // Finalize: compute the single-source-of-truth strategy comparison now that
+    // all estimates and data sources are attached.
+    investmentAnalysisService.finalizeAnalysis(results);
 
     // Persist to DB (upsert — re-analysing same property overwrites the old entry)
     const slug = generatePropertySlug(property.address, property.zip);
@@ -305,7 +365,7 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
     const [dataRes, countRes] = await Promise.all([
       pool.query(
         `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-                analysis_results, rental_comps, is_shared, created_at
+                analysis_results, rental_comps, user_overrides, is_shared, created_at
          FROM property_analyses
          WHERE user_id = $1
          ORDER BY created_at DESC
@@ -335,7 +395,7 @@ router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Re
   try {
     const result = await pool.query(
       `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-              analysis_results, rental_comps, is_shared, created_at
+              analysis_results, rental_comps, user_overrides, is_shared, created_at
        FROM property_analyses WHERE slug = $1 AND user_id = $2`,
       [req.params.slug, req.userId],
     );
@@ -392,31 +452,100 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       ...req.body.params,
     };
 
-    // Re-estimate rent if we have stored comps
-    const apiComps = row.rental_comps || [];
+    // Property tax / insurance: respect an explicitly-supplied or previously
+    // real/custom value, otherwise (re-)derive from the home's price + state so
+    // older saved analyses self-heal away from the flat legacy defaults.
+    const prevSources = row.analysis_results?.dataSources;
+    const bodyParams = req.body.params || {};
+
+    let taxSource: 'actual' | 'estimate';
+    if (bodyParams.annualPropertyTax != null) {
+      taxSource = 'actual';
+    } else if (prevSources?.tax === 'actual') {
+      taxSource = 'actual';
+    } else if (property.taxHistory?.length) {
+      newParams.annualPropertyTax = property.taxHistory[0].amount || newParams.annualPropertyTax;
+      taxSource = 'actual';
+    } else {
+      newParams.annualPropertyTax = expenseDefaultsService.estimateAnnualPropertyTax(property.price, property.state);
+      taxSource = 'estimate';
+    }
+
+    let insuranceSource: 'actual' | 'estimate';
+    if (bodyParams.annualInsurance != null || prevSources?.insurance === 'actual') {
+      insuranceSource = 'actual';
+    } else {
+      newParams.annualInsurance = expenseDefaultsService.estimateAnnualInsurance(property.price, property.state);
+      insuranceSource = 'estimate';
+    }
+
+    // Repairs / capex / cost-seg: (re-)derive from the home's age and type when
+    // the caller didn't supply an explicit override, so older saved analyses
+    // self-heal away from the flat legacy defaults.
+    if (bodyParams.repairsPct == null || bodyParams.capexPct == null) {
+      const maint = expenseDefaultsService.estimateMaintenancePct(property.yearBuilt);
+      if (bodyParams.repairsPct == null) newParams.repairsPct = maint.repairsPct;
+      if (bodyParams.capexPct == null) newParams.capexPct = maint.capexPct;
+    }
+    if (bodyParams.costSegPct == null) {
+      newParams.costSegPct = expenseDefaultsService.estimateCostSegPct(property.propertyType);
+    }
+
+    // Re-estimate rent using stored comps; if none, fetch fresh real comps.
+    let apiComps = row.rental_comps || [];
+    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
+    if (apiComps.length === 0) {
+      apiComps = await realtyInUsService.getRentalComps(property);
+      if (apiComps.length > 0) compSource = 'realtor';
+    }
+    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
+
+    // No comps? Anchor to Zillow's area rental-market median (real data, high confidence).
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    if (usedZillowRent) {
+      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
+    }
 
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, newParams);
 
-    // Re-estimate STR (preserve original source if it came from a real provider)
+    // Re-estimate STR. Re-fetch from AirDNA (24h cached in-service, so no extra
+    // API cost) so saved analyses pick up the latest real data and parser
+    // improvements (e.g. monthly seasonality). Fall back to the stored
+    // real-provider estimate, then to the algorithm.
     const originalSTR = row.analysis_results?.strEstimate;
-    if (originalSTR && originalSTR.source !== 'algorithm') {
-      results.strEstimate = originalSTR;
-    } else {
-      results.strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
+    let strEstimate = await airDnaService.getSTREstimate(property) || undefined;
+    if (!strEstimate) {
+      strEstimate = originalSTR && originalSTR.source !== 'algorithm'
+        ? originalSTR
+        : strEstimationService.estimateSTR(property, rentalEstimate);
     }
+    results.strEstimate = strEstimate;
 
-    // Mid-term rental — algorithmic re-estimation
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate);
+    // Mid-term rental — real furnished comps (Furnished Finder) when available,
+    // else algorithmic re-estimation.
+    let mtrMarketData = null;
+    try {
+      mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
+    } catch (err: any) {
+      console.warn('[analyzer/re-analyze] Furnished Finder MTR fetch failed (non-fatal):', err.message);
+    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, 0, mtrMarketData);
     results.mtrEstimate = mtrEstimate;
 
     // Preserve data source tracking
     results.dataSources = {
-      rental: apiComps.length > 0 ? 'rentcast' : 'algorithm',
+      rental: compSource === 'realtor'
+        ? 'realtor'
+        : apiComps.length > 0
+          ? (row.analysis_results?.dataSources?.rental || 'rentcast')
+          : (usedZillowRent ? 'zillow' : 'algorithm'),
       str: results.strEstimate?.source === 'airdna' ? 'airdna' : 'algorithm',
-      mtr: 'algorithm',
+      mtr: mtrEstimate.source,
       hoa: row.analysis_results?.dataSources?.hoa || 'none',
+      tax: taxSource,
+      insurance: insuranceSource,
     };
 
     // Carry over stored comparables from the original analysis
@@ -454,6 +583,9 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       }
     }
 
+    // Finalize: recompute the single-source-of-truth strategy comparison.
+    investmentAnalysisService.finalizeAnalysis(results);
+
     // Update existing entry in-place
     const updateResult = await pool.query(
       `UPDATE property_analyses
@@ -486,6 +618,7 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
       analysis_params: newParams,
       analysis_results: results,
       rental_comps: rentalEstimate.comps || [],
+      user_overrides: row.user_overrides ?? null,
       created_at: saved.created_at,
     });
   } catch (err: any) {
@@ -517,6 +650,71 @@ router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest,
     res.json(result.rows[0]);
   } catch (err: any) {
     console.error('[analyzer/share]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /history/:slug/overrides ───────────────────────────────────────
+// Persist user-made fine-tuning (operating costs, revenue, furniture/appliances,
+// selected strategy, changed params). Lightweight — no external data fetch.
+// The client sends its already-computed derived figures, which are merged into
+// the stored analysis_results so the values flow into property comparisons.
+// Gross revenue is left RAW; only net figures are updated so a reload recomputes
+// identically from the raw gross + overrides (no double-counting).
+router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { overrides, derived } = req.body as {
+      overrides?: Record<string, unknown>;
+      derived?: {
+        cashFlow?: unknown;
+        roi?: unknown;
+        strategyComparison?: unknown;
+        strNet?: number | null;
+        mtrNet?: number | null;
+      };
+    };
+
+    if (overrides == null || typeof overrides !== 'object') {
+      return res.status(400).json({ error: '"overrides" must be an object.' });
+    }
+
+    const existing = await pool.query(
+      `SELECT analysis_results FROM property_analyses WHERE slug = $1 AND user_id = $2`,
+      [req.params.slug, req.userId],
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    const results = existing.rows[0].analysis_results || {};
+    const d = derived || {};
+
+    if (d.cashFlow != null) results.cashFlow = d.cashFlow;
+    if (d.roi != null) results.roi = d.roi;
+    if (d.strategyComparison != null) results.strategyComparison = d.strategyComparison;
+    if (d.strNet != null && results.strEstimate) {
+      results.strEstimate.netMonthlyRevenue = d.strNet;
+    }
+    if (d.mtrNet != null && results.mtrEstimate) {
+      results.mtrEstimate.netMonthlyRevenue = d.mtrNet;
+    }
+
+    const updateResult = await pool.query(
+      `UPDATE property_analyses
+       SET analysis_results = $1, user_overrides = $2
+       WHERE slug = $3 AND user_id = $4
+       RETURNING slug`,
+      [JSON.stringify(results), JSON.stringify(overrides), req.params.slug, req.userId],
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[analyzer/overrides]', err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -73,12 +73,13 @@ export default function ComparableProperties({ comparables, subject, subjectRent
   const sqftDiffPct =
     avgPricePerSqft > 0 ? ((subjectPricePerSqft - avgPricePerSqft) / avgPricePerSqft) * 100 : 0;
 
-  // ── Rent chart data: subject + top 10 comps, sorted descending ──────
+  // ── Rent chart data: subject + top comps, sorted descending. Limited to a
+  //    handful so the chart height stays in line with the position cards beside it.
   const chartData = useMemo(() => {
     const comps = comparables
       .filter(c => c.estimatedRent > 0)
       .sort((a, b) => b.estimatedRent - a.estimatedRent)
-      .slice(0, 10)
+      .slice(0, 8)
       .map(c => ({
         zpid: c.zpid,
         name: c.address
@@ -117,37 +118,42 @@ export default function ComparableProperties({ comparables, subject, subjectRent
         Comparable Properties
         <span className="comps__count">{comparables.length} found</span>
       </h3>
+      <p className="comps__subtitle">
+        Homes currently for sale nearby, shown with long-term rental estimates.
+      </p>
 
-      {/* Market Position Cards */}
-      <div className="comps__position-grid">
-        <PositionCard
-          label="Price vs Market"
-          subject={fmt(subject.price)}
-          market={fmt(Math.round(avgPrice))}
-          diffPct={priceDiffPct}
-          invertColor
-        />
-        <PositionCard
-          label="Est. Rent vs Market"
-          subject={fmt(subjectRent)}
-          market={fmt(Math.round(avgRent))}
-          diffPct={rentDiffPct}
-        />
-        <PositionCard
-          label="$/Sq Ft vs Market"
-          subject={fmt(Math.round(subjectPricePerSqft))}
-          market={fmt(Math.round(avgPricePerSqft))}
-          diffPct={sqftDiffPct}
-          invertColor
-        />
-      </div>
+      {/* Market position cards (left) + rent comparison chart (right) */}
+      <div className="comps__overview">
+        {/* Market Position Cards */}
+        <div className="comps__position-grid">
+          <PositionCard
+            label="Price vs Market"
+            subject={fmt(subject.price)}
+            market={fmt(Math.round(avgPrice))}
+            diffPct={priceDiffPct}
+            invertColor
+          />
+          <PositionCard
+            label="Est. Rent vs Market"
+            subject={fmt(subjectRent)}
+            market={fmt(Math.round(avgRent))}
+            diffPct={rentDiffPct}
+          />
+          <PositionCard
+            label="$/Sq Ft vs Market"
+            subject={fmt(Math.round(subjectPricePerSqft))}
+            market={fmt(Math.round(avgPricePerSqft))}
+            diffPct={sqftDiffPct}
+            invertColor
+          />
+        </div>
 
-      {/* Rent Comparison Chart — always visible */}
-      {chartData.length > 0 && (
-        <div className="comps__chart">
+        {/* Rent Comparison Chart — always visible */}
+        {chartData.length > 0 && (
+          <div className="comps__chart">
           <h4 className="comps__chart-title">Estimated Rent Comparison</h4>
           <div className="comps__chart-wrap">
-            <ResponsiveContainer width="100%" height={chartData.length * 38 + 32}>
+            <ResponsiveContainer width="100%" height={chartData.length * 36 + 32}>
               <BarChart
                 data={chartData}
                 layout="vertical"
@@ -212,7 +218,8 @@ export default function ComparableProperties({ comparables, subject, subjectRent
             </ResponsiveContainer>
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {/* View Mode Toggle */}
       <div className="comps__view-toggle">
@@ -257,8 +264,7 @@ export default function ComparableProperties({ comparables, subject, subjectRent
             </tr>
           </thead>
           <tbody>
-            {/* Subject property row — highlighted (always on page 1) */}
-            {page === 1 && (
+            {/* Subject property row — highlighted, always pinned to the top */}
             <tr className="comps__row--subject">
               <td>
                 <MapPin size={14} />
@@ -275,7 +281,6 @@ export default function ComparableProperties({ comparables, subject, subjectRent
               <td><span className="comps__status comps__status--subject">Subject</span></td>
               <td></td>
             </tr>
-            )}
 
             {paginated.map((comp, i) => (
               <tr

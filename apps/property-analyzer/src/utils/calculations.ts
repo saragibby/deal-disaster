@@ -10,9 +10,6 @@ import type {
   CashFlowBreakdown,
   ROIMetrics,
   TaxSavingsBreakdown,
-  RentalStrategy,
-  StrategyCashFlow,
-  CashFlowLine,
   MTREstimate,
   STREstimate,
 } from '@deal-platform/shared-types';
@@ -106,9 +103,10 @@ export function calculateROI(
   price: number,
   cashFlow: CashFlowBreakdown,
   mortgage: MortgageBreakdown,
+  extraCashInvested = 0,
 ): ROIMetrics {
   const closingCosts = price * 0.03;
-  const totalCashInvested = mortgage.downPayment + closingCosts;
+  const totalCashInvested = mortgage.downPayment + closingCosts + extraCashInvested;
 
   const cashOnCashROI =
     totalCashInvested > 0
@@ -147,8 +145,12 @@ export function calculateTaxSavings(
   taxRate: number,
   totalCashInvested: number,
   annualCashFlow: number,
+  personalProperty?: { basis: number; firstYearDeduction: number },
 ): TaxSavingsBreakdown {
-  const depreciationDeduction = price * (costSegPct / 100);
+  const buildingDepreciation = price * (costSegPct / 100);
+  const ppBasis = personalProperty?.basis ?? 0;
+  const ppDeduction = personalProperty?.firstYearDeduction ?? 0;
+  const depreciationDeduction = buildingDepreciation + ppDeduction;
   const taxSavings = depreciationDeduction * (taxRate / 100);
   const totalFirstYearBenefit = annualCashFlow + taxSavings;
   const effectiveFirstYearReturn =
@@ -161,6 +163,9 @@ export function calculateTaxSavings(
     depreciationDeduction: Math.round(depreciationDeduction),
     taxSavings: Math.round(taxSavings),
     effectiveFirstYearReturn: Math.round(effectiveFirstYearReturn * 100) / 100,
+    buildingDepreciation: Math.round(buildingDepreciation),
+    personalPropertyBasis: Math.round(ppBasis),
+    personalPropertyDepreciation: Math.round(ppDeduction),
   };
 }
 
@@ -168,238 +173,225 @@ export function calculateTaxSavings(
 /*  Strategy-aware cash flow (LTR / MTR / STR)                         */
 /* ------------------------------------------------------------------ */
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
+export interface StrategyCashFlowLine {
+  key: string;
+  label: string;
+  value: number;
+}
 
-export interface FurnishedDefaults {
-  furnishingCost: number;
-  applianceCost: number;
-  furnishingLifeYears: number;
-  furnitureRepairMonthly: number;
-  cleaningMonthly: number;
+export interface StrategyCashFlow {
+  key: 'ltr' | 'mtr' | 'str';
+  monthlyIncome: number;
+  incomeLabel: string;
+  /** Shared property-level costs (mortgage, tax, insurance, HOA). */
+  carrying: StrategyCashFlowLine[];
+  /** Strategy-specific operating costs. */
+  operating: StrategyCashFlowLine[];
+  totalMonthlyExpenses: number;
+  monthlyCashFlow: number;
+  annualCashFlow: number;
+  /** Upfront capital outlays (furniture, appliances) — feed cash invested. */
+  oneTime: StrategyCashFlowLine[];
+  totalOneTime: number;
+  /** Synthetic breakdown so calculateROI / calculateTaxSavings can be reused. */
+  breakdown: CashFlowBreakdown;
 }
 
 /**
- * Derives sensible furnished-strategy cost defaults for a property, honoring
- * any explicit overrides already present on `params`. MTR pulls furnishing
- * from its estimate when available; STR falls back to a bedroom heuristic.
+ * One-time appliance package (fridge, range, dishwasher, microwave,
+ * washer + dryer). Applies to every strategy; larger homes trend higher.
  */
-export function deriveFurnishedDefaults(
-  strategy: RentalStrategy,
-  params: AnalysisParams,
-  ctx: { bedrooms?: number; mtrEstimate?: MTREstimate },
-): FurnishedDefaults {
-  const beds = Math.max(1, ctx.bedrooms || 1);
-
-  // Furnishing (furniture + decor)
-  let furnishingCost =
-    strategy === 'mtr' && ctx.mtrEstimate?.furnishingCosts?.totalCost
-      ? ctx.mtrEstimate.furnishingCosts.totalCost
-      : 6000 + 3000 * beds; // common areas + per-bedroom
-  if (typeof params.furnishingCost === 'number') furnishingCost = params.furnishingCost;
-
-  // Appliances / electronics (separate from furniture)
-  let applianceCost = 2500 + 500 * beds;
-  if (typeof params.applianceCost === 'number') applianceCost = params.applianceCost;
-
-  // Amortization horizon
-  let furnishingLifeYears =
-    strategy === 'mtr' && ctx.mtrEstimate?.furnishingCosts?.usefulLifeYears
-      ? ctx.mtrEstimate.furnishingCosts.usefulLifeYears
-      : 7;
-  if (typeof params.furnishingLifeYears === 'number' && params.furnishingLifeYears > 0) {
-    furnishingLifeYears = params.furnishingLifeYears;
-  }
-
-  // Recurring repair/replacement of furniture & appliances (~6%/yr of value)
-  let furnitureRepairMonthly = r2(((furnishingCost + applianceCost) * 0.06) / 12);
-  if (typeof params.furnitureRepairMonthly === 'number') {
-    furnitureRepairMonthly = params.furnitureRepairMonthly;
-  }
-
-  // Extra cleaning not already in the estimate (STR estimate already covers cleaning)
-  let cleaningMonthly = 0;
-  if (typeof params.cleaningMonthly === 'number') cleaningMonthly = params.cleaningMonthly;
-
-  return { furnishingCost, applianceCost, furnishingLifeYears, furnitureRepairMonthly, cleaningMonthly };
-}
-
-export interface StrategyCashFlowContext {
-  mortgage: MortgageBreakdown;
-  params: AnalysisParams;
-  /** Effective long-term rent — also the reserve base for all strategies. */
-  ltrRent: number;
-  bedrooms?: number;
-  mtrEstimate?: MTREstimate;
-  strEstimate?: STREstimate;
+export function estimateApplianceCost(bedrooms: number): number {
+  const beds = Math.max(1, bedrooms || 1);
+  return Math.round(3200 + Math.max(0, beds - 3) * 250);
 }
 
 /**
- * Computes a generic line-item cash flow for a given rental strategy.
- * Income is always GROSS; estimates' pre-netted revenue is never used as
- * income to avoid double-counting operating costs.
+ * One-time furnishing package for a furnished rental (bedrooms + common
+ * areas, kitchenware, decor). Used for STR and as an MTR fallback.
+ */
+export function estimateFurnitureCost(bedrooms: number): number {
+  const beds = Math.max(1, bedrooms || 1);
+  return Math.round(3500 + beds * 2500);
+}
+
+/**
+ * Monthly utilities for a guest-ready STR — hosts cover everything (power,
+ * water, gas, high-speed internet, streaming) with heavier usage than a
+ * long-term tenant.
+ */
+export function estimateStrUtilities(bedrooms: number): number {
+  const beds = Math.max(1, bedrooms || 1);
+  if (beds <= 1) return 200;
+  if (beds === 2) return 260;
+  if (beds === 3) return 340;
+  return 450;
+}
+
+/**
+ * Full short-term-rental operating cost breakdown. The server STR estimate only
+ * nets out cleaning + platform fees, so we layer in the costs a real STR also
+ * carries — utilities, management, and furnishing wear — and return a corrected
+ * net so the comparison cards, bars, and cash-flow card all agree.
+ */
+export function calculateStrOperating(
+  str: STREstimate,
+  bedrooms: number,
+  overrides?: Record<string, number | null | undefined>,
+): { lines: StrategyCashFlowLine[]; total: number; netMonthlyRevenue: number } {
+  const beds = Math.max(1, bedrooms || 1);
+  const gross = str.grossMonthlyRevenue;
+  const ov = overrides ?? {};
+  const lines: StrategyCashFlowLine[] = [
+    { key: 'cleaning', label: 'Cleaning', value: str.cleaningCosts },
+    { key: 'utilities', label: 'Utilities (guest-ready)', value: estimateStrUtilities(beds) },
+    { key: 'platform', label: 'Platform Fees', value: Math.round(gross * 0.03) },
+    { key: 'management', label: 'Management', value: Math.round(gross * 0.20) },
+    { key: 'furnishing', label: 'Furnishing Wear (amortized)', value: Math.round(estimateFurnitureCost(beds) / (5 * 12)) },
+  ].map(l => ({ ...l, value: ov[l.key] ?? l.value }));
+  const total = lines.reduce((s, e) => s + e.value, 0);
+  return { lines, total, netMonthlyRevenue: Math.round((gross - total) * 100) / 100 };
+}
+
+/**
+ * Mid-term-rental operating cost breakdown. The five line items come straight
+ * from the server MTR estimate (they sum to gross − net), with per-line user
+ * overrides applied so the comparison cards and cash-flow card stay in sync.
+ */
+export function calculateMtrOperating(
+  mtr: MTREstimate,
+  overrides?: Record<string, number | null | undefined>,
+): { lines: StrategyCashFlowLine[]; total: number; netMonthlyRevenue: number } {
+  const ov = overrides ?? {};
+  const lines: StrategyCashFlowLine[] = [
+    { key: 'utilities', label: 'Utilities (tenant-ready)', value: mtr.utilityCosts },
+    { key: 'turnover', label: 'Cleaning & Turnover', value: mtr.turnoverCosts },
+    { key: 'platform', label: 'Platform Fees', value: mtr.platformFees },
+    { key: 'management', label: 'Management', value: mtr.managementCosts },
+    { key: 'furnishing', label: 'Furnishing Wear (amortized)', value: mtr.furnishingCosts.amortizedMonthly },
+  ].map(l => ({ ...l, value: ov[l.key] ?? l.value }));
+  const total = lines.reduce((s, e) => s + e.value, 0);
+  return { lines, total, netMonthlyRevenue: Math.round((mtr.grossMonthlyRevenue - total) * 100) / 100 };
+}
+
+/**
+ * Build the cash-flow picture for the selected rental strategy. LTR reuses the
+ * long-term reserve breakdown; MTR/STR pull their operating costs straight from
+ * the revenue estimate so the monthly cash flow matches the strategy cards
+ * (single source of truth). Furniture (MTR/STR) and appliances (all) are
+ * surfaced as one-time capital costs that flow into cash invested for ROI.
  */
 export function calculateStrategyCashFlow(
-  strategy: RentalStrategy,
-  ctx: StrategyCashFlowContext,
+  key: 'ltr' | 'mtr' | 'str',
+  base: CashFlowBreakdown,
+  opts: {
+    bedrooms: number;
+    mtr?: MTREstimate | null;
+    str?: STREstimate | null;
+    overrides?: {
+      operating?: Record<string, number | null | undefined>;
+      furniture?: number | null;
+      appliances?: number | null;
+    };
+  },
 ): StrategyCashFlow {
-  const { mortgage, params, ltrRent } = ctx;
-
-  const monthlyTax = params.annualPropertyTax / 12;
-  const monthlyInsurance = params.annualInsurance / 12;
-  const monthlyHoa = params.monthlyHoa || 0;
-
-  // Property reserves use the LTR-equivalent rent as a stable base so they
-  // don't balloon simply because STR/MTR gross revenue is higher.
-  const reserveBase = ltrRent;
-  const monthlyRepairs = reserveBase * (params.repairsPct / 100);
-  const monthlyCapex = reserveBase * (params.capexPct / 100);
-
-  const ownership: CashFlowLine[] = [
-    { key: 'mortgage', label: 'Mortgage (P&I)', amount: mortgage.monthlyPayment },
-    { key: 'tax', label: 'Property Tax', amount: r2(monthlyTax), adjustable: true, badge: 'Estimated' },
-    { key: 'insurance', label: 'Insurance', amount: r2(monthlyInsurance), adjustable: true, badge: 'Estimated' },
-    { key: 'hoa', label: 'HOA Fees', amount: r2(monthlyHoa), adjustable: true },
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const ov = opts.overrides ?? {};
+  const carrying: StrategyCashFlowLine[] = [
+    { key: 'mortgage', label: 'Mortgage (P&I)', value: base.monthlyMortgage },
+    { key: 'tax', label: 'Property Tax', value: base.monthlyTax },
+    { key: 'insurance', label: 'Insurance', value: base.monthlyInsurance },
+    { key: 'hoa', label: 'HOA Fees', value: base.monthlyHoa },
   ];
+  const carryingTotal =
+    base.monthlyMortgage + base.monthlyTax + base.monthlyInsurance + base.monthlyHoa;
+  const appliances = ov.appliances ?? estimateApplianceCost(opts.bedrooms);
 
-  const reserves: CashFlowLine[] = [
-    { key: 'repairs', label: 'Repairs Reserve', amount: r2(monthlyRepairs), adjustable: true, badge: 'Estimated' },
-    { key: 'capex', label: 'CapEx Reserve', amount: r2(monthlyCapex), adjustable: true, badge: 'Estimated' },
-  ];
-
-  let incomeLines: CashFlowLine[] = [];
-  const operating: CashFlowLine[] = [];
-  const furnished: CashFlowLine[] = [];
-  const cashInvestedLines: CashFlowLine[] = [];
-  let occupancyRate: number | undefined;
-  // Fraction of income that scales with income (used for break-even).
-  let variableRate = 0;
-
-  if (strategy === 'ltr') {
-    incomeLines = [{ key: 'rent', label: 'Monthly Rent Income', amount: r2(ltrRent) }];
-    const monthlyVacancy = ltrRent * (params.vacancyPct / 100);
-    reserves.unshift({
-      key: 'vacancy', label: 'Vacancy Reserve', amount: r2(monthlyVacancy), adjustable: true, badge: 'Estimated',
-    });
-    variableRate = (params.vacancyPct + params.repairsPct + params.capexPct + (params.managementPct || 0)) / 100;
-    if (params.managementPct > 0) {
-      operating.push({
-        key: 'management', label: 'Management', amount: r2(ltrRent * (params.managementPct / 100)), adjustable: true,
-      });
-    }
-  } else if (strategy === 'mtr') {
-    const est = ctx.mtrEstimate;
-    const gross = est?.grossMonthlyRevenue ?? 0;
-    occupancyRate = est?.occupancyRate;
-    incomeLines = [{
-      key: 'gross', label: 'Gross Rental Revenue', amount: r2(gross),
-      note: occupancyRate != null ? `Furnished · ${Math.round(occupancyRate * 100)}% occupancy assumed` : undefined,
-    }];
-    if (est) {
-      operating.push(
-        { key: 'utilities', label: 'Utilities', amount: r2(est.utilityCosts), badge: 'Estimated' },
-        { key: 'turnover', label: 'Turnover Costs', amount: r2(est.turnoverCosts), badge: 'Estimated' },
-        { key: 'platform', label: 'Platform Fees', amount: r2(est.platformFees), badge: 'Estimated' },
-        { key: 'management', label: 'Management', amount: r2(est.managementCosts), badge: 'Estimated' },
-      );
-    }
-    const fd = deriveFurnishedDefaults('mtr', params, { bedrooms: ctx.bedrooms, mtrEstimate: est });
-    addFurnished(furnished, cashInvestedLines, operating, fd);
-  } else {
-    // str
-    const est = ctx.strEstimate;
-    const gross = est?.grossMonthlyRevenue ?? 0;
-    occupancyRate = est?.occupancyRate;
-    incomeLines = [{
-      key: 'gross', label: 'Gross Rental Revenue', amount: r2(gross),
-      note: occupancyRate != null ? `${Math.round(occupancyRate * 100)}% occupancy assumed` : undefined,
-    }];
-    if (est) {
-      operating.push(
-        { key: 'cleaning', label: 'Cleaning', amount: r2(est.cleaningCosts), badge: 'Estimated' },
-        { key: 'platform', label: 'Platform Fees', amount: r2(est.platformFees), badge: 'Estimated' },
-      );
-    }
-    const fd = deriveFurnishedDefaults('str', params, { bedrooms: ctx.bedrooms });
-    addFurnished(furnished, cashInvestedLines, operating, fd);
-  }
-
-  const expenseLines = [...ownership, ...operating, ...reserves, ...furnished];
-
-  const monthlyIncome = incomeLines.reduce((s, l) => s + l.amount, 0);
-  const totalMonthlyExpenses = r2(expenseLines.reduce((s, l) => s + l.amount, 0));
-  const monthlyCashFlow = r2(monthlyIncome - totalMonthlyExpenses);
-
-  // Break-even income: B = fixedExpenses / (1 − variableRate)
-  const variableExpenses = monthlyIncome * variableRate;
-  const fixedExpenses = totalMonthlyExpenses - variableExpenses;
-  const breakEvenIncome = variableRate < 1 ? r2(fixedExpenses / (1 - variableRate)) : totalMonthlyExpenses;
-
-  return {
-    strategy,
-    incomeLines,
-    expenseLines,
-    cashInvestedLines,
-    monthlyIncome: r2(monthlyIncome),
-    totalMonthlyExpenses,
-    monthlyCashFlow,
-    annualCashFlow: r2(monthlyCashFlow * 12),
-    breakEvenIncome,
-    occupancyRate,
+  const build = (
+    resolvedKey: 'ltr' | 'mtr' | 'str',
+    income: number,
+    incomeLabel: string,
+    operating: StrategyCashFlowLine[],
+    oneTime: StrategyCashFlowLine[],
+  ): StrategyCashFlow => {
+    const operatingTotal = operating.reduce((s, e) => s + e.value, 0);
+    const totalMonthlyExpenses = r2(carryingTotal + operatingTotal);
+    const monthlyCashFlow = r2(income - totalMonthlyExpenses);
+    const totalOneTime = oneTime.reduce((s, e) => s + e.value, 0);
+    // Lump strategy operating into a single reserve field so calculateROI
+    // derives NOI / cap rate from the correct operating total.
+    const breakdown: CashFlowBreakdown = {
+      monthlyRent: r2(income),
+      monthlyMortgage: base.monthlyMortgage,
+      monthlyTax: base.monthlyTax,
+      monthlyInsurance: base.monthlyInsurance,
+      monthlyHoa: base.monthlyHoa,
+      monthlyVacancy: r2(operatingTotal),
+      monthlyRepairs: 0,
+      monthlyCapex: 0,
+      monthlyManagement: 0,
+      totalMonthlyExpenses,
+      monthlyCashFlow,
+      annualCashFlow: r2(monthlyCashFlow * 12),
+    };
+    return {
+      key: resolvedKey,
+      monthlyIncome: r2(income),
+      incomeLabel,
+      carrying,
+      operating,
+      totalMonthlyExpenses,
+      monthlyCashFlow,
+      annualCashFlow: r2(monthlyCashFlow * 12),
+      oneTime,
+      totalOneTime,
+      breakdown,
+    };
   };
-}
 
-function addFurnished(
-  furnished: CashFlowLine[],
-  cashInvestedLines: CashFlowLine[],
-  operating: CashFlowLine[],
-  fd: FurnishedDefaults,
-) {
-  const months = Math.max(1, fd.furnishingLifeYears * 12);
-  const furnishingAmortized = r2(fd.furnishingCost / months);
-  const applianceAmortized = r2(fd.applianceCost / months);
-  furnished.push(
-    { key: 'furnishing', label: 'Furnishing (amortized)', amount: furnishingAmortized, adjustable: true },
-    { key: 'appliances', label: 'Appliances (amortized)', amount: applianceAmortized, adjustable: true },
-    { key: 'furnitureRepair', label: 'Furniture & Appliance Repair', amount: r2(fd.furnitureRepairMonthly), adjustable: true },
-  );
-  if (fd.cleaningMonthly > 0) {
-    operating.push({ key: 'extraCleaning', label: 'Cleaning Service', amount: r2(fd.cleaningMonthly), adjustable: true });
+  if (key === 'mtr' && opts.mtr) {
+    const m = opts.mtr;
+    // These five sum to (gross − net), so monthly cash flow == MTR net − carrying.
+    const { lines } = calculateMtrOperating(m, ov.operating);
+    const oneTime: StrategyCashFlowLine[] = [
+      { key: 'furniture', label: 'Furniture & Furnishings', value: ov.furniture ?? m.furnishingCosts.totalCost },
+      { key: 'appliances', label: 'Appliances', value: appliances },
+    ];
+    return build('mtr', m.grossMonthlyRevenue, 'Monthly Revenue', lines, oneTime);
   }
-  cashInvestedLines.push(
-    { key: 'furnishingUpfront', label: 'Furnishing (one-time)', amount: r2(fd.furnishingCost) },
-    { key: 'applianceUpfront', label: 'Appliances (one-time)', amount: r2(fd.applianceCost) },
-  );
-}
 
-/**
- * Strategy-aware ROI. One-time furnished spend (cashInvestedLines) is added to
- * the cash-on-cash denominator.
- */
-export function calculateStrategyROI(
-  price: number,
-  scf: StrategyCashFlow,
-  mortgage: MortgageBreakdown,
-): ROIMetrics {
-  const closingCosts = price * 0.03;
-  const upfrontFurnished = scf.cashInvestedLines.reduce((s, l) => s + l.amount, 0);
-  const totalCashInvested = mortgage.downPayment + closingCosts + upfrontFurnished;
+  if (key === 'str' && opts.str) {
+    const s = opts.str;
+    // Full STR operating costs (cleaning, utilities, platform, management,
+    // furnishing wear) sum to (gross − net), so monthly cash flow matches the
+    // STR strategy card. The initial furniture buy is a separate one-time cost.
+    const { lines } = calculateStrOperating(s, opts.bedrooms, ov.operating);
+    const oneTime: StrategyCashFlowLine[] = [
+      { key: 'furniture', label: 'Furniture & Furnishings', value: ov.furniture ?? estimateFurnitureCost(opts.bedrooms) },
+      { key: 'appliances', label: 'Appliances', value: appliances },
+    ];
+    return build('str', s.grossMonthlyRevenue, 'Monthly Revenue', lines, oneTime);
+  }
 
-  const cashOnCashROI =
-    totalCashInvested > 0 ? (scf.annualCashFlow / totalCashInvested) * 100 : 0;
-
-  const annualIncome = scf.monthlyIncome * 12;
-  // Operating expenses for NOI exclude mortgage (debt service).
-  const annualOperatingExpenses =
-    (scf.totalMonthlyExpenses -
-      (scf.expenseLines.find((l) => l.key === 'mortgage')?.amount ?? 0)) * 12;
-  const noi = annualIncome - annualOperatingExpenses;
-  const capRate = price > 0 ? (noi / price) * 100 : 0;
-  const grossRentMultiplier = annualIncome > 0 ? price / annualIncome : 0;
-
+  // LTR — reuse the long-term reserve breakdown unchanged.
+  const operating: StrategyCashFlowLine[] = [
+    { key: 'vacancy', label: 'Vacancy Reserve', value: base.monthlyVacancy },
+    { key: 'repairs', label: 'Repairs Reserve', value: base.monthlyRepairs },
+    { key: 'capex', label: 'CapEx Reserve', value: base.monthlyCapex },
+  ];
+  if (base.monthlyManagement > 0) {
+    operating.push({ key: 'management', label: 'Management', value: base.monthlyManagement });
+  }
+  const oneTime: StrategyCashFlowLine[] = [
+    { key: 'appliances', label: 'Appliances', value: appliances },
+  ];
+  const result = build('ltr', base.monthlyRent, 'Monthly Rent Income', operating, oneTime);
+  // Preserve the exact base breakdown (and its rounding) for ROI / tax reuse.
   return {
-    totalCashInvested: Math.round(totalCashInvested),
-    cashOnCashROI: r2(cashOnCashROI),
-    capRate: r2(capRate),
-    grossRentMultiplier: r2(grossRentMultiplier),
+    ...result,
+    breakdown: base,
+    totalMonthlyExpenses: base.totalMonthlyExpenses,
+    monthlyCashFlow: base.monthlyCashFlow,
+    annualCashFlow: base.annualCashFlow,
   };
 }

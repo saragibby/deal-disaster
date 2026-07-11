@@ -1,0 +1,121 @@
+/**
+ * Realty-in-US Service (realtor.com data via RapidAPI)
+ *
+ * Provides REAL rental comps sourced from active for-rent listings on
+ * realtor.com. This is our primary source of property-level rent comps
+ * (we don't use RentCast).
+ *
+ * Endpoint: POST /properties/v3/list
+ *   body: { limit, offset, postal_code, status: ['for_rent'], sort }
+ *   result path: data.home_search.results[]
+ *     - list_price              → monthly rent
+ *     - location.address        → line / city / state_code / postal_code / coordinate
+ *     - description.{beds,baths,sqft,type}
+ *
+ * Auth: shared RapidAPI key (RAPIDAPI_KEY) + per-API host header.
+ */
+
+import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
+import { filterPlausibleRentalComps } from './rentalEstimationService.js';
+
+const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
+const HOST = 'realty-in-us.p.rapidapi.com';
+
+function headers() {
+  return {
+    'content-type': 'application/json',
+    'x-rapidapi-key': RAPIDAPI_KEY(),
+    'x-rapidapi-host': HOST,
+  };
+}
+
+// ---------- cache ----------
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CacheEntry<RentalComp[]>>();
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — rental listings change slowly
+
+/** Check if the RapidAPI key is configured. */
+export function isConfigured(): boolean {
+  return RAPIDAPI_KEY().length > 0;
+}
+
+/**
+ * Fetch real active for-rent listings as rental comps for the subject's ZIP.
+ *
+ * Results are softly filtered to within ±1 bedroom of the subject (when known)
+ * to keep them comparable, falling back to all comps in thin markets.
+ * Returns [] on any failure so callers fall back to the algorithmic estimator.
+ */
+export async function getRentalComps(
+  property: PropertyData,
+  limit: number = 20,
+): Promise<RentalComp[]> {
+  if (!isConfigured() || !property.zip) return [];
+
+  const cacheKey = `realty:rent:${property.zip}:${property.bedrooms || ''}`;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) return cached.data;
+
+  try {
+    const body = {
+      limit,
+      offset: 0,
+      postal_code: property.zip,
+      status: ['for_rent'],
+      sort: { direction: 'desc', field: 'list_date' },
+    };
+
+    const res = await fetch(`https://${HOST}/properties/v3/list`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      console.warn(`[Realty-in-US] Rental comps failed: ${res.status} ${res.statusText}`);
+      return [];
+    }
+
+    const data = await res.json() as any;
+    const results: any[] = data?.data?.home_search?.results || [];
+    if (!Array.isArray(results)) return [];
+
+    const comps: RentalComp[] = results
+      .filter((r) => r?.list_price && r.list_price > 0)
+      .map((r) => {
+        const addr = r.location?.address || {};
+        const desc = r.description || {};
+        return {
+          address: addr.line ? `${addr.line}, ${addr.city || ''}`.replace(/,\s*$/, '') : undefined,
+          rent: Number(r.list_price),
+          bedrooms: desc.beds != null ? Number(desc.beds) : undefined,
+          bathrooms: desc.baths != null ? Number(desc.baths) : undefined,
+          sqft: desc.sqft != null ? Number(desc.sqft) : undefined,
+          source: 'api' as const,
+        };
+      });
+    const plausibleComps = filterPlausibleRentalComps(comps, property);
+
+    // Keep comps comparable: prefer those within ±1 bedroom of the subject,
+    // but never filter down to zero in sparse markets.
+    let relevant = plausibleComps;
+    if (property.bedrooms) {
+      const filtered = plausibleComps.filter(
+        (c) => c.bedrooms == null || Math.abs((c.bedrooms || 0) - property.bedrooms) <= 1,
+      );
+      if (filtered.length >= 1) relevant = filtered;
+    }
+
+    cache.set(cacheKey, { data: relevant, expiresAt: Date.now() + CACHE_TTL_MS });
+    console.log(`[Realty-in-US] Found ${relevant.length} rental comps for ${property.zip}`);
+    return relevant;
+  } catch (err: any) {
+    console.warn('[Realty-in-US] Rental comps error:', err.message);
+    return [];
+  }
+}

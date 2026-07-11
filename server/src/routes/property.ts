@@ -60,10 +60,10 @@ router.get('/rental-estimate', authenticateToken, async (req: AuthRequest, res: 
     let property: PropertyData | null = null;
     let apiComps: any[] = [];
 
-    // If we have a ZPID, try fetching real comps first
+    // If we have a ZPID, fetch property details (real rental comps come from
+    // RentCast / Realtor.com elsewhere; this provider has no comps endpoint).
     if (zpid) {
       property = await propertyDataService.getPropertyByZpid(String(zpid));
-      apiComps = await propertyDataService.getRentalComps(String(zpid));
     } else if (price) {
       // Build a minimal PropertyData from query params for algorithmic estimate
       property = {
@@ -86,7 +86,7 @@ router.get('/rental-estimate', authenticateToken, async (req: AuthRequest, res: 
     }
 
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const blended = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    const blended = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     res.json({ rentalEstimate: blended });
   } catch (err: any) {
@@ -118,12 +118,10 @@ router.post('/analyze', authenticateToken, async (req: AuthRequest, res: Respons
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
 
-    // Fetch rental data
-    const apiComps = property.zpid
-      ? await propertyDataService.getRentalComps(property.zpid)
-      : [];
+    // Fetch rental data (private-zillow has no comps endpoint; algorithmic only)
+    const apiComps: any[] = [];
     const algorithmic = rentalEstimationService.estimateRent(property);
-    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic);
+    const rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // Use property tax from tax history if available and user didn't override
     if (
