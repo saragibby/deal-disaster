@@ -85,8 +85,14 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
   // Sharing
   const [isShared, setIsShared] = useState(analysis.is_shared ?? false);
+  const [publicShareId, setPublicShareId] = useState(analysis.public_share_id ?? null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+
+  useEffect(() => {
+    setIsShared(analysis.is_shared ?? false);
+    setPublicShareId(analysis.public_share_id ?? null);
+  }, [analysis.is_shared, analysis.public_share_id]);
 
   const toggleShare = useCallback(async () => {
     if (!analysis.slug) return;
@@ -94,6 +100,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     try {
       const result = await api.setShared(analysis.slug, !isShared);
       setIsShared(result.isShared);
+      setPublicShareId(result.publicShareId ?? null);
     } catch (err: any) {
       alert(err.message || 'Failed to update sharing.');
     } finally {
@@ -102,14 +109,15 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   }, [analysis.slug, api, isShared]);
 
   const copyShareLink = useCallback(() => {
-    const url = shareUrls.publicAnalysis(analysis.slug);
+    const shareIdentifier = publicShareId || analysis.public_share_id || analysis.slug;
+    const url = shareUrls.publicAnalysis(shareIdentifier);
     navigator.clipboard.writeText(url).then(() => {
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     }).catch(() => {
       prompt('Copy this link:', url);
     });
-  }, [analysis.slug, shareUrls]);
+  }, [analysis.public_share_id, analysis.slug, publicShareId, shareUrls]);
 
   // ── Adjustable parameters ────────────────────────────────────────
   // Persisted user adjustments (if any) are merged back in so manual
@@ -798,14 +806,16 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
               <div className="results__property-price-block" ref={offerRef}>
                 <div className="results__property-price">
                   {priceAdjusted ? fmt(effectivePrice) : fmt(property.price)}
-                  <button
-                    type="button"
-                    className="results__offer-toggle"
-                    onClick={() => setShowOfferSlider(o => !o)}
-                    title="Run offer scenarios"
-                  >
-                    <SlidersHorizontal size={16} />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="results__offer-toggle"
+                      onClick={() => setShowOfferSlider(o => !o)}
+                      title="Run offer scenarios"
+                    >
+                      <SlidersHorizontal size={16} />
+                    </button>
+                  )}
                 </div>
                 {priceAdjusted && (
                   <div className="results__offer-meta">
@@ -815,7 +825,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                     </span>
                   </div>
                 )}
-                {showOfferSlider && (
+                {!readOnly && showOfferSlider && (
                   <div className="results__offer-popover">
                     <label className="results__offer-slider-label">Offer Price</label>
                     <div className="results__editable-value">
@@ -966,39 +976,45 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                 {selectedMeta.confidence} &bull; {fmt(selectedMeta.low)} – {fmt(selectedMeta.high)}
               </span>
             </div>
-            <div className="results__rent-compact-controls">
-              <div className="results__editable-value results__editable-value--centered">
-                <span className="results__editable-prefix results__editable-prefix--hero">$</span>
+            {readOnly ? (
+              <div className="results__rent-compact-controls">
+                <div className="results__big-value">{fmt(selectedMeta.value)}</div>
+              </div>
+            ) : (
+              <div className="results__rent-compact-controls">
+                <div className="results__editable-value results__editable-value--centered">
+                  <span className="results__editable-prefix results__editable-prefix--hero">$</span>
+                  <input
+                    type="number"
+                    className="results__editable-input results__editable-input--rent results__editable-input--hero"
+                    value={selectedMeta.value}
+                    onChange={e => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v > 0) selectedMeta.set(v);
+                    }}
+                    step={25}
+                  />
+                  {selectedMeta.adjusted && (
+                    <button
+                      type="button"
+                      className="results__rent-reset"
+                      onClick={selectedMeta.reset}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
                 <input
-                  type="number"
-                  className="results__editable-input results__editable-input--rent results__editable-input--hero"
+                  type="range"
+                  className="results__offer-range"
                   value={selectedMeta.value}
-                  onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v > 0) selectedMeta.set(v);
-                  }}
+                  onChange={e => selectedMeta.set(parseFloat(e.target.value))}
+                  min={Math.round(selectedMeta.low * 0.8)}
+                  max={Math.round(selectedMeta.high * 1.2)}
                   step={25}
                 />
-                {selectedMeta.adjusted && (
-                  <button
-                    type="button"
-                    className="results__rent-reset"
-                    onClick={selectedMeta.reset}
-                  >
-                    Reset
-                  </button>
-                )}
               </div>
-              <input
-                type="range"
-                className="results__offer-range"
-                value={selectedMeta.value}
-                onChange={e => selectedMeta.set(parseFloat(e.target.value))}
-                min={Math.round(selectedMeta.low * 0.8)}
-                max={Math.round(selectedMeta.high * 1.2)}
-                step={25}
-              />
-            </div>
+            )}
           </div>
 
           <StrategyComparison
@@ -1010,7 +1026,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             marketStatistics={results.marketStatistics}
             strategyComparison={strategyComparison}
             selectedKey={selectedKey}
-            onSelectKey={setSelectedStrategy}
+            onSelectKey={readOnly ? undefined : setSelectedStrategy}
+            readOnly={readOnly}
             bedrooms={property.bedrooms}
           />
           <DemandIndicators
@@ -1063,7 +1080,9 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
               <p className="results__strategy-note">
                 {selectedKey === 'mtr' ? 'Mid-term' : 'Short-term'} operating costs are derived from the{' '}
                 {selectedKey === 'mtr' ? 'furnished mid-term' : 'short-term rental'} revenue estimate.{' '}
-                Click any cost above (or the setup costs below) to match your numbers; adjust revenue with the slider above.
+                {readOnly
+                  ? 'Operating costs are derived from the furnished revenue estimate.'
+                  : 'Click any cost above (or the setup costs below) to match your numbers; adjust revenue with the slider above.'}
               </p>
             </>
           )}
@@ -1134,7 +1153,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
                 );
               })}
               <p className="results__onetime-note">
-                Upfront capital added to your cash invested — factored into the ROI below, not monthly cash flow. Edit any amount to match your quotes.
+                Upfront capital added to your cash invested — factored into the ROI below, not monthly cash flow.
+                {!readOnly && ' Edit any amount to match your quotes.'}
               </p>
             </div>
           )}
@@ -1210,7 +1230,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
               {displayTax.personalPropertyBasis
                 ? `, plus ${depreciationMethod === 'full' ? 'a full first-year' : 'straight-line 5-year'} write-off of furniture & appliances`
                 : ''}
-              {' '}— adjust in assumptions.
+              {!readOnly && ' — adjust in assumptions.'}
             </p>
           </div>
         </div>
@@ -1284,41 +1304,42 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             Loan Calculator
             {isAdjusted && <span className="results__adjusted-badge">Adjusted</span>}
           </h3>
-          {isAdjusted && (
+          {!readOnly && isAdjusted && (
             <button className="results__reset-btn" onClick={resetParams}>
               <RotateCcw size={14} /> Reset
             </button>
           )}
         </div>
 
-        {/* Core loan sliders — always visible */}
-        <div className="loan-calc__params">
-          <SliderInput
-            label="Down Payment"
-            value={params.downPaymentPct}
-            onChange={v => updateParam('downPaymentPct', v)}
-            min={0} max={100} step={1}
-            suffix="%"
-            detail={fmt(effectivePrice * (params.downPaymentPct / 100))}
-            adjusted={params.downPaymentPct !== originalParams.downPaymentPct}
-          />
-          <SliderInput
-            label="Interest Rate"
-            value={params.interestRate}
-            onChange={v => updateParam('interestRate', v)}
-            min={0} max={15} step={0.125}
-            suffix="%"
-            adjusted={params.interestRate !== originalParams.interestRate}
-          />
-          <SliderInput
-            label="Loan Term"
-            value={params.loanTermYears}
-            onChange={v => updateParam('loanTermYears', v)}
-            min={1} max={40} step={1}
-            suffix=" yrs"
-            adjusted={params.loanTermYears !== originalParams.loanTermYears}
-          />
-        </div>
+        {!readOnly && (
+          <div className="loan-calc__params">
+            <SliderInput
+              label="Down Payment"
+              value={params.downPaymentPct}
+              onChange={v => updateParam('downPaymentPct', v)}
+              min={0} max={100} step={1}
+              suffix="%"
+              detail={fmt(effectivePrice * (params.downPaymentPct / 100))}
+              adjusted={params.downPaymentPct !== originalParams.downPaymentPct}
+            />
+            <SliderInput
+              label="Interest Rate"
+              value={params.interestRate}
+              onChange={v => updateParam('interestRate', v)}
+              min={0} max={15} step={0.125}
+              suffix="%"
+              adjusted={params.interestRate !== originalParams.interestRate}
+            />
+            <SliderInput
+              label="Loan Term"
+              value={params.loanTermYears}
+              onChange={v => updateParam('loanTermYears', v)}
+              min={1} max={40} step={1}
+              suffix=" yrs"
+              adjusted={params.loanTermYears !== originalParams.loanTermYears}
+            />
+          </div>
+        )}
 
         {/* Output metrics */}
         <div className="loan-calc__outputs">
@@ -1340,17 +1361,18 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
           </div>
         </div>
 
-        {/* Expandable: expense / tax parameters */}
-        <button
-          className="loan-calc__more-toggle"
-          onClick={() => setShowAllParams(!showAllParams)}
-        >
-          <SlidersHorizontal size={14} />
-          Expense &amp; Tax Parameters
-          {showAllParams ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
+        {!readOnly && (
+          <button
+            className="loan-calc__more-toggle"
+            onClick={() => setShowAllParams(!showAllParams)}
+          >
+            <SlidersHorizontal size={14} />
+            Expense &amp; Tax Parameters
+            {showAllParams ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        )}
 
-        {showAllParams && (
+        {!readOnly && showAllParams && (
           <div className="loan-calc__params loan-calc__params--secondary">
             <SliderInput label="Vacancy" value={params.vacancyPct} onChange={v => updateParam('vacancyPct', v)} min={0} max={25} step={1} suffix="%" adjusted={params.vacancyPct !== originalParams.vacancyPct} />
             <SliderInput label="Repairs" value={params.repairsPct} onChange={v => updateParam('repairsPct', v)} min={0} max={25} step={1} suffix="%" adjusted={params.repairsPct !== originalParams.repairsPct} />

@@ -211,6 +211,14 @@ propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => 
       `${API_URL}/api/analyzer/shared/${propertyFixtures.publicAnalysis.slug}`,
     );
     await expect(publicRes).toBeOK();
+    const publicBody = await publicRes.json();
+    expect(publicBody.analysis).not.toHaveProperty('user_id');
+    expect(publicBody.analysis).not.toHaveProperty('is_shared');
+
+    const opaquePublicRes = await page.request.get(
+      `${API_URL}/api/analyzer/shared/${propertyFixtures.publicAnalysis.public_share_id}`,
+    );
+    await expect(opaquePublicRes).toBeOK();
 
     const privateRes = await page.request.get(
       `${API_URL}/api/analyzer/shared/${propertyFixtures.privateAnalysis.slug}`,
@@ -225,15 +233,21 @@ propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => 
       },
     );
     await expect(shareRes).toBeOK();
-    expect(await shareRes.json()).toMatchObject({
+    const shareBody = await shareRes.json();
+    expect(shareBody).toMatchObject({
       slug: propertyFixtures.privateAnalysis.slug,
       is_shared: true,
     });
+    expect(typeof shareBody.public_share_id).toBe('string');
 
     const newlyPublicRes = await page.request.get(
       `${API_URL}/api/analyzer/shared/${propertyFixtures.privateAnalysis.slug}`,
     );
     await expect(newlyPublicRes).toBeOK();
+    const newlyPublicOpaqueRes = await page.request.get(
+      `${API_URL}/api/analyzer/shared/${shareBody.public_share_id}`,
+    );
+    await expect(newlyPublicOpaqueRes).toBeOK();
   });
 
   propertyAnalyzerTest('toggles public sharing, copies shared URLs, and hides private controls on public views', async ({ page, propertyFixtures }) => {
@@ -248,27 +262,37 @@ propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => 
     await page.locator('.results__property-actions button', { hasText: 'Private' }).click();
     await expect(page.locator('.results__property-actions button', { hasText: 'Public' })).toBeVisible({ timeout: 15000 });
     await page.locator('.results__property-actions button', { hasText: 'Copy Link' }).click();
-    await expect.poll(() => page.evaluate(() => (window as any).__copiedText)).toContain(`/property-analyzer/shared/${privateAnalysis.slug}`);
+    const copiedUrl = await page.waitForFunction(() => (window as any).__copiedText).then(handle => handle.jsonValue() as Promise<string>);
+    expect(copiedUrl).toContain('/property-analyzer/shared/');
+    expect(copiedUrl).not.toContain(`/property-analyzer/shared/${privateAnalysis.slug}`);
 
     await page.locator('.results__property-actions button', { hasText: 'Public' }).click();
     await expect(page.locator('.results__property-actions button', { hasText: 'Private' })).toBeVisible({ timeout: 15000 });
     await page.goto(`/property-analyzer/shared/${privateAnalysis.slug}`);
     await expect(page.locator('.shared-view__error')).toBeVisible({ timeout: 15000 });
 
-    await page.request.patch(
+    const reshareRes = await page.request.patch(
       `${API_URL}/api/analyzer/history/${privateAnalysis.slug}/share`,
       {
         headers: authHeaders((await loginViaAPI(page, propertyFixtures.owner.email, propertyFixtures.owner.password)).token),
         data: { shared: true },
       },
     );
+    await expect(reshareRes).toBeOK();
+    const reshareBody = await reshareRes.json();
     await clearAuth(page);
-    await page.goto(`/property-analyzer/shared/${privateAnalysis.slug}`);
+    await page.goto(`/property-analyzer/shared/${reshareBody.public_share_id}`);
     await expect(page.locator('.shared-view__banner')).toContainText('Shared Analysis');
     await expectFixtureAnalysisVisible(page, privateAnalysis);
     await expect(page.locator('.results__property-actions')).toHaveCount(0);
     await expect(page.locator('button', { hasText: 'Re-analyze' })).toHaveCount(0);
+    await expect(page.locator('.results__offer-toggle')).toHaveCount(0);
+    await expect(page.locator('.results__editable-input')).toHaveCount(0);
+    await expect(page.locator('.slider-input__controls')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Chat with Will' })).toHaveCount(0);
+
+    await page.goto(`/property-analyzer/shared/${privateAnalysis.slug}`);
+    await expectFixtureAnalysisVisible(page, privateAnalysis);
   });
 
   propertyAnalyzerTest('creates valid saved comparisons for 2 through 6 properties', async ({ page, propertyFixtures }) => {
