@@ -93,13 +93,14 @@ export function createAnalyzerApiClient(apiService: ApiService): AnalyzerApiClie
     },
 
     async setShared(slug: string, shared: boolean) {
-      const response = await apiService.fetchJson<{ slug: string; is_shared: boolean }>(
+      const response = await apiService.fetchJson<{ slug: string; is_shared: boolean; public_share_id: string | null }>(
         `/api/analyzer/history/${encodeURIComponent(slug)}/share`,
         { method: 'PATCH', auth: true, body: JSON.stringify({ shared }) },
       );
       return {
         slug: response.slug,
         isShared: response.is_shared,
+        publicShareId: response.public_share_id,
       } satisfies AnalyzerShareState;
     },
 

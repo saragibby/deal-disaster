@@ -1,9 +1,14 @@
+import { randomBytes } from 'crypto';
 import { pool } from './pool.js';
 
 const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
 const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
 
 type AnalyzerOwnerTable = 'property_analyses' | 'saved_comparisons';
+
+function generatePublicShareId(): string {
+  return randomBytes(18).toString('base64url');
+}
 
 async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
   const beforeResult = await pool.query<{ count: number }>(
@@ -46,6 +51,25 @@ async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
   if (missingCount > 0) {
     throw new Error(
       `Analyzer ownership backfill left ${missingCount} ${tableName} rows without tenant, platform, or owner user fields.`,
+    );
+  }
+}
+
+async function backfillPropertyAnalysisPublicShareIds() {
+  const result = await pool.query<{ id: number }>(
+    `SELECT id
+     FROM property_analyses
+     WHERE is_shared = TRUE
+       AND public_share_id IS NULL`,
+  );
+
+  for (const row of result.rows) {
+    await pool.query(
+      `UPDATE property_analyses
+       SET public_share_id = $1
+       WHERE id = $2
+         AND public_share_id IS NULL`,
+      [generatePublicShareId(), row.id],
     );
   }
 }
@@ -218,6 +242,7 @@ export async function setupDatabase() {
         rental_comps JSONB,
         user_overrides JSONB,
         is_shared BOOLEAN DEFAULT FALSE,
+        public_share_id VARCHAR(64),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -230,7 +255,11 @@ export async function setupDatabase() {
     await pool.query(`
       ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS public_share_id VARCHAR(64)
+    `);
     await backfillAnalyzerOwnership('property_analyses');
+    await backfillPropertyAnalysisPublicShareIds();
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_property_analyses_user
       ON property_analyses(user_id, created_at DESC)
@@ -254,6 +283,11 @@ export async function setupDatabase() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_property_analyses_platform_owner
       ON property_analyses(platform, owner_user_id)
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_public_share_id
+      ON property_analyses(public_share_id)
+      WHERE public_share_id IS NOT NULL
     `);
     console.log('✅ Property analyses table created');
 

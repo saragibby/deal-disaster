@@ -26,6 +26,8 @@ interface Props {
   selectedKey?: 'ltr' | 'mtr' | 'str';
   /** Called when a card is clicked to make it the active rental type. */
   onSelectKey?: (key: 'ltr' | 'mtr' | 'str') => void;
+  /** Render strategy cards as display-only for public shared views. */
+  readOnly?: boolean;
   /** Bedroom count — drives furniture / appliance upfront-cost estimates. */
   bedrooms: number;
 }
@@ -333,7 +335,7 @@ function CostComparisonRow({
 /*  Main Component                                                     */
 /* ================================================================== */
 
-export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison, selectedKey, onSelectKey, bedrooms }: Props) {
+export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison, selectedKey, onSelectKey, readOnly, bedrooms }: Props) {
   // Render nothing if neither MTR nor STR data is available
   if (!mtrEstimate && !strEstimate) return null;
 
@@ -425,11 +427,12 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
           return (
           <div
             key={strategy.key}
-            role="button"
-            tabIndex={0}
-            aria-pressed={isSelected}
-            onClick={() => onSelectKey?.(strategy.key)}
+            role={readOnly ? undefined : 'button'}
+            tabIndex={readOnly ? undefined : 0}
+            aria-pressed={readOnly ? undefined : isSelected}
+            onClick={readOnly ? undefined : () => onSelectKey?.(strategy.key)}
             onKeyDown={(e) => {
+              if (readOnly) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onSelectKey?.(strategy.key);
