@@ -1,5 +1,55 @@
 import { pool } from './pool.js';
 
+const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
+const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
+
+type AnalyzerOwnerTable = 'property_analyses' | 'saved_comparisons';
+
+async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
+  const beforeResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const beforeCount = beforeResult.rows[0].count;
+
+  await pool.query(
+    `UPDATE ${tableName}
+     SET
+       tenant_id = COALESCE(tenant_id, $1),
+       platform = COALESCE(platform, $2),
+       owner_user_id = COALESCE(owner_user_id, user_id)
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+    [ASSET_DASHBOARD_OWNER_TENANT_ID, ASSET_DASHBOARD_OWNER_PLATFORM],
+  );
+
+  const afterResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const afterCount = afterResult.rows[0].count;
+
+  if (afterCount !== beforeCount) {
+    throw new Error(
+      `Analyzer ownership backfill changed ${tableName} row count from ${beforeCount} to ${afterCount}.`,
+    );
+  }
+
+  const missingResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count
+     FROM ${tableName}
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+  );
+  const missingCount = missingResult.rows[0].count;
+
+  if (missingCount > 0) {
+    throw new Error(
+      `Analyzer ownership backfill left ${missingCount} ${tableName} rows without tenant, platform, or owner user fields.`,
+    );
+  }
+}
+
 export async function setupDatabase() {
   try {
     console.log('🔨 Setting up database...');
@@ -130,15 +180,7 @@ export async function setupDatabase() {
     await pool.query(`
       ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     `);
-    await pool.query(`
-      UPDATE saved_comparisons SET tenant_id = 'asset-dashboard' WHERE tenant_id IS NULL
-    `);
-    await pool.query(`
-      UPDATE saved_comparisons SET platform = 'asset-dashboard' WHERE platform IS NULL
-    `);
-    await pool.query(`
-      UPDATE saved_comparisons SET owner_user_id = user_id WHERE owner_user_id IS NULL
-    `);
+    await backfillAnalyzerOwnership('saved_comparisons');
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
       ON saved_comparisons(user_id, updated_at DESC)
@@ -188,15 +230,7 @@ export async function setupDatabase() {
     await pool.query(`
       ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     `);
-    await pool.query(`
-      UPDATE property_analyses SET tenant_id = 'asset-dashboard' WHERE tenant_id IS NULL
-    `);
-    await pool.query(`
-      UPDATE property_analyses SET platform = 'asset-dashboard' WHERE platform IS NULL
-    `);
-    await pool.query(`
-      UPDATE property_analyses SET owner_user_id = user_id WHERE owner_user_id IS NULL
-    `);
+    await backfillAnalyzerOwnership('property_analyses');
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_property_analyses_user
       ON property_analyses(user_id, created_at DESC)
