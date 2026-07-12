@@ -33,6 +33,7 @@ import type {
   MTRSeasonalityMonth,
 } from '@deal-platform/shared-types';
 import type { MTRMarketData } from './furnishedFinderService.js';
+import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
 
 // ---------------------------------------------------------------------------
 // Proximity cache (in-memory, 7-day TTL)
@@ -44,7 +45,7 @@ interface ProximityCacheEntry {
   expiresAt: number;
 }
 const proximityCache = new Map<string, ProximityCacheEntry>();
-const PROXIMITY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+const PROXIMITY_CACHE_TTL = getProviderFreshnessMs('google-places') ?? 0;
 
 // ---------------------------------------------------------------------------
 // Main estimator
@@ -385,7 +386,7 @@ export async function getProximityBoost(
     return { boost: cached.boost, nearby: cached.nearby };
   }
 
-  const apiKey = process.env.GOOGLE_GEOCODING_API_KEY || '';
+  const apiKey = readProviderCredential('google-places');
   if (!apiKey) return { boost: 0, nearby: [] };
 
   const nearby: NearbyInstitution[] = [];
