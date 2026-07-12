@@ -9,6 +9,14 @@ import PropertyAnalyzer from './components/PropertyAnalyzer';
 
 export type AnalyzerTab = 'analyze' | 'history' | 'compare';
 
+declare global {
+  interface Window {
+    __PROPERTY_ANALYZER_FLAGS__?: {
+      askWill?: boolean;
+    };
+  }
+}
+
 export default function App() {
   const { isAuthenticated, loading, user } = useAuth();
   const location = useLocation();
@@ -20,6 +28,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AnalyzerTab>(
     location.pathname.endsWith('/compare') ? 'compare' : 'analyze'
   );
+  const askWillEnabled = import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' &&
+    window.__PROPERTY_ANALYZER_FLAGS__?.askWill !== false;
 
   const changeTab = useCallback((tab: AnalyzerTab) => {
     setActiveTab(tab);
@@ -144,7 +154,7 @@ export default function App() {
         />
       </main>
 
-      {isAuthenticated && import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && <AskWill propertyAnalysis={propertyAnalysis} />}
+      {isAuthenticated && askWillEnabled && <AskWill propertyAnalysis={propertyAnalysis} />}
       <Footer />
     </div>
   );
