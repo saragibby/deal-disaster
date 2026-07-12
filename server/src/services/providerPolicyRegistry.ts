@@ -32,15 +32,16 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'global',
       freshnessMs: DAY_MS,
+      staleIfErrorMs: 7 * DAY_MS,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'allowed',
       cacheKeyIncludes: ['provider', 'input'],
       profiles: {
-        property: { freshnessMs: DAY_MS, notes: 'Property detail lookups.' },
-        similarProperties: { freshnessMs: DAY_MS, notes: 'Comparable sale/property lookups.' },
-        areaMarket: { freshnessMs: 7 * DAY_MS, notes: 'PostgreSQL area-market snapshots.' },
-        areaMarketHot: { freshnessMs: HOUR_MS, notes: 'In-memory area-market hot cache.' },
+        property: { freshnessMs: DAY_MS, staleIfErrorMs: 7 * DAY_MS, notes: 'Property detail lookups.' },
+        similarProperties: { freshnessMs: DAY_MS, staleIfErrorMs: 7 * DAY_MS, notes: 'Comparable sale/property lookups.' },
+        areaMarket: { freshnessMs: 7 * DAY_MS, staleIfErrorMs: 14 * DAY_MS, notes: 'PostgreSQL area-market snapshots.' },
+        areaMarketHot: { freshnessMs: HOUR_MS, staleIfErrorMs: DAY_MS, notes: 'In-memory area-market hot cache.' },
       },
       notes: 'Current behavior shares Zillow-derived property and market data across users.',
     },
@@ -56,14 +57,15 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'platform',
       freshnessMs: DAY_MS,
+      staleIfErrorMs: 3 * DAY_MS,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'forbidden',
       cacheKeyIncludes: ['provider', 'platform', 'credential-scope', 'input'],
       profiles: {
-        rentEstimate: { freshnessMs: DAY_MS },
-        rentalComps: { freshnessMs: DAY_MS },
-        marketStatistics: { freshnessMs: 7 * DAY_MS },
+        rentEstimate: { freshnessMs: DAY_MS, staleIfErrorMs: 3 * DAY_MS },
+        rentalComps: { freshnessMs: DAY_MS, staleIfErrorMs: 3 * DAY_MS },
+        marketStatistics: { freshnessMs: 7 * DAY_MS, staleIfErrorMs: 14 * DAY_MS },
       },
       notes: 'RentCast data should not be reused by unrelated products unless a tenant policy explicitly allows it.',
     },
@@ -79,6 +81,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'platform',
       freshnessMs: DAY_MS,
+      staleIfErrorMs: DAY_MS,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'forbidden',
@@ -97,6 +100,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'platform',
       freshnessMs: DAY_MS,
+      staleIfErrorMs: 3 * DAY_MS,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'forbidden',
@@ -112,6 +116,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'disabled',
       freshnessMs: DAY_MS,
+      staleIfErrorMs: 0,
       durableCacheAllowed: false,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'forbidden',
@@ -130,6 +135,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'global',
       freshnessMs: null,
+      staleIfErrorMs: null,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: false,
       crossProductReuse: 'allowed',
@@ -148,6 +154,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'platform',
       freshnessMs: 7 * DAY_MS,
+      staleIfErrorMs: DAY_MS,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: true,
       crossProductReuse: 'forbidden',
@@ -163,6 +170,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'global',
       freshnessMs: null,
+      staleIfErrorMs: null,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: false,
       crossProductReuse: 'allowed',
@@ -177,6 +185,7 @@ export const PROVIDER_POLICY_REGISTRY = {
     cache: {
       sharing: 'global',
       freshnessMs: null,
+      staleIfErrorMs: null,
       durableCacheAllowed: true,
       inMemoryCacheAllowed: false,
       crossProductReuse: 'allowed',
@@ -200,6 +209,18 @@ export function getProviderFreshnessMs(providerId: AnalyzerProviderId, profile?:
     return profilePolicy.freshnessMs;
   }
   return policy.freshnessMs;
+}
+
+export function getProviderStaleIfErrorMs(providerId: AnalyzerProviderId, profile?: string): number | null {
+  const policy = getProviderPolicy(providerId).cache;
+  if (profile) {
+    const profilePolicy = policy.profiles?.[profile];
+    if (!profilePolicy) {
+      throw new Error(`Provider policy ${providerId} does not define freshness profile "${profile}".`);
+    }
+    return profilePolicy.staleIfErrorMs ?? policy.staleIfErrorMs;
+  }
+  return policy.staleIfErrorMs;
 }
 
 export function getProviderCredentialEnvVars(providerId: AnalyzerProviderId): string[] {
