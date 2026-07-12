@@ -82,10 +82,11 @@ async function backfillSavedComparisonMembers() {
     CROSS JOIN LATERAL unnest(sc.property_slugs) WITH ORDINALITY AS slug_position(slug, ordinality)
     JOIN property_analyses pa
       ON COALESCE(pa.tenant_id, $1) = COALESCE(sc.tenant_id, $1)
+     AND COALESCE(pa.platform, $2) = COALESCE(sc.platform, $2)
      AND COALESCE(pa.owner_user_id, pa.user_id) = COALESCE(sc.owner_user_id, sc.user_id)
      AND pa.slug = slug_position.slug
     ON CONFLICT DO NOTHING
-  `, [ASSET_DASHBOARD_OWNER_TENANT_ID]);
+  `, [ASSET_DASHBOARD_OWNER_TENANT_ID, ASSET_DASHBOARD_OWNER_PLATFORM]);
 }
 
 export async function setupDatabase() {
