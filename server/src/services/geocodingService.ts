@@ -13,11 +13,12 @@
  */
 
 import { pool } from '../db/pool.js';
+import { readProviderCredential } from './providerPolicyRegistry.js';
 
 // ---------- configuration ----------
 
 function getApiKey(): string {
-  return process.env.GOOGLE_GEOCODING_API_KEY || '';
+  return readProviderCredential('google-geocoding');
 }
 
 const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
