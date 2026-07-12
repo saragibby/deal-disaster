@@ -514,7 +514,7 @@ export class ApiService {
   }
 
   async toggleShareAnalysis(slug: string, shared: boolean) {
-    return this.fetchJson<{ slug: string; is_shared: boolean }>(
+    return this.fetchJson<{ slug: string; is_shared: boolean; public_share_id: string | null }>(
       `/api/analyzer/history/${encodeURIComponent(slug)}/share`,
       { method: 'PATCH', auth: true, body: JSON.stringify({ shared }) },
     );

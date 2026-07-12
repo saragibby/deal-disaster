@@ -10,7 +10,7 @@
  * DELETE /api/analyzer/history/:slug     – delete saved analysis
  * POST   /api/analyzer/re-analyze/:slug  – re-run with updated params
  * PATCH  /api/analyzer/history/:slug/share – toggle sharing on/off
- * GET    /api/analyzer/shared/:slug      – public read-only view (no auth required)
+ * GET    /api/analyzer/shared/:identifier – public read-only view (no auth required)
  */
 
 import { Router, Response } from 'express';
@@ -36,7 +36,7 @@ import {
   getAnalysisBySlug,
   getAnalysisForReanalysis,
   getAnalysisResultsForOverrides,
-  getSharedAnalysisBySlug,
+  getSharedAnalysisByPublicIdentifier,
   listAnalyses,
   saveAnalysis,
   setAnalysisShared,
@@ -333,6 +333,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 
     res.json({
       slug: saved.slug,
+      public_share_id: saved.public_share_id,
       zillow_url: sourceUrl || url,
       zpid,
       source_url: sourceUrl || url,
@@ -572,6 +573,7 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
 
     res.json({
       slug: saved.slug,
+      public_share_id: saved.public_share_id,
       zillow_url: row.zillow_url,
       zpid: row.zpid,
       source_url: row.source_url || row.zillow_url,
@@ -668,12 +670,13 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
   }
 });
 
-// ── GET /shared/:slug ────────────────────────────────────────────────────
+// ── GET /shared/:identifier ───────────────────────────────────────────────
 // Public read-only view — no authentication required.
-// Only returns the analysis if the owner has enabled sharing.
-router.get('/shared/:slug', async (req, res: Response) => {
+// Accepts either the opaque public share ID or a legacy slug alias, and only
+// returns the analysis if the owner has enabled sharing.
+router.get('/shared/:identifier', async (req, res: Response) => {
   try {
-    const analysis = await getSharedAnalysisBySlug(req.params.slug);
+    const analysis = await getSharedAnalysisByPublicIdentifier(req.params.identifier);
 
     if (analysis == null) {
       return res.status(404).json({ error: 'Shared analysis not found or sharing is disabled.' });

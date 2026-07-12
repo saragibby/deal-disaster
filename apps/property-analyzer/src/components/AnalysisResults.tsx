@@ -83,8 +83,14 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
   // Sharing
   const [isShared, setIsShared] = useState(analysis.is_shared ?? false);
+  const [publicShareId, setPublicShareId] = useState(analysis.public_share_id ?? null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+
+  useEffect(() => {
+    setIsShared(analysis.is_shared ?? false);
+    setPublicShareId(analysis.public_share_id ?? null);
+  }, [analysis.is_shared, analysis.public_share_id]);
 
   const toggleShare = useCallback(async () => {
     if (!analysis.slug) return;
@@ -92,6 +98,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     try {
       const result = await api.toggleShareAnalysis(analysis.slug, !isShared);
       setIsShared(result.is_shared);
+      setPublicShareId(result.public_share_id ?? null);
     } catch (err: any) {
       alert(err.message || 'Failed to update sharing.');
     } finally {
@@ -101,14 +108,15 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
   const copyShareLink = useCallback(() => {
     const origin = window.location.origin;
-    const url = `${origin}/property-analyzer/shared/${analysis.slug}`;
+    const shareIdentifier = publicShareId || analysis.public_share_id || analysis.slug;
+    const url = `${origin}/property-analyzer/shared/${shareIdentifier}`;
     navigator.clipboard.writeText(url).then(() => {
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     }).catch(() => {
       prompt('Copy this link:', url);
     });
-  }, [analysis.slug]);
+  }, [analysis.public_share_id, analysis.slug, publicShareId]);
 
   // ── Adjustable parameters ────────────────────────────────────────
   // Persisted user adjustments (if any) are merged back in so manual
