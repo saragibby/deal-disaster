@@ -6,7 +6,7 @@ import { AuthProvider } from '@deal-platform/shared-auth';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AssetDashboardAnalyzerProvider } from './wrapper/AssetDashboardAnalyzerContext';
 import App from './App';
-import './styles/analyzer.css';
+import '@deal-platform/property-analyzer-core/styles.css';
 
 const withAssetDashboardWrapper = (element: ReactElement) => (
   <AssetDashboardAnalyzerProvider>{element}</AssetDashboardAnalyzerProvider>
