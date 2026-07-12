@@ -18,6 +18,7 @@ import {
   type RentalComp,
   type SavedComparison,
 } from '@deal-platform/shared-types';
+import '@deal-platform/property-analyzer-core/styles.css';
 import './styles.css';
 
 const BASE_PATH = '/investor-lab';
