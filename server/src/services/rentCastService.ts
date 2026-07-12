@@ -15,7 +15,8 @@
  */
 
 import type { RentalComp, PropertyData } from '@deal-platform/shared-types';
-import { getProviderFreshnessMs, readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCredential } from './providerPolicyRegistry.js';
+import { readProviderCache, writeProviderCache } from './providerCacheAdapter.js';
 
 // ---------- configuration ----------
 
@@ -27,28 +28,6 @@ function headers() {
     'X-Api-Key': RENTCAST_API_KEY(),
     'Accept': 'application/json',
   };
-}
-
-// ---------- cache ----------
-
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = getProviderFreshnessMs('rentcast', 'rentalComps') ?? 0;
-const MARKET_CACHE_TTL_MS = getProviderFreshnessMs('rentcast', 'marketStatistics') ?? 0;
-
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
-  cache.delete(key);
-  return null;
-}
-
-function setCache<T>(key: string, data: T): void {
-  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 // ---------- types for RentCast responses ----------
@@ -103,9 +82,13 @@ export async function getRentEstimate(
   if (!isConfigured()) return null;
 
   const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
-  const cacheKey = `rentcast:estimate:${address}`;
-  const cached = getCached<{ mid: number; low: number; high: number }>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'avm/rent/long-term', address };
+  const cached = await readProviderCache<{ mid: number; low: number; high: number }>({
+    providerId: 'rentcast',
+    profile: 'rentEstimate',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   try {
     const params = new URLSearchParams({
@@ -135,7 +118,12 @@ export async function getRentEstimate(
       high: Math.round(data.rentRangeHigh || data.rent * 1.1),
     };
 
-    setCache(cacheKey, result);
+    await writeProviderCache({
+      providerId: 'rentcast',
+      profile: 'rentEstimate',
+      key: cacheKey,
+      value: result,
+    });
     return result;
   } catch (err: any) {
     console.warn('[RentCast] Rent estimate error:', err.message);
@@ -155,9 +143,13 @@ export async function getRentalComps(
   if (!isConfigured()) return [];
 
   const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
-  const cacheKey = `rentcast:comps:${address}:${radiusMiles}`;
-  const cached = getCached<RentalComp[]>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'listings/rental/long-term', address, radiusMiles };
+  const cached = await readProviderCache<RentalComp[]>({
+    providerId: 'rentcast',
+    profile: 'rentalComps',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   try {
     // Prefer lat/lng for radius search; fall back to address
@@ -202,7 +194,12 @@ export async function getRentalComps(
         source: 'api' as const,
       }));
 
-    setCache(cacheKey, comps);
+    await writeProviderCache({
+      providerId: 'rentcast',
+      profile: 'rentalComps',
+      key: cacheKey,
+      value: comps,
+    });
     console.log(`[RentCast] Found ${comps.length} rental comps for ${address}`);
     return comps;
   } catch (err: any) {
@@ -220,9 +217,13 @@ export async function getMarketStatistics(
 ): Promise<MarketStatistics | null> {
   if (!isConfigured() || !zip) return null;
 
-  const cacheKey = `rentcast:market:${zip}`;
-  const cached = getCached<MarketStatistics>(cacheKey);
-  if (cached) return cached;
+  const cacheKey = { endpoint: 'markets', zip };
+  const cached = await readProviderCache<MarketStatistics>({
+    providerId: 'rentcast',
+    profile: 'marketStatistics',
+    key: cacheKey,
+  });
+  if (cached.hit) return cached.value;
 
   try {
     const params = new URLSearchParams({
@@ -275,8 +276,12 @@ export async function getMarketStatistics(
       rentTrend,
     };
 
-    // Cache with longer TTL for market stats
-    cache.set(cacheKey, { data: result, expiresAt: Date.now() + MARKET_CACHE_TTL_MS });
+    await writeProviderCache({
+      providerId: 'rentcast',
+      profile: 'marketStatistics',
+      key: cacheKey,
+      value: result,
+    });
     console.log(`[RentCast] Market stats for ${zip}: median=${result.medianRent}, trend=${result.rentTrend}`);
     return result;
   } catch (err: any) {
