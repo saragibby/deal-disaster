@@ -10,11 +10,7 @@ import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
 import feedbackRoutes from './routes/feedback.js';
 import portalRoutes from './routes/portal.js';
-import propertyRoutes from './routes/property.js';
-import propertyAnalyzerRoutes from './routes/propertyAnalyzer.js';
-import xomeRoutes from './routes/xome.js';
-import aiComparisonRoutes from './routes/aiComparison.js';
-import comparisonsRoutes from './routes/comparisons.js';
+import { createAssetDashboardAnalyzerBackendRouter } from './analyzer/backend.js';
 import { initializeScheduledTasks } from './scheduler.js';
 import { pool } from './db/pool.js';
 
@@ -43,11 +39,7 @@ app.use('/api/daily-challenge', dailyChallengeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/portal', portalRoutes);
-app.use('/api/property', propertyRoutes);
-app.use('/api/analyzer', propertyAnalyzerRoutes);
-app.use('/api/ai', aiComparisonRoutes);
-app.use('/api/comparisons', comparisonsRoutes);
-app.use('/api/xome', xomeRoutes);
+app.use('/api', createAssetDashboardAnalyzerBackendRouter());
 
 // Health check
 app.get('/health', (req, res) => {
