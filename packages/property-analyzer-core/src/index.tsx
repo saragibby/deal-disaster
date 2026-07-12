@@ -160,15 +160,14 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
     adapters.navigation.navigate(next, { replace: true });
   }, [adapters.navigation, features.comparisons]);
 
-  const logoutUrl = adapters.navigation.external('/login');
   const profileUrl = adapters.navigation.external('/profile');
   const homeUrl = adapters.navigation.external('/');
   const analyzerHomeUrl = adapters.navigation.toUrl({ kind: 'analyze' });
 
   const handleLogout = useCallback(() => {
     adapters.auth.signOut?.();
-    adapters.navigation.navigateExternal(logoutUrl);
-  }, [adapters.auth, adapters.navigation, logoutUrl]);
+    adapters.navigation.navigateExternal('/login');
+  }, [adapters.auth, adapters.navigation]);
 
   if (isSharedRoute) {
     return (
