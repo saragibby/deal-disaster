@@ -312,11 +312,14 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     const slug = generatePropertySlug(property.address, property.zip);
     const insertResult = await pool.query(
       `INSERT INTO property_analyses
-        (user_id, slug, zillow_url, zpid, source_url, source_type, property_data, analysis_params, analysis_results, rental_comps)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (user_id, tenant_id, platform, owner_user_id, slug, zillow_url, zpid, source_url, source_type, property_data, analysis_params, analysis_results, rental_comps)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (user_id, slug) DO UPDATE SET
         zillow_url       = EXCLUDED.zillow_url,
         zpid             = EXCLUDED.zpid,
+        tenant_id        = EXCLUDED.tenant_id,
+        platform         = EXCLUDED.platform,
+        owner_user_id    = EXCLUDED.owner_user_id,
         source_url       = EXCLUDED.source_url,
         source_type      = EXCLUDED.source_type,
         property_data    = EXCLUDED.property_data,
@@ -326,6 +329,9 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
         created_at       = CURRENT_TIMESTAMP
        RETURNING slug, created_at`,
       [
+        ownerUserId,
+        ownerContext.tenantId,
+        ownerContext.platform,
         ownerUserId,
         slug,
         sourceUrl || url,
