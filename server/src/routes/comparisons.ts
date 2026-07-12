@@ -21,6 +21,29 @@ import {
 } from '../services/analyzerPersistenceService.js';
 
 const router = Router();
+const MIN_PROPERTIES = 2;
+const MAX_PROPERTIES = 6;
+
+function validatePropertySlugs(input: unknown): { propertySlugs?: string[]; error?: string } {
+  if (!Array.isArray(input) || input.length < MIN_PROPERTIES) {
+    return { error: 'At least 2 property slugs are required.' };
+  }
+
+  if (input.length > MAX_PROPERTIES) {
+    return { error: 'Maximum 6 properties per comparison.' };
+  }
+
+  if (!input.every(slug => typeof slug === 'string' && slug.trim().length > 0)) {
+    return { error: 'One or more property slugs are invalid.' };
+  }
+
+  const propertySlugs = input.map(slug => slug.trim());
+  if (new Set(propertySlugs).size !== propertySlugs.length) {
+    return { error: 'One or more property slugs are invalid.' };
+  }
+
+  return { propertySlugs };
+}
 
 // ── POST / – Save a new comparison ───────────────────────────────────────
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -31,21 +54,18 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Comparison name is required.' });
     }
 
-    if (!Array.isArray(propertySlugs) || propertySlugs.length < 2) {
-      return res.status(400).json({ error: 'At least 2 property slugs are required.' });
-    }
-
-    if (propertySlugs.length > 6) {
-      return res.status(400).json({ error: 'Maximum 6 properties per comparison.' });
+    const validation = validatePropertySlugs(propertySlugs);
+    if (validation.error || !validation.propertySlugs) {
+      return res.status(400).json({ error: validation.error });
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
 
-    if (await countOwnedAnalysisSlugs(ownerContext, propertySlugs) !== propertySlugs.length) {
+    if (await countOwnedAnalysisSlugs(ownerContext, validation.propertySlugs) !== validation.propertySlugs.length) {
       return res.status(400).json({ error: 'One or more property slugs are invalid.' });
     }
 
-    const comparison = await saveComparison(ownerContext, name.trim(), propertySlugs);
+    const comparison = await saveComparison(ownerContext, name.trim(), validation.propertySlugs);
 
     res.status(201).json({ comparison });
   } catch (err: any) {
@@ -132,21 +152,18 @@ router.patch('/:id', authenticateToken, async (req: AuthRequest, res: Response) 
 
     const { propertySlugs } = req.body;
 
-    if (!Array.isArray(propertySlugs) || propertySlugs.length < 2) {
-      return res.status(400).json({ error: 'At least 2 property slugs are required.' });
-    }
-
-    if (propertySlugs.length > 6) {
-      return res.status(400).json({ error: 'Maximum 6 properties per comparison.' });
+    const validation = validatePropertySlugs(propertySlugs);
+    if (validation.error || !validation.propertySlugs) {
+      return res.status(400).json({ error: validation.error });
     }
 
     const ownerContext = await buildAssetDashboardOwnerContext(req);
 
-    if (await countOwnedAnalysisSlugs(ownerContext, propertySlugs) !== propertySlugs.length) {
+    if (await countOwnedAnalysisSlugs(ownerContext, validation.propertySlugs) !== validation.propertySlugs.length) {
       return res.status(400).json({ error: 'One or more property slugs are invalid.' });
     }
 
-    const comparison = await updateComparisonSlugs(ownerContext, compId, propertySlugs);
+    const comparison = await updateComparisonSlugs(ownerContext, compId, validation.propertySlugs);
 
     if (comparison == null) {
       return res.status(404).json({ error: 'Comparison not found.' });
