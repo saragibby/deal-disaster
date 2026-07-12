@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import ComparisonSelector from './ComparisonSelector.js';
 import ComparisonDashboard from './ComparisonDashboard.js';
 import ComparisonSkeleton from './ComparisonSkeleton.js';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 
 interface Props {
   onNewAnalysis?: () => void;
@@ -13,15 +13,17 @@ interface Props {
 type Phase = 'selecting' | 'loading' | 'comparing';
 
 export default function PropertyComparison({ onNewAnalysis }: Props) {
+  const { adapters } = useAssetDashboardAnalyzer();
+  const { api } = adapters;
   const [searchParams, setSearchParams] = useSearchParams();
   const [phase, setPhase] = useState<Phase>('selecting');
   const [properties, setProperties] = useState<PropertyAnalysis[]>([]);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [savedRefreshKey, setSavedRefreshKey] = useState(0);
+  const slugsParam = searchParams.get('props');
 
   // Auto-load from URL params ?props=slug1,slug2,slug3
   useEffect(() => {
-    const slugsParam = searchParams.get('props');
     if (!slugsParam) return;
 
     const slugs = slugsParam.split(',').filter(s => s.length > 0);
@@ -30,7 +32,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
     setPhase('loading');
     setLoadingError(null);
 
-    Promise.allSettled(slugs.map(slug => analyzerApi.getAnalysis(slug)))
+    Promise.allSettled(slugs.map(slug => api.getAnalysis(slug)))
       .then(results => {
         const loaded: PropertyAnalysis[] = [];
         const errors: string[] = [];
@@ -58,7 +60,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
           setPhase('selecting');
         }
       });
-  }, []); // Only run on mount
+  }, [api, slugsParam]); // Preserve ?props= behavior while keeping API access adapter-owned.
 
   const handleCompare = useCallback((selected: PropertyAnalysis[]) => {
     setProperties(selected);
@@ -79,7 +81,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
     setPhase('loading');
     setLoadingError(null);
 
-    Promise.allSettled(slugs.map(slug => analyzerApi.getAnalysis(slug)))
+    Promise.allSettled(slugs.map(slug => api.getAnalysis(slug)))
       .then(results => {
         const loaded: PropertyAnalysis[] = [];
         const errors: string[] = [];
@@ -109,7 +111,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
           setPhase('selecting');
         }
       });
-  }, [setSearchParams]);
+  }, [api, setSearchParams]);
 
   if (phase === 'loading') {
     return <ComparisonSkeleton />;

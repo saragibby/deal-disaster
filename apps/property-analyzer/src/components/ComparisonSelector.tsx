@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
 import { Search, X, ChevronLeft, ChevronRight, ChevronDown, Plus, GitCompareArrows, Building2, FolderOpen, Trash2, PlusCircle } from 'lucide-react';
+import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
 
 const MAX_PROPERTIES = 6;
 
@@ -26,6 +26,8 @@ function shortAddress(address: string): string {
 }
 
 export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadComparison, savedRefreshKey }: Props) {
+  const { adapters, features } = useAssetDashboardAnalyzer();
+  const { api } = adapters;
   const [selected, setSelected] = useState<PropertyAnalysis[]>([]);
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
 
@@ -51,17 +53,22 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
   const [addToMenuSlug, setAddToMenuSlug] = useState<string | null>(null);
 
   const fetchSavedComparisons = useCallback(async () => {
+    if (!features.savedComparisons) {
+      setSavedLoading(false);
+      setSavedComparisons([]);
+      return;
+    }
     setSavedLoading(true);
     setSavedError(null);
     try {
-      const data = await analyzerApi.getSavedComparisons({ page: 1, limit: 50 });
+      const data = await api.getSavedComparisons({ page: 1, limit: 50 });
       setSavedComparisons(data.items);
     } catch (err: any) {
       setSavedError(err.message || 'Failed to load saved comparisons.');
     } finally {
       setSavedLoading(false);
     }
-  }, []);
+  }, [api, features.savedComparisons]);
 
   useEffect(() => {
     fetchSavedComparisons();
@@ -71,7 +78,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const data = await analyzerApi.getHistory({ page: historyPage, limit: historyLimit });
+      const data = await api.getHistory({ page: historyPage, limit: historyLimit });
       setHistory(data.items);
       setHistoryTotal(data.total);
     } catch (err: any) {
@@ -79,7 +86,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     } finally {
       setHistoryLoading(false);
     }
-  }, [historyPage]);
+  }, [api, historyPage]);
 
   useEffect(() => {
     fetchHistory();
@@ -118,7 +125,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     setUrlError(null);
 
     try {
-      const analysis = await analyzerApi.runAnalysis({ url: trimmed });
+      const analysis = await api.runAnalysis({ url: trimmed });
       addProperty(analysis);
       setUrl('');
       onNewAnalysis?.();
@@ -137,14 +144,14 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     } else {
       if (selected.length >= MAX_PROPERTIES) return;
       // History items may not have full data — fetch full analysis
-      analyzerApi.getAnalysis(analysis.slug)
+      api.getAnalysis(analysis.slug)
         .then(addProperty)
         .catch(() => {
           // Fallback: use the summary data we already have
           addProperty(analysis);
         });
     }
-  }, [selectedSlugs, selected.length, addProperty, removeProperty]);
+  }, [api, selectedSlugs, selected.length, addProperty, removeProperty]);
   const handleLoadSaved = useCallback((comp: SavedComparison) => {
     if (onLoadComparison) {
       onLoadComparison(comp.property_slugs);
@@ -155,12 +162,12 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     e.stopPropagation();
     if (!confirm(`Delete "${comp.name}"?`)) return;
     try {
-      await analyzerApi.deleteSavedComparison(comp.id);
+      await api.deleteSavedComparison(comp.id);
       fetchSavedComparisons();
     } catch (err: any) {
       alert(err.message || 'Failed to delete comparison.');
     }
-  }, [fetchSavedComparisons]);
+  }, [api, fetchSavedComparisons]);
 
   const handleAddToSaved = useCallback(async (comp: SavedComparison, slug: string) => {
     if (comp.property_slugs.includes(slug)) return;
@@ -169,13 +176,13 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
       return;
     }
     try {
-      await analyzerApi.updateComparisonSlugs(comp.id, [...comp.property_slugs, slug]);
+      await api.updateComparisonSlugs(comp.id, [...comp.property_slugs, slug]);
       setAddToMenuSlug(null);
       fetchSavedComparisons();
     } catch (err: any) {
       alert(err.message || 'Failed to add property to comparison.');
     }
-  }, [fetchSavedComparisons]);
+  }, [api, fetchSavedComparisons]);
   return (
     <div className="comparison-selector">
       {/* Selected Properties Bar */}
@@ -260,7 +267,8 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
       </div>
 
       {/* Saved Comparisons Section — collapsible */}
-      <div className="results__card comparison-selector__saved-section">
+      {features.savedComparisons && (
+        <div className="results__card comparison-selector__saved-section">
         <button
           className="comparison-selector__section-toggle"
           onClick={() => setSavedExpanded(prev => !prev)}
@@ -334,7 +342,8 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
             )}
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {/* History Selection Section */}
       <div className="results__card comparison-selector__history-section">

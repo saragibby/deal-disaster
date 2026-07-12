@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@deal-platform/property-analyzer-core": "*",
     "@deal-platform/shared-auth": "*",
     "@deal-platform/shared-types": "*",
     "@deal-platform/shared-ui": "*",
