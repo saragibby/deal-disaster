@@ -50,6 +50,20 @@ async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
   }
 }
 
+async function backfillSavedComparisonMembers() {
+  await pool.query(`
+    INSERT INTO saved_comparison_members (comparison_id, analysis_id, position)
+    SELECT sc.id, pa.id, slug_position.ordinality::int
+    FROM saved_comparisons sc
+    CROSS JOIN LATERAL unnest(sc.property_slugs) WITH ORDINALITY AS slug_position(slug, ordinality)
+    JOIN property_analyses pa
+      ON COALESCE(pa.tenant_id, $1) = COALESCE(sc.tenant_id, $1)
+     AND COALESCE(pa.owner_user_id, pa.user_id) = COALESCE(sc.owner_user_id, sc.user_id)
+     AND pa.slug = slug_position.slug
+    ON CONFLICT DO NOTHING
+  `, [ASSET_DASHBOARD_OWNER_TENANT_ID]);
+}
+
 export async function setupDatabase() {
   try {
     console.log('🔨 Setting up database...');
@@ -256,6 +270,23 @@ export async function setupDatabase() {
       ON property_analyses(platform, owner_user_id)
     `);
     console.log('✅ Property analyses table created');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_comparison_members (
+        comparison_id INTEGER NOT NULL REFERENCES saved_comparisons(id) ON DELETE CASCADE,
+        analysis_id INTEGER NOT NULL REFERENCES property_analyses(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL CHECK (position >= 1 AND position <= 6),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (comparison_id, analysis_id),
+        UNIQUE (comparison_id, position)
+      )
+    `);
+    await backfillSavedComparisonMembers();
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparison_members_analysis
+      ON saved_comparison_members(analysis_id)
+    `);
+    console.log('✅ Saved comparison membership table created');
 
     // Create leaderboard view
     await pool.query(`
