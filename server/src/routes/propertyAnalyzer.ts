@@ -31,6 +31,7 @@ import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { generatePropertySlug } from '../utils/slugify.js';
+import { buildAssetDashboardOwnerContext, getOwnerUserId } from '../middleware/ownerContext.js';
 
 const router = Router();
 
@@ -90,6 +91,9 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
     if (!url) {
       return res.status(400).json({ error: 'Please enter a property address or URL.' });
     }
+
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
 
     const { property, source, sourceUrl } = await resolvePropertyInput(url);
     const zpid = property.zpid || '';
@@ -322,7 +326,7 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
         created_at       = CURRENT_TIMESTAMP
        RETURNING slug, created_at`,
       [
-        req.userId,
+        ownerUserId,
         slug,
         sourceUrl || url,
         zpid,
@@ -358,6 +362,8 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 // ── GET /history ─────────────────────────────────────────────────────────
 router.get('/history', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
     const page = Math.max(1, parseInt(String(req.query.page)) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit)) || 20));
     const offset = (page - 1) * limit;
@@ -370,11 +376,11 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
          WHERE user_id = $1
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
-        [req.userId, limit, offset],
+        [ownerUserId, limit, offset],
       ),
       pool.query(
         `SELECT COUNT(*)::int AS total FROM property_analyses WHERE user_id = $1`,
-        [req.userId],
+        [ownerUserId],
       ),
     ]);
 
@@ -393,11 +399,13 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
 // ── GET /history/:slug ─────────────────────────────────────────────────────
 router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
     const result = await pool.query(
       `SELECT slug, zillow_url, zpid, property_data, analysis_params,
               analysis_results, rental_comps, user_overrides, is_shared, created_at
        FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
+      [req.params.slug, ownerUserId],
     );
 
     if (result.rows.length === 0) {
@@ -414,9 +422,11 @@ router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Re
 // ── DELETE /history/:slug ──────────────────────────────────────────────────
 router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
     const result = await pool.query(
       `DELETE FROM property_analyses WHERE slug = $1 AND user_id = $2 RETURNING slug`,
-      [req.params.slug, req.userId],
+      [req.params.slug, ownerUserId],
     );
 
     if (result.rows.length === 0) {
@@ -435,9 +445,11 @@ router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res:
 // Updates the existing entry in-place (same slug/URL).
 router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
     const original = await pool.query(
       `SELECT * FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
+      [req.params.slug, ownerUserId],
     );
 
     if (original.rows.length === 0) {
@@ -602,7 +614,7 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
         JSON.stringify(results),
         JSON.stringify(rentalEstimate.comps || []),
         req.params.slug,
-        req.userId,
+        ownerUserId,
       ],
     );
 
@@ -636,11 +648,14 @@ router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest,
       return res.status(400).json({ error: '"shared" must be a boolean.' });
     }
 
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
+
     const result = await pool.query(
       `UPDATE property_analyses SET is_shared = $1
        WHERE slug = $2 AND user_id = $3
        RETURNING slug, is_shared`,
-      [shared, req.params.slug, req.userId],
+      [shared, req.params.slug, ownerUserId],
     );
 
     if (result.rows.length === 0) {
@@ -678,9 +693,12 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
       return res.status(400).json({ error: '"overrides" must be an object.' });
     }
 
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
+
     const existing = await pool.query(
       `SELECT analysis_results FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
+      [req.params.slug, ownerUserId],
     );
 
     if (existing.rows.length === 0) {
@@ -705,7 +723,7 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
        SET analysis_results = $1, user_overrides = $2
        WHERE slug = $3 AND user_id = $4
        RETURNING slug`,
-      [JSON.stringify(results), JSON.stringify(overrides), req.params.slug, req.userId],
+      [JSON.stringify(results), JSON.stringify(overrides), req.params.slug, ownerUserId],
     );
 
     if (updateResult.rows.length === 0) {

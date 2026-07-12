@@ -10,6 +10,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
 import * as aiComparisonService from '../services/aiComparisonService.js';
 import type { PropertyAnalysis, AIComparisonSummary, AIComparisonNarratives } from '@deal-platform/shared-types';
+import { buildAssetDashboardOwnerContext, getOwnerUserId } from '../middleware/ownerContext.js';
 
 const router = Router();
 
@@ -30,11 +31,14 @@ router.post('/comparison-summary', authenticateToken, async (req: AuthRequest, r
       return res.status(400).json({ error: 'Invalid property slugs' });
     }
 
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
+
     // Load properties owned by this user
     const placeholders = propertySlugs.map((_, i) => `$${i + 2}`).join(', ');
     const result = await pool.query(
       `SELECT * FROM property_analyses WHERE user_id = $1 AND slug IN (${placeholders})`,
-      [req.userId, ...propertySlugs],
+      [ownerUserId, ...propertySlugs],
     );
 
     if (result.rows.length < 2) {
@@ -71,10 +75,13 @@ router.post('/property-narratives', authenticateToken, async (req: AuthRequest, 
       return res.status(400).json({ error: 'Invalid property slugs' });
     }
 
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerUserId = getOwnerUserId(ownerContext);
+
     const placeholders = propertySlugs.map((_, i) => `$${i + 2}`).join(', ');
     const result = await pool.query(
       `SELECT * FROM property_analyses WHERE user_id = $1 AND slug IN (${placeholders})`,
-      [req.userId, ...propertySlugs],
+      [ownerUserId, ...propertySlugs],
     );
 
     if (result.rows.length === 0) {

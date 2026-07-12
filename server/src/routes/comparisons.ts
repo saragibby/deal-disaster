@@ -11,13 +11,13 @@
 import { Router, Response } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
+import { buildAssetDashboardOwnerContext, getOwnerUserId } from '../middleware/ownerContext.js';
 
 const router = Router();
 
 // ── POST / – Save a new comparison ───────────────────────────────────────
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
     const { name, propertySlugs } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -31,6 +31,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
     if (propertySlugs.length > 6) {
       return res.status(400).json({ error: 'Maximum 6 properties per comparison.' });
     }
+
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const userId = getOwnerUserId(ownerContext);
 
     // Verify all slugs belong to this user
     const { rows: validSlugs } = await pool.query(
@@ -59,7 +62,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 // ── GET / – List saved comparisons (paginated) ──────────────────────────
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const userId = getOwnerUserId(ownerContext);
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
     const offset = (page - 1) * limit;
@@ -94,12 +98,14 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 // ── GET /:id – Get a single saved comparison ────────────────────────────
 router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
     const compId = parseInt(req.params.id, 10);
 
     if (isNaN(compId)) {
       return res.status(400).json({ error: 'Invalid comparison ID.' });
     }
+
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const userId = getOwnerUserId(ownerContext);
 
     const { rows } = await pool.query(
       `SELECT id, name, property_slugs, created_at, updated_at
@@ -122,12 +128,14 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 // ── DELETE /:id – Delete a saved comparison ─────────────────────────────
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
     const compId = parseInt(req.params.id, 10);
 
     if (isNaN(compId)) {
       return res.status(400).json({ error: 'Invalid comparison ID.' });
     }
+
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const userId = getOwnerUserId(ownerContext);
 
     const { rowCount } = await pool.query(
       `DELETE FROM saved_comparisons WHERE id = $1 AND user_id = $2`,
@@ -148,7 +156,6 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
 // ── PATCH /:id – Update a comparison's property slugs ───────────────────
 router.patch('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.userId!;
     const compId = parseInt(req.params.id, 10);
 
     if (isNaN(compId)) {
@@ -164,6 +171,9 @@ router.patch('/:id', authenticateToken, async (req: AuthRequest, res: Response) 
     if (propertySlugs.length > 6) {
       return res.status(400).json({ error: 'Maximum 6 properties per comparison.' });
     }
+
+    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const userId = getOwnerUserId(ownerContext);
 
     // Verify all slugs belong to this user
     const { rows: validSlugs } = await pool.query(
