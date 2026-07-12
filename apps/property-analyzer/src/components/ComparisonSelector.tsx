@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
 import { Search, X, ChevronLeft, ChevronRight, ChevronDown, Plus, GitCompareArrows, Building2, FolderOpen, Trash2, PlusCircle } from 'lucide-react';
 
@@ -54,8 +54,8 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     setSavedLoading(true);
     setSavedError(null);
     try {
-      const data = await api.getSavedComparisons(1, 50);
-      setSavedComparisons(data.comparisons);
+      const data = await analyzerApi.getSavedComparisons({ page: 1, limit: 50 });
+      setSavedComparisons(data.items);
     } catch (err: any) {
       setSavedError(err.message || 'Failed to load saved comparisons.');
     } finally {
@@ -71,8 +71,8 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const data = await api.getAnalysisHistory(historyPage, historyLimit);
-      setHistory(data.analyses);
+      const data = await analyzerApi.getHistory({ page: historyPage, limit: historyLimit });
+      setHistory(data.items);
       setHistoryTotal(data.total);
     } catch (err: any) {
       setHistoryError(err.message || 'Failed to load history.');
@@ -118,7 +118,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     setUrlError(null);
 
     try {
-      const analysis = await api.runAndSaveAnalysis(trimmed);
+      const analysis = await analyzerApi.runAnalysis({ url: trimmed });
       addProperty(analysis);
       setUrl('');
       onNewAnalysis?.();
@@ -137,11 +137,8 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     } else {
       if (selected.length >= MAX_PROPERTIES) return;
       // History items may not have full data — fetch full analysis
-      api.getAnalysis(analysis.slug)
-        .then((resp: any) => {
-          const full = resp.analysis || resp;
-          addProperty(full);
-        })
+      analyzerApi.getAnalysis(analysis.slug)
+        .then(addProperty)
         .catch(() => {
           // Fallback: use the summary data we already have
           addProperty(analysis);
@@ -158,7 +155,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
     e.stopPropagation();
     if (!confirm(`Delete "${comp.name}"?`)) return;
     try {
-      await api.deleteSavedComparison(comp.id);
+      await analyzerApi.deleteSavedComparison(comp.id);
       fetchSavedComparisons();
     } catch (err: any) {
       alert(err.message || 'Failed to delete comparison.');
@@ -172,7 +169,7 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
       return;
     }
     try {
-      await api.updateComparisonSlugs(comp.id, [...comp.property_slugs, slug]);
+      await analyzerApi.updateComparisonSlugs(comp.id, [...comp.property_slugs, slug]);
       setAddToMenuSlug(null);
       fetchSavedComparisons();
     } catch (err: any) {

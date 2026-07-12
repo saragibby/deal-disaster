@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import ComparisonSelector from './ComparisonSelector.js';
 import ComparisonDashboard from './ComparisonDashboard.js';
@@ -30,15 +30,14 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
     setPhase('loading');
     setLoadingError(null);
 
-    Promise.allSettled(slugs.map(slug => api.getAnalysis(slug)))
+    Promise.allSettled(slugs.map(slug => analyzerApi.getAnalysis(slug)))
       .then(results => {
         const loaded: PropertyAnalysis[] = [];
         const errors: string[] = [];
 
         results.forEach((r, i) => {
           if (r.status === 'fulfilled') {
-            const analysis = (r.value as any).analysis || r.value;
-            loaded.push(analysis);
+            loaded.push(r.value);
           } else {
             errors.push(`Analysis ${slugs[i]} could not be loaded`);
           }
@@ -80,15 +79,14 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
     setPhase('loading');
     setLoadingError(null);
 
-    Promise.allSettled(slugs.map(slug => api.getAnalysis(slug)))
+    Promise.allSettled(slugs.map(slug => analyzerApi.getAnalysis(slug)))
       .then(results => {
         const loaded: PropertyAnalysis[] = [];
         const errors: string[] = [];
 
         results.forEach((r, i) => {
           if (r.status === 'fulfilled') {
-            const analysis = (r.value as any).analysis || r.value;
-            loaded.push(analysis);
+            loaded.push(r.value);
           } else {
             errors.push(`Analysis ${slugs[i]} could not be loaded`);
           }

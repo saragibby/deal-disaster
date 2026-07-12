@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Download, Printer } from 'lucide-react';
 import { Footer } from '@deal-platform/shared-ui';
@@ -20,10 +20,8 @@ export default function SharedAnalysisView() {
     setLoading(true);
     setError(null);
 
-    api.getSharedAnalysis(slug)
-      .then((resp: any) => {
-        setAnalysis(resp.analysis || resp);
-      })
+    analyzerApi.getSharedAnalysis(slug)
+      .then(setAnalysis)
       .catch((err: any) => {
         setError(err.message || 'This analysis is not available.');
       })

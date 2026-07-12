@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '@deal-platform/shared-auth';
+import { analyzerApi } from '@deal-platform/shared-auth';
 import type {
   PropertyAnalysis,
   AnalysisParams,
@@ -67,10 +67,10 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
     setError(null);
     onTabChange('analyze');
 
-    api.getAnalysis(analysisSlug)
-      .then((resp: any) => {
+    analyzerApi.getAnalysis(analysisSlug)
+      .then((analysis) => {
         if (!cancelled) {
-          setResult(resp.analysis || resp);
+          setResult(analysis);
         }
       })
       .catch((err: any) => {
@@ -100,7 +100,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
       // still override any of them afterwards via the assumption sliders.
       const { annualPropertyTax, annualInsurance, repairsPct, capexPct, costSegPct, ...autoParams } = params;
       void annualPropertyTax; void annualInsurance; void repairsPct; void capexPct; void costSegPct;
-      const response = await api.runAndSaveAnalysis(url.trim(), autoParams);
+      const response = await analyzerApi.runAnalysis({ url: url.trim(), params: autoParams });
       setResult(response);
       setHistoryRefreshKey(k => k + 1);
       setInputExpanded(false);
@@ -213,5 +213,4 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
     </div>
   );
 }
-
 
