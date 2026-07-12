@@ -1044,7 +1044,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             comparables={results.comparables}
             effectiveRent={effectiveRent}
           />
-          <MarketTrendChart zip={property.zip} />
+          <MarketTrendChart zip={property.zip} marketStatistics={results.marketStatistics} />
         </div>
 
         {/* Cash Flow Card */}

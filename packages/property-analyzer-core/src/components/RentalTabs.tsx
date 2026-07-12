@@ -1030,7 +1030,7 @@ interface MarketStat {
   trend: 'up' | 'down' | 'flat';
 }
 
-function MarketTrendChart({ zip }: { zip: string }) {
+function MarketTrendChart({ zip, marketStatistics }: { zip: string; marketStatistics?: MarketStatistics }) {
   const { adapters } = usePropertyAnalyzerCore();
   const { api } = adapters;
   const [stats, setStats] = useState<MarketStat[] | null>(null);
@@ -1039,27 +1039,39 @@ function MarketTrendChart({ zip }: { zip: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    const fallbackStats = marketStatisticsToTrendStats(marketStatistics);
 
     async function load() {
       try {
+        setLoading(true);
+        setError(false);
+        setStats(null);
         const raw: any = await api.getMarketTrends(zip);
         const parsed = extractMarketStats(raw);
         if (!cancelled) {
           if (parsed.length > 0) setStats(parsed);
+          else if (fallbackStats.length > 0) setStats(fallbackStats);
           else setError(true);
         }
       } catch {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          if (fallbackStats.length > 0) setStats(fallbackStats);
+          else setError(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     if (zip) load();
-    else { setLoading(false); setError(true); }
+    else if (fallbackStats.length > 0) {
+      setStats(fallbackStats);
+      setLoading(false);
+      setError(false);
+    } else { setLoading(false); setError(true); }
 
     return () => { cancelled = true; };
-  }, [zip]);
+  }, [api, zip, marketStatistics]);
 
   if (loading) {
     return (
@@ -1129,6 +1141,36 @@ function extractMarketStats(raw: any): MarketStat[] {
       score: String(item.score),
       trend: item.trend === 'up' ? 'up' : item.trend === 'down' ? 'down' : 'flat',
     }));
+}
+
+function marketStatisticsToTrendStats(stats?: MarketStatistics): MarketStat[] {
+  if (!stats) return [];
+  const rentTrend = stats.rentTrend === 'rising' ? 'up' : stats.rentTrend === 'declining' ? 'down' : 'flat';
+  const growthTrend = stats.rentGrowthPct > 0 ? 'up' : stats.rentGrowthPct < 0 ? 'down' : 'flat';
+  const daysTrend = stats.avgDaysOnMarket <= 30 ? 'up' : stats.avgDaysOnMarket >= 45 ? 'down' : 'flat';
+
+  return [
+    {
+      displayName: 'Median Rent',
+      score: fmt(stats.medianRent),
+      trend: rentTrend,
+    },
+    {
+      displayName: 'Rent Growth',
+      score: `${stats.rentGrowthPct >= 0 ? '+' : ''}${stats.rentGrowthPct.toFixed(1)}% YoY`,
+      trend: growthTrend,
+    },
+    {
+      displayName: 'Rental Listings',
+      score: stats.totalListings.toLocaleString(),
+      trend: 'flat',
+    },
+    {
+      displayName: 'Days on Market',
+      score: `${stats.avgDaysOnMarket} days`,
+      trend: daysTrend,
+    },
+  ];
 }
 
 /* ================================================================== */

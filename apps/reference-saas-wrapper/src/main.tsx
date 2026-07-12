@@ -14,6 +14,7 @@ import {
   DEFAULT_ANALYSIS_PARAMS,
   type AnalysisParams,
   type FullAnalysisResult,
+  type MarketStatistics,
   type PropertyData,
   type RentalComp,
   type SavedComparison,
@@ -147,7 +148,51 @@ function buildRentalComps(index: number): RentalComp[] {
   ];
 }
 
-function buildResults(property: PropertyData, params: AnalysisParams, rentalComps: RentalComp[]): FullAnalysisResult {
+function buildMarketStatistics(index: number, rent: number): MarketStatistics {
+  return {
+    medianRent: rent,
+    averageRent: rent + 45,
+    rentGrowthPct: round(3.1 + index * 0.4, 1),
+    totalListings: 32 + index * 7,
+    avgDaysOnMarket: 23 + index * 2,
+    rentTrend: index === 2 ? 'stable' : 'rising',
+  };
+}
+
+function marketTrendFor(stats: MarketStatistics): 'up' | 'down' | 'flat' {
+  return stats.rentTrend === 'rising' ? 'up' : stats.rentTrend === 'declining' ? 'down' : 'flat';
+}
+
+function buildMarketTrendResponse(property: PropertyData, stats: MarketStatistics) {
+  const growthTrend = stats.rentGrowthPct > 0 ? 'up' : stats.rentGrowthPct < 0 ? 'down' : 'flat';
+  const daysTrend = stats.avgDaysOnMarket <= 30 ? 'up' : stats.avgDaysOnMarket >= 45 ? 'down' : 'flat';
+  return {
+    data: [
+      {
+        displayName: `${property.city} Median Rent`,
+        score: `$${stats.medianRent.toLocaleString('en-US')}`,
+        trend: marketTrendFor(stats),
+      },
+      {
+        displayName: `${property.zip} Rent Growth`,
+        score: `${stats.rentGrowthPct >= 0 ? '+' : ''}${stats.rentGrowthPct.toFixed(1)}% YoY`,
+        trend: growthTrend,
+      },
+      {
+        displayName: `${property.state} Rental Listings`,
+        score: stats.totalListings.toLocaleString('en-US'),
+        trend: 'flat',
+      },
+      {
+        displayName: 'Avg Days on Market',
+        score: `${stats.avgDaysOnMarket} days`,
+        trend: daysTrend,
+      },
+    ],
+  };
+}
+
+function buildResults(property: PropertyData, params: AnalysisParams, rentalComps: RentalComp[], marketStatistics: MarketStatistics): FullAnalysisResult {
   const rent = params.rentOverride;
   const loanAmount = property.price * (1 - params.downPaymentPct / 100);
   const monthlyMortgage = round(loanAmount * 0.0065);
@@ -210,6 +255,7 @@ function buildResults(property: PropertyData, params: AnalysisParams, rentalComp
       confidence: 'medium',
       comps: rentalComps,
     },
+    marketStatistics,
     strategyComparison: {
       strategies: [
         {
@@ -255,6 +301,7 @@ function buildAnalysis(index: number, slug = `reference-saas-${index}`): Propert
   const property = buildProperty(index);
   const params = buildParams(property);
   const rentalComps = buildRentalComps(index);
+  const marketStatistics = buildMarketStatistics(index, params.rentOverride);
   return {
     id: index,
     slug,
@@ -265,7 +312,7 @@ function buildAnalysis(index: number, slug = `reference-saas-${index}`): Propert
     source_type: 'address',
     property_data: property,
     analysis_params: params,
-    analysis_results: buildResults(property, params, rentalComps),
+    analysis_results: buildResults(property, params, rentalComps, marketStatistics),
     rental_comps: rentalComps,
     is_shared: false,
     created_at: new Date(Date.UTC(2026, 0, index, 12, 0, 0)).toISOString(),
@@ -288,13 +335,27 @@ function createStorageAdapter(): AnalyzerStorageAdapter {
 }
 
 function createMockApi(): AnalyzerApiClient {
-  const analyses = new Map<string, PropertyAnalysis>([
-    ['reference-saas-1', buildAnalysis(1, 'reference-saas-1')],
-    ['reference-saas-2', buildAnalysis(2, 'reference-saas-2')],
-  ]);
+  const analyses = new Map<string, PropertyAnalysis>();
+  const marketTrendsByZip = new Map<string, unknown>();
   const comparisons = new Map<number, SavedComparison>();
   let nextComparisonId = 1;
-  let nextAnalysisId = 3;
+  let nextAnalysisId = 4;
+
+  const storeAnalysis = (analysis: PropertyAnalysis) => {
+    analyses.set(analysis.slug, analysis);
+    const marketStatistics = analysis.analysis_results.marketStatistics;
+    if (marketStatistics) {
+      marketTrendsByZip.set(
+        analysis.property_data.zip,
+        buildMarketTrendResponse(analysis.property_data, marketStatistics),
+      );
+    }
+    return analysis;
+  };
+
+  storeAnalysis(buildAnalysis(1, 'reference-saas-1'));
+  storeAnalysis(buildAnalysis(2, 'reference-saas-2'));
+  storeAnalysis(buildAnalysis(3, 'reference-saas-3'));
 
   const findAnalysis = (slug: string) => {
     const analysis = analyses.get(slug);
@@ -308,13 +369,13 @@ function createMockApi(): AnalyzerApiClient {
     async runAnalysis({ url }) {
       const slug = `reference-saas-${nextAnalysisId}`;
       const analysis = buildAnalysis(nextAnalysisId, slug);
-      analyses.set(slug, {
+      const stored = storeAnalysis({
         ...analysis,
         source_url: url,
         zillow_url: url,
       });
       nextAnalysisId += 1;
-      return analyses.get(slug)!;
+      return stored;
     },
     async getHistory({ page = 1, limit = 10 }) {
       const items = Array.from(analyses.values());
@@ -383,8 +444,8 @@ function createMockApi(): AnalyzerApiClient {
     async searchForeclosures() {
       return { items: [] };
     },
-    async getMarketTrends() {
-      return { items: [] };
+    async getMarketTrends(postalCode) {
+      return marketTrendsByZip.get(postalCode) ?? { data: [] };
     },
     async submitFeedback() {
       return { ok: true };

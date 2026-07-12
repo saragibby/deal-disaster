@@ -91,6 +91,9 @@ assertIncludes(main, 'pdfExport: false', 'Harness must demonstrate disabled expo
 assertIncludes(main, 'streetView: false', 'Harness must demonstrate disabled Street View feature flag.');
 assertIncludes(main, 'aiComparisonSummary: false', 'Harness must demonstrate disabled AI comparison feature flag.');
 assertIncludes(main, 'aiPropertyNarratives: false', 'Harness must demonstrate disabled AI narrative feature flag.');
+assertIncludes(main, "storeAnalysis(buildAnalysis(3, 'reference-saas-3'))", 'Harness must seed the reported reference-saas-3 deep link.');
+assertIncludes(main, 'marketStatistics,', 'Harness analyses must include deterministic market statistics for rental tabs.');
+assertIncludes(main, 'buildMarketTrendResponse(analysis.property_data, marketStatistics)', 'Harness market trend API must serve seeded market snapshot data.');
 
 const assetMain = readFileSync(assetMainPath, 'utf8');
 assertIncludes(assetMain, "basename: '/property-analyzer'", 'Asset Dashboard wrapper must keep the production /property-analyzer basename.');
