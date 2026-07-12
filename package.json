@@ -18,6 +18,7 @@
     "dev:dashboard": "cd apps/dashboard && npm run dev",
     "dev:game": "cd apps/deal-or-disaster && npm run dev",
     "dev:analyzer": "cd apps/property-analyzer && npm run dev",
+    "check:property-analyzer-guardrails": "node scripts/check-property-analyzer-guardrails.mjs",
     "build": "npm run build:packages && npm run build:apps && npm run build:server",
     "build:packages": "cd packages/shared-types && npm run build && cd ../property-analyzer-core && npm run build && cd ../shared-auth && npm run build && cd ../shared-ui && npm run build",
     "build:apps": "cd apps/dashboard && npm run build && cd ../deal-or-disaster && npm run build && cd ../property-analyzer && npm run build",

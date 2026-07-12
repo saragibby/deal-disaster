@@ -1155,6 +1155,7 @@ export interface AnalyzerNavigationAdapter {
   toUrl(route: AnalyzerRoute): string;
   navigate(route: AnalyzerRoute, options?: AnalyzerNavigationOptions): void;
   external(path: string): string;
+  navigateExternal(path: string, options?: AnalyzerNavigationOptions): void;
 }
 
 export interface PropertyAnalyzerBranding {

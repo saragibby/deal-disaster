@@ -12,7 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "check:boundaries": "node ../../scripts/check-property-analyzer-guardrails.mjs",
+    "build": "npm run check:boundaries && tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
