@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import ComparisonSelector from './ComparisonSelector.js';
 import ComparisonDashboard from './ComparisonDashboard.js';
 import ComparisonSkeleton from './ComparisonSkeleton.js';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 
 interface Props {
   onNewAnalysis?: () => void;
@@ -13,14 +12,13 @@ interface Props {
 type Phase = 'selecting' | 'loading' | 'comparing';
 
 export default function PropertyComparison({ onNewAnalysis }: Props) {
-  const { adapters } = useAssetDashboardAnalyzer();
-  const { api } = adapters;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { adapters, route } = usePropertyAnalyzerCore();
+  const { api, navigation } = adapters;
   const [phase, setPhase] = useState<Phase>('selecting');
   const [properties, setProperties] = useState<PropertyAnalysis[]>([]);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [savedRefreshKey, setSavedRefreshKey] = useState(0);
-  const slugsParam = searchParams.get('props');
+  const slugsParam = route.kind === 'compare' ? route.propertySlugs?.join(',') ?? null : null;
 
   // Auto-load from URL params ?props=slug1,slug2,slug3
   useEffect(() => {
@@ -66,15 +64,14 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
     setProperties(selected);
     setPhase('comparing');
     // Update URL with slugs for shareability
-    const slugs = selected.map(p => p.slug).join(',');
-    setSearchParams({ props: slugs }, { replace: true });
-  }, [setSearchParams]);
+    navigation.navigate({ kind: 'compare', propertySlugs: selected.map(p => p.slug) }, { replace: true });
+  }, [navigation]);
 
   const handleBack = useCallback(() => {
     setPhase('selecting');
     setProperties([]);
-    setSearchParams({}, { replace: true });
-  }, [setSearchParams]);
+    navigation.navigate({ kind: 'compare' }, { replace: true });
+  }, [navigation]);
 
   const loadSlugs = useCallback((slugs: string[]) => {
     if (slugs.length < 2) return;
@@ -97,8 +94,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
         if (loaded.length >= 2) {
           setProperties(loaded);
           setPhase('comparing');
-          const validSlugs = loaded.map(p => p.slug).join(',');
-          setSearchParams({ props: validSlugs }, { replace: true });
+          navigation.navigate({ kind: 'compare', propertySlugs: loaded.map(p => p.slug) }, { replace: true });
           if (errors.length > 0) {
             setLoadingError(errors.join('. '));
           }
@@ -111,7 +107,7 @@ export default function PropertyComparison({ onNewAnalysis }: Props) {
           setPhase('selecting');
         }
       });
-  }, [api, setSearchParams]);
+  }, [api, navigation]);
 
   if (phase === 'loading') {
     return <ComparisonSkeleton />;

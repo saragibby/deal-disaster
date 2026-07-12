@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import type {
   AnalyzerAssistantContext,
   PropertyAnalysis,
@@ -11,20 +10,12 @@ import AnalysisResults from './AnalysisResults.js';
 import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
 import PropertyComparison from './PropertyComparison.js';
-import { useAssetDashboardAnalyzer } from '../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../context.js';
 
-type AnalyzerTab = 'analyze' | 'history' | 'compare';
-
-interface PropertyAnalyzerProps {
-  onAnalysisComplete?: (context: AnalyzerAssistantContext) => void;
-  activeTab: AnalyzerTab;
-  onTabChange: (tab: AnalyzerTab) => void;
-}
-
-export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabChange }: PropertyAnalyzerProps) {
-  const { id: analysisSlug } = useParams<{ id: string }>();
-  const { adapters } = useAssetDashboardAnalyzer();
+export default function PropertyAnalyzer() {
+  const { adapters, route, activeTab, setAssistantContext } = usePropertyAnalyzerCore();
   const { api, navigation } = adapters;
+  const analysisSlug = route.kind === 'analyze' ? route.slug : undefined;
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +29,13 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
 
   // Notify parent when analysis result changes (for Ask Will context)
   useEffect(() => {
-    if (!result || !onAnalysisComplete) return;
+    if (!result) {
+      setAssistantContext(null);
+      return;
+    }
     const p = result.property_data;
     const r = result.analysis_results;
-    onAnalysisComplete({
+    setAssistantContext({
       address: p.address,
       price: p.price,
       bedrooms: p.bedrooms,
@@ -58,7 +52,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
       taxSavings: r.taxSavings?.taxSavings,
       strNetMonthly: r.strEstimate?.netMonthlyRevenue,
     });
-  }, [result, onAnalysisComplete]);
+  }, [result, setAssistantContext]);
 
   // Auto-load analysis from URL param
   useEffect(() => {
@@ -66,7 +60,6 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
     let cancelled = false;
     setLoading(true);
     setError(null);
-    onTabChange('analyze');
 
     api.getAnalysis(analysisSlug)
       .then((analysis) => {
@@ -82,7 +75,7 @@ export default function PropertyAnalyzer({ onAnalysisComplete, activeTab, onTabC
       });
 
     return () => { cancelled = true; };
-  }, [analysisSlug, api, onTabChange]);
+  }, [analysisSlug, api]);
 
   const handleAnalyze = useCallback(async () => {
     if (!url.trim()) {

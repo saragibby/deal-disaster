@@ -1,14 +1,14 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { Sparkles, RefreshCw } from 'lucide-react';
-import { useAssetDashboardAnalyzer } from '../../wrapper/AssetDashboardAnalyzerContext.js';
+import { usePropertyAnalyzerCore } from '../../context.js';
 
 interface Props {
   properties: PropertyAnalysis[];
 }
 
 export default function AIDealSummary({ properties }: Props) {
-  const { adapters } = useAssetDashboardAnalyzer();
+  const { adapters } = usePropertyAnalyzerCore();
   const { api } = adapters;
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
