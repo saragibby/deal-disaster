@@ -2,7 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 function normalizeBasePath(value: string | undefined): string {
-  if (!value || value === '/') return '/investor-lab/';
+  if (!value) return '/investor-lab/';
+  if (value === '/') return '/';
   const normalized = value.replace(/^\/+|\/+$/g, '');
   return `/${normalized}/`;
 }

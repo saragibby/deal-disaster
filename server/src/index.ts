@@ -126,6 +126,13 @@ if (process.env.NODE_ENV === 'production') {
   const investorLabStatic = express.static(investorLabAppPath);
 
   // Investor Lab custom domains serve the same app at the domain root.
+  app.use('/investor-lab', (req, res, next) => {
+    if (!isInvestorLabHost(req)) {
+      next();
+      return;
+    }
+    investorLabStatic(req, res, next);
+  });
   app.use((req, res, next) => {
     if (!isInvestorLabHost(req) || isApiOrHealthPath(req)) {
       next();
