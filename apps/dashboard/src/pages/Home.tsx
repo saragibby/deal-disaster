@@ -21,18 +21,6 @@ const GAMES: GameInfo[] = [
     is_featured: true,
   },
   {
-    id: 'investor-lab',
-    name: 'Cashflow or No?',
-    description: 'Analyze rental properties in a separate investor workspace with its own account, profile, and deal history.',
-    shortDescription: 'Private investor analyzer workspace',
-    path: '/investor-lab/',
-    icon: '📊',
-    status: 'beta',
-    category: 'Real Estate',
-    color: '#0f766e',
-    is_featured: true,
-  },
-  {
     id: 'flip-or-flop',
     name: 'Flip or Flop',
     description: 'Buy properties, manage renovation budgets, and sell for profit. Navigate contractor issues, market shifts, and unexpected repairs.',
