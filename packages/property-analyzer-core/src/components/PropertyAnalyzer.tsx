@@ -13,7 +13,7 @@ import PropertyComparison from './PropertyComparison.js';
 import { usePropertyAnalyzerCore } from '../context.js';
 
 export default function PropertyAnalyzer() {
-  const { adapters, route, activeTab, setAssistantContext } = usePropertyAnalyzerCore();
+  const { adapters, branding, route, activeTab, setAssistantContext } = usePropertyAnalyzerCore();
   const { api, navigation } = adapters;
   const analysisSlug = route.kind === 'analyze' ? route.slug : undefined;
   const [url, setUrl] = useState('');
@@ -123,7 +123,7 @@ export default function PropertyAnalyzer() {
       {/* Page Header */}
       {!(result && activeTab === 'analyze') && (
         <div className="analyzer__header">
-          <h1 className="page-title">⚡ Property Analyzer</h1>
+          <h1 className="page-title">{branding.productName}</h1>
           <p className="page-subtitle">
             Paste a Zillow link and get comprehensive investment analysis in seconds
           </p>

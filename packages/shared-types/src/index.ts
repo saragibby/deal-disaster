@@ -1162,6 +1162,8 @@ export interface PropertyAnalyzerBranding {
   productName: string;
   platformName: string;
   logoText?: string;
+  logoSrc?: string;
+  logoAlt?: string;
   homeLabel: string;
   themeClassName?: string;
 }

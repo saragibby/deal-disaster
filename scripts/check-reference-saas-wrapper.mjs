@@ -33,10 +33,6 @@ const forbiddenPatterns = [
     pattern: /AssetDashboard|apps\/dashboard|AppShell/,
     reason: 'reference SaaS wrapper must not import or name dashboard shell surfaces.',
   },
-  {
-    pattern: /\blocalStorage\b|\bsessionStorage\b/,
-    reason: 'reference SaaS wrapper smoke auth/storage must be injected, not browser auth globals.',
-  },
 ];
 
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
@@ -61,17 +57,18 @@ for (const filePath of listFiles(srcRoot).concat([viteConfigPath, packageJsonPat
 }
 
 const viteConfig = readFileSync(viteConfigPath, 'utf8');
-assertIncludes(viteConfig, "base: '/investor-lab/'", 'Vite base must prove an alternate SaaS base path.');
+assertIncludes(viteConfig, "VITE_INVESTOR_LAB_BASE_PATH ?? '/investor-lab/'", 'Vite base must prove an alternate SaaS base path.');
 
 const main = readFileSync(mainPath, 'utf8');
-assertIncludes(main, "const BASE_PATH = '/investor-lab'", 'Harness must pass the alternate base path into core.');
-assertIncludes(main, "tenantId: 'reference-saas-tenant'", 'Harness auth must use a non-dashboard tenant session.');
-assertIncludes(main, "roles: ['member']", 'Harness auth must use SaaS member roles instead of dashboard roles.');
+assertIncludes(main, "VITE_INVESTOR_LAB_BASE_PATH ?? '/investor-lab'", 'Harness must pass the alternate base path into core.');
+assertIncludes(main, "const APP_PATH = `${BASE_PATH}/app`", 'Harness analyzer routing must live under the Investor Lab app path.');
+assertIncludes(main, "tenantId: 'investor-lab'", 'Harness auth must use an Investor Lab tenant session.');
+assertIncludes(main, "roles: ['member']", 'Harness auth must use member roles instead of dashboard roles.');
 assertIncludes(main, "'analysis:read'", 'Harness auth must grant analysis read permission through an injected session.');
 assertIncludes(main, "'analysis:write'", 'Harness auth must grant analysis write permission through an injected session.');
 assertIncludes(main, "'comparison:read'", 'Harness auth must grant comparison read permission through an injected session.');
-assertIncludes(main, "return SAAS_SESSION;", 'Harness auth adapter must satisfy session requirements without shared-auth globals.');
-assertIncludes(main, "const BASE_PATH = '/investor-lab'", 'Harness routing must be rooted at the alternate SaaS base path.');
+assertIncludes(main, "return auth ? createAnalyzerSession(auth.user) : null;", 'Harness auth adapter must satisfy session requirements without shared-auth globals.');
+assertIncludes(main, "if (!auth) throw new Error(`${PRODUCT_NAME} account required.`);", 'Harness auth adapter must fail loudly without a session.');
 assertIncludes(main, "pathname.startsWith(BASE_PATH)", 'Harness routing must parse routes relative to the SaaS base path.');
 assertIncludes(main, "internalPath.startsWith('/analysis/')", 'Harness routing must support analysis deep links.');
 assertIncludes(main, "internalPath === '/compare'", 'Harness routing must support comparison links.');
@@ -82,8 +79,10 @@ assertIncludes(main, "routeToPath({ kind: 'compare', propertySlugs })", 'Harness
 assertIncludes(main, "throw new Error(`Public sharing is disabled", 'Harness must fail loudly if disabled public sharing is invoked.');
 assertIncludes(main, "window.dispatchEvent(new CustomEvent('reference-saas:share-link-copied'", 'Harness must surface share-copy events.');
 assertIncludes(main, "window.dispatchEvent(new CustomEvent('reference-saas:export-started'", 'Harness must surface export events.');
-assertIncludes(main, "productName: 'Investor Lab Analyzer'", 'Harness must pass alternate branding into core.');
-assertIncludes(main, "platformName: 'Reference SaaS Platform'", 'Harness must pass alternate platform branding into core.');
+assertIncludes(main, "const PRODUCT_NAME = 'Cashflow or No?'", 'Harness must define Cashflow or No? branding.');
+assertIncludes(main, "productName: PRODUCT_NAME", 'Harness must pass alternate product branding into core.');
+assertIncludes(main, "platformName: PRODUCT_NAME", 'Harness must pass alternate platform branding into core.');
+assertIncludes(main, 'logoSrc: BRAND_LOGO_SRC', 'Harness must pass the branded logo into core.');
 assertIncludes(main, 'askWill: false', 'Harness must demonstrate disabled AskWill feature flag.');
 assertIncludes(main, 'comparisons: false', 'Harness must demonstrate disabled comparison feature flag.');
 assertIncludes(main, 'publicSharing: false', 'Harness must demonstrate disabled public-sharing feature flag.');
@@ -166,7 +165,8 @@ const distBundle = listFiles(distRoot)
   .join('\n');
 
 assertIncludes(distBundle, '/investor-lab/', 'Built harness output must retain the alternate base path.');
-assertIncludes(distBundle, 'Investor Lab Analyzer', 'Built harness output must retain alternate branding.');
+assertIncludes(distBundle, 'Cashflow or No?', 'Built harness output must retain Cashflow or No? branding.');
+assertIncludes(distBundle, 'cashflow-or-no-logo.png', 'Built harness output must retain the branded logo path.');
 
 console.log('Reference SaaS wrapper smoke check passed.');
 

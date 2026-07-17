@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { PropertyAnalysis } from '@deal-platform/shared-types';
+import type { PropertyAnalysis, PropertyAnalyzerBranding } from '@deal-platform/shared-types';
 import { Download, Printer } from 'lucide-react';
 import AnalysisResults from './AnalysisResults';
 import useExportAnalysis from '../hooks/useExportAnalysis';
@@ -28,7 +28,7 @@ export default function SharedAnalysisView({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="analyzer-app">
+      <div className={branding.themeClassName ?? 'analyzer-app'}>
         <SharedHeader homeUrl={navigation.external('/')} loginUrl={navigation.external('/login')} branding={branding} />
         <main className="analyzer-app__content">
           <div className="analyzer__loading">
@@ -43,7 +43,7 @@ export default function SharedAnalysisView({ slug }: { slug: string }) {
 
   if (error || !analysis) {
     return (
-      <div className="analyzer-app">
+      <div className={branding.themeClassName ?? 'analyzer-app'}>
         <SharedHeader homeUrl={navigation.external('/')} loginUrl={navigation.external('/login')} branding={branding} />
         <main className="analyzer-app__content">
           <div className="shared-view__error">
@@ -58,7 +58,7 @@ export default function SharedAnalysisView({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="analyzer-app">
+    <div className={branding.themeClassName ?? 'analyzer-app'}>
       <SharedHeader homeUrl={navigation.external('/')} loginUrl={navigation.external('/login')} branding={branding} />
       <main className="analyzer-app__content">
         <div className="shared-view">
@@ -97,12 +97,24 @@ function SharedHeader({
 }: {
   homeUrl: string;
   loginUrl: string;
-  branding: { platformName: string };
+  branding: PropertyAnalyzerBranding;
 }) {
+  const label = branding.logoText ?? branding.platformName;
   return (
     <header className="analyzer-app__header">
       <a href={homeUrl} className="analyzer-app__logo">
-        ⚡ {branding.platformName}
+        {branding.logoSrc ? (
+          <>
+            <img
+              className="analyzer-app__logo-img"
+              src={branding.logoSrc}
+              alt={branding.logoAlt ?? label}
+            />
+            <span className="analyzer-app__logo-text">{label}</span>
+          </>
+        ) : (
+          <>⚡ {label}</>
+        )}
       </a>
       <nav className="analyzer-app__nav">
         <a href={homeUrl} className="analyzer-app__nav-link">Home</a>

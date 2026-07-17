@@ -23,3 +23,8 @@ All API access should go through `ApiService` from `@deal-platform/shared-auth`;
 📌 Team update (2026-07-15T19:43:28.059-04:00): Investor Lab sticky header offset fix reduced wrapper header spacing/button padding, restored header z-index above sticky section nav, and kept mobile header compact via hamburger/dropdown behavior — logged by Scribe
 
 📌 Work update (2026-07-15T20:08:31.776-04:00): Investor Lab sticky results nav now sits flush against the wrapper header with no visible gap by offsetting `.results__nav-bar` and extending its background fill; Asset Dashboard/core styles stayed untouched, and `npm run build:reference-saas-wrapper` passed.
+
+
+📌 Work update (2026-07-17T12:49:38.523-04:00): Investor Lab rebrand feasibility review found hardcoded colors deep in analyzer core styles, font loading via CSS `@import`, no current logo image rendering support, and a shared favicon path across the three apps.
+
+📌 Team update (2026-07-17T12:49:38.523-04:00): Investor Lab branding must stay wrapper-scoped and additive because `property-analyzer-core` is shared by `apps/property-analyzer` and `apps/reference-saas-wrapper` — decided by Williamson
