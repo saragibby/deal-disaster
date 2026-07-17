@@ -6,6 +6,7 @@ interface Props {
   verdict: DealVerdict;
   /** Property address, used to frame the AskWill explanation request. */
   address?: string;
+  allowAskWill?: boolean;
 }
 
 const RATING_META: Record<DealVerdict['rating'], { label: string; icon: React.ReactNode }> = {
@@ -20,7 +21,7 @@ function ReasonIcon({ impact }: { impact: 'positive' | 'neutral' | 'negative' })
   return <Minus size={16} className="deal-verdict__reason-icon deal-verdict__reason-icon--neutral" />;
 }
 
-export default function DealVerdictCard({ verdict, address }: Props) {
+export default function DealVerdictCard({ verdict, address, allowAskWill = true }: Props) {
   const meta = RATING_META[verdict.rating];
   const [expanded, setExpanded] = useState(true);
 
@@ -42,10 +43,12 @@ export default function DealVerdictCard({ verdict, address }: Props) {
           </div>
         </div>
         <div className="deal-verdict__header-actions no-print">
-          <button type="button" className="deal-verdict__ask" onClick={askWill}>
-            <MessageCircleQuestion size={15} />
-            Ask Will to explain this verdict
-          </button>
+          {allowAskWill && (
+            <button type="button" className="deal-verdict__ask" onClick={askWill}>
+              <MessageCircleQuestion size={15} />
+              Ask Will to explain this verdict
+            </button>
+          )}
           <button
             type="button"
             className="deal-verdict__toggle"

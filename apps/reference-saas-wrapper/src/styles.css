@@ -7,16 +7,20 @@
   --success-dark: #e6b800;
   --warning: #ffd700;
   --danger: #ff3b7f;
-  --bg: #0a0a0a;
-  --card: #1e1e1e;
+  --bg: #10191c;
+  --card: #18282d;
+  --surface: rgba(24, 40, 45, 0.78);
+  --surface-strong: rgba(18, 30, 34, 0.86);
+  --surface-soft: rgba(42, 62, 67, 0.42);
   --text: #f8feff;
   --text-muted: #a8c7cc;
-  --border: rgba(0, 255, 255, 0.32);
+  --border: rgba(111, 235, 242, 0.22);
+  --border-soft: rgba(180, 246, 250, 0.12);
   --radius: 24px;
   --radius-sm: 14px;
   --radius-xs: 10px;
-  --shadow-card: 0 24px 70px rgba(0, 230, 255, 0.18), 0 0 34px rgba(255, 0, 184, 0.12);
-  --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.38), 0 0 24px rgba(0, 255, 255, 0.12);
+  --shadow-card: 0 22px 60px rgba(0, 0, 0, 0.34), 0 0 30px rgba(0, 230, 255, 0.08), 0 0 24px rgba(255, 0, 184, 0.06);
+  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.28), 0 0 18px rgba(0, 255, 255, 0.06);
 }
 
 *,
@@ -30,11 +34,36 @@ body {
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(circle at 12% 10%, rgba(0, 230, 255, 0.24), transparent 28rem),
-    radial-gradient(circle at 86% 8%, rgba(255, 0, 184, 0.22), transparent 24rem),
-    radial-gradient(circle at 50% 100%, rgba(255, 215, 0, 0.12), transparent 30rem),
-    #0a0a0a;
+    radial-gradient(circle at 12% 10%, rgba(0, 230, 255, 0.18), transparent 30rem),
+    radial-gradient(circle at 86% 8%, rgba(255, 0, 184, 0.15), transparent 26rem),
+    radial-gradient(circle at 50% 100%, rgba(255, 215, 0, 0.1), transparent 32rem),
+    linear-gradient(135deg, #10191c 0%, #15131d 48%, #18282d 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body[data-cashflow-theme="light"] {
+  --primary: #00b7d6;
+  --primary-dark: #009dbb;
+  --success: #0f9f6e;
+  --success-dark: #087c55;
+  --warning: #f4b400;
+  --danger: #e53e72;
+  --bg: #b8ecf6;
+  --card: #eefcff;
+  --surface: rgba(236, 251, 255, 0.88);
+  --surface-strong: rgba(246, 253, 255, 0.94);
+  --surface-soft: rgba(221, 244, 251, 0.78);
+  --text: #18323a;
+  --text-muted: #55727a;
+  --border: rgba(0, 135, 160, 0.18);
+  --border-soft: rgba(35, 95, 110, 0.1);
+  --shadow-card: 0 28px 64px rgba(11, 67, 98, 0.3), 0 12px 34px rgba(137, 64, 220, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  --shadow-soft: 0 18px 42px rgba(11, 67, 98, 0.24), 0 0 26px rgba(0, 183, 214, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  background:
+    radial-gradient(circle at 10% 7%, rgba(0, 230, 255, 0.52), transparent 28rem),
+    radial-gradient(circle at 84% 4%, rgba(137, 64, 220, 0.34), transparent 28rem),
+    radial-gradient(circle at 50% 104%, rgba(255, 0, 184, 0.22), transparent 34rem),
+    linear-gradient(135deg, #93e8f5 0%, #b7e0ff 30%, #c7b9f5 62%, #efaddd 100%);
 }
 
 body::before {
@@ -44,10 +73,17 @@ body::before {
   pointer-events: none;
   content: "";
   background-image:
-    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(0, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 46px 46px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 78%);
+}
+
+body[data-cashflow-theme="light"]::before {
+  background-image:
+    linear-gradient(rgba(0, 143, 168, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 143, 168, 0.055) 1px, transparent 1px);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.36), transparent 82%);
 }
 
 button,
@@ -78,15 +114,15 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.26);
-  background: rgba(10, 10, 10, 0.84);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.46), 0 0 28px rgba(0, 230, 255, 0.12);
+  border-bottom: 1px solid var(--border-soft);
+  background: rgba(16, 25, 28, 0.88);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34), 0 0 22px rgba(0, 230, 255, 0.06);
   backdrop-filter: blur(18px);
 }
 
 .reference-saas-analyzer .analyzer-app__header--scrolled {
-  background: rgba(10, 10, 10, 0.94);
-  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.58), 0 0 34px rgba(255, 0, 184, 0.16);
+  background: rgba(16, 25, 28, 0.94);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42), 0 0 24px rgba(255, 0, 184, 0.08);
 }
 
 .reference-saas-analyzer .results__nav-bar {
@@ -141,15 +177,20 @@ a:hover {
   filter: drop-shadow(0 0 8px rgba(0, 230, 255, 0.35));
 }
 
+.reference-saas-analyzer .analyzer-app__home,
+.reference-saas-analyzer .analyzer-app__brand-divider {
+  display: none;
+}
+
 .reference-saas-analyzer .analyzer-app__home:hover {
   color: #ffd700;
 }
 
 .reference-saas-analyzer .analyzer-app__logo {
-  max-width: min(340px, 42vw);
+  max-width: min(320px, 36vw);
   color: #00e6ff;
   font-family: Orbitron, Inter, sans-serif;
-  font-size: 1rem;
+  font-size: 1.18rem;
   font-weight: 900;
   letter-spacing: 0.03em;
   text-decoration: none;
@@ -158,53 +199,67 @@ a:hover {
 
 .reference-saas-analyzer .analyzer-app__logo-img {
   width: auto;
-  height: 58px;
+  height: 30px;
   object-fit: contain;
   filter: drop-shadow(0 0 12px rgba(0, 230, 255, 0.54)) drop-shadow(0 0 16px rgba(255, 0, 184, 0.28));
 }
 
 .reference-saas-analyzer .analyzer-app__logo-text {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+  display: inline-block;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .reference-saas-analyzer .analyzer-app__brand-divider {
   width: 1px;
   height: 30px;
-  background: linear-gradient(to bottom, transparent, rgba(0, 255, 255, 0.72), transparent);
+  background: linear-gradient(to bottom, transparent, rgba(111, 235, 242, 0.42), transparent);
 }
 
 .reference-saas-analyzer .analyzer-app__nav-tab,
 .reference-saas-analyzer .analyzer-app__logout,
 .reference-saas-analyzer .analyzer-app__user {
-  border: 1px solid rgba(0, 255, 255, 0.26);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(30, 30, 30, 0.7);
+  background: var(--surface-soft);
   padding: 0.48rem 0.85rem;
   font-weight: 800;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, background 0.2s, transform 0.2s;
 }
 
+.reference-saas-analyzer .analyzer-app__user {
+  width: 2.45rem;
+  height: 2.45rem;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  font-size: 0;
+}
+
+.reference-saas-analyzer .analyzer-app__user svg {
+  flex: 0 0 auto;
+}
+
+.reference-saas-analyzer .analyzer-app__user-label {
+  display: none;
+}
+
 .reference-saas-analyzer .analyzer-app__nav-tab:hover,
 .reference-saas-analyzer .analyzer-app__logout:hover,
 .reference-saas-analyzer .analyzer-app__user:hover {
-  border-color: #ff00b8;
+  border-color: rgba(255, 0, 184, 0.36);
   color: #ffffff;
-  background: rgba(255, 0, 184, 0.16);
-  box-shadow: 0 0 18px rgba(255, 0, 184, 0.26);
+  background: rgba(255, 0, 184, 0.12);
+  box-shadow: 0 0 14px rgba(255, 0, 184, 0.16);
   transform: translateY(-1px);
 }
 
 .reference-saas-analyzer .analyzer-app__nav-tab--active {
-  border-color: #00ffff;
+  border-color: rgba(0, 255, 255, 0.44);
   color: #0a0a0a;
   background: #00e6ff;
-  box-shadow: 0 0 18px rgba(0, 230, 255, 0.5), inset 0 -3px 0 rgba(255, 0, 184, 0.48);
+  box-shadow: 0 0 16px rgba(0, 230, 255, 0.32), inset 0 -3px 0 rgba(255, 0, 184, 0.3);
 }
 
 .reference-saas-analyzer .analyzer-app__menu-toggle {
@@ -237,9 +292,11 @@ a:hover {
 .reference-saas-analyzer .scenario-sliders,
 .reference-saas-analyzer .deal-snapshot,
 .reference-saas-analyzer .ai-deal-summary {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(30, 30, 30, 0.96), rgba(10, 10, 10, 0.9));
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.06), transparent 42%, rgba(255, 0, 184, 0.05)),
+    linear-gradient(180deg, rgba(28, 43, 48, 0.9), rgba(18, 30, 34, 0.84));
   color: var(--text);
   box-shadow: var(--shadow-soft);
 }
@@ -251,12 +308,25 @@ a:hover {
   padding: 1.35rem;
 }
 
+.reference-saas-analyzer .analyzer__header {
+  width: min(1120px, 100%);
+  margin: 1rem auto 1.15rem;
+  padding: clamp(1.6rem, 3vw, 2.35rem) clamp(1.25rem, 3vw, 2rem);
+  text-align: center;
+}
+
+.reference-saas-analyzer .analyzer__input-card {
+  width: min(1120px, 100%);
+  margin: 0 auto 2rem;
+  padding: clamp(1.1rem, 2vw, 1.55rem);
+}
+
 .reference-saas-analyzer .page-title {
   margin: 0 0 0.4rem;
   color: #00e6ff;
   font-family: Orbitron, Inter, sans-serif;
-  font-size: clamp(2rem, 4vw, 3.6rem);
-  line-height: 0.98;
+  font-size: clamp(2.35rem, 4.2vw, 4rem);
+  line-height: 0.95;
   letter-spacing: 0.03em;
   text-shadow: 0 0 18px rgba(0, 230, 255, 0.62), 0 0 34px rgba(255, 0, 184, 0.28);
 }
@@ -264,11 +334,15 @@ a:hover {
 .reference-saas-analyzer .page-subtitle {
   margin: 0;
   color: var(--text-muted);
+  font-size: clamp(1rem, 1.6vw, 1.28rem);
+  font-weight: 800;
 }
 
 .reference-saas-analyzer .analyzer__input-row {
   display: flex;
-  gap: 0.75rem;
+  align-items: stretch;
+  gap: 0.9rem;
+  margin: 0;
 }
 
 .reference-saas-analyzer .analyzer__url-input,
@@ -278,11 +352,12 @@ a:hover {
 .investor-auth-card select {
   flex: 1;
   min-width: 0;
-  border: 1px solid rgba(0, 255, 255, 0.3);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(10, 10, 10, 0.84);
+  background: rgba(18, 30, 34, 0.78);
   color: var(--text);
-  padding: 0.9rem 1rem;
+  min-height: 62px;
+  padding: 1rem 1.2rem;
   outline: none;
   box-shadow: inset 0 0 0 1px rgba(0, 230, 255, 0.04);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -299,8 +374,8 @@ a:hover {
 .reference-saas-analyzer select:focus,
 .investor-auth-card input:focus,
 .investor-auth-card select:focus {
-  border-color: #00ffff;
-  box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.16), 0 0 20px rgba(0, 230, 255, 0.16);
+  border-color: rgba(0, 255, 255, 0.48);
+  box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.1), 0 0 16px rgba(0, 230, 255, 0.1);
 }
 
 .reference-saas-analyzer .btn,
@@ -319,8 +394,14 @@ a:hover {
   padding: 0.85rem 1rem;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 0 20px rgba(0, 230, 255, 0.38), inset 0 -3px 0 rgba(255, 0, 184, 0.34);
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.26), inset 0 -3px 0 rgba(255, 0, 184, 0.24);
   transition: border-color 0.2s, box-shadow 0.2s, color 0.2s, background 0.2s, transform 0.2s;
+}
+
+.reference-saas-analyzer .analyzer__submit-btn {
+  min-width: 150px;
+  min-height: 62px;
+  padding-inline: 1.35rem;
 }
 
 .reference-saas-analyzer .btn:hover,
@@ -330,7 +411,7 @@ a:hover {
   border-color: #ff00b8;
   background: linear-gradient(135deg, #ff00b8, #00e6ff);
   color: #ffffff;
-  box-shadow: 0 0 24px rgba(255, 0, 184, 0.4), 0 0 34px rgba(0, 230, 255, 0.24);
+  box-shadow: 0 0 20px rgba(255, 0, 184, 0.24), 0 0 26px rgba(0, 230, 255, 0.14);
   transform: translateY(-1px);
 }
 
@@ -343,6 +424,473 @@ a:hover {
   transform: none;
 }
 
+.reference-saas-analyzer .results__nav-bar::before {
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.08), rgba(20, 34, 39, 0.9) 42%, rgba(255, 0, 184, 0.07)),
+    rgba(20, 34, 39, 0.88);
+  border-top: 0;
+  border-bottom: 1px solid rgba(0, 255, 255, 0.16);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.34), 0 0 18px rgba(0, 230, 255, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.reference-saas-analyzer .results__nav-bar::after {
+  background: linear-gradient(90deg, rgba(10, 10, 10, 0), rgba(10, 10, 10, 0.96) 70%);
+}
+
+.reference-saas-analyzer .results__nav-bar .section-nav__item {
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--text-muted);
+}
+
+.reference-saas-analyzer .results__nav-bar .section-nav__item:hover {
+  border-color: rgba(0, 255, 255, 0.46);
+  background: rgba(0, 230, 255, 0.12);
+  color: #f8feff;
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.2);
+}
+
+.reference-saas-analyzer .results__nav-bar .section-nav__item--active {
+  border-color: rgba(0, 255, 255, 0.72);
+  background: rgba(0, 230, 255, 0.14);
+  color: #00ffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 230, 255, 0.28), 0 0 20px rgba(0, 230, 255, 0.22);
+}
+
+.reference-saas-analyzer .results__nav-bar .section-nav__badge {
+  background: rgba(0, 230, 255, 0.18);
+  color: #00ffff;
+  box-shadow: 0 0 12px rgba(0, 230, 255, 0.2);
+}
+
+.reference-saas-analyzer .results__property {
+  margin-bottom: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.38), 0 0 22px rgba(0, 230, 255, 0.08);
+}
+
+.reference-saas-analyzer .results__nav-bar {
+  margin: -1px 0 1.35rem;
+  padding: 0.7rem 1rem 1rem;
+}
+
+.reference-saas-analyzer .results__nav-bar::before {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.reference-saas-analyzer .results__nav-bar--stuck::before {
+  border-radius: 0;
+  background: rgba(20, 34, 39, 0.94);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42), 0 0 18px rgba(0, 230, 255, 0.1);
+}
+
+.reference-saas-analyzer .deal-verdict__ask,
+.reference-saas-analyzer .deal-verdict__toggle,
+.reference-saas-analyzer .results__reset-btn,
+.reference-saas-analyzer .what-changed__reset {
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.58);
+  color: #d9fbff;
+  box-shadow: 0 0 14px rgba(0, 230, 255, 0.1);
+}
+
+.reference-saas-analyzer .deal-verdict__ask:hover,
+.reference-saas-analyzer .deal-verdict__toggle:hover,
+.reference-saas-analyzer .results__reset-btn:hover,
+.reference-saas-analyzer .what-changed__reset:hover {
+  border-color: #00e6ff;
+  background: rgba(0, 230, 255, 0.14);
+  color: #00ffff;
+}
+
+.reference-saas-analyzer .deal-verdict {
+  border: 1px solid rgba(255, 139, 179, 0.18);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 4% 0%, rgba(255, 59, 127, 0.16), transparent 24rem),
+    radial-gradient(circle at 95% 12%, rgba(0, 230, 255, 0.08), transparent 22rem),
+    linear-gradient(135deg, rgba(42, 62, 67, 0.78), rgba(26, 36, 45, 0.84));
+  color: var(--text);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.reference-saas-analyzer .deal-verdict--strong {
+  border-color: rgba(95, 255, 182, 0.22);
+  background:
+    radial-gradient(circle at 4% 0%, rgba(95, 255, 182, 0.13), transparent 24rem),
+    radial-gradient(circle at 95% 12%, rgba(0, 230, 255, 0.08), transparent 22rem),
+    linear-gradient(135deg, rgba(42, 62, 67, 0.78), rgba(26, 36, 45, 0.84));
+}
+
+.reference-saas-analyzer .deal-verdict--marginal {
+  border-color: rgba(255, 230, 120, 0.22);
+  background:
+    radial-gradient(circle at 4% 0%, rgba(255, 215, 0, 0.13), transparent 24rem),
+    radial-gradient(circle at 95% 12%, rgba(0, 230, 255, 0.08), transparent 22rem),
+    linear-gradient(135deg, rgba(42, 62, 67, 0.78), rgba(26, 36, 45, 0.84));
+}
+
+.reference-saas-analyzer .deal-verdict--caution {
+  border-color: rgba(255, 139, 179, 0.24);
+}
+
+.reference-saas-analyzer .deal-verdict__rating,
+.reference-saas-analyzer .deal-verdict__headline,
+.reference-saas-analyzer .deal-verdict__reason {
+  color: var(--text);
+}
+
+.reference-saas-analyzer .deal-verdict__score,
+.reference-saas-analyzer .deal-verdict__disclaimer {
+  color: var(--text-muted);
+}
+
+.reference-saas-analyzer .deal-verdict--strong .deal-verdict__icon,
+.reference-saas-analyzer .deal-verdict__reason-icon--positive {
+  color: #5fffb6;
+}
+
+.reference-saas-analyzer .deal-verdict--marginal .deal-verdict__icon,
+.reference-saas-analyzer .deal-verdict__reason-icon--neutral {
+  color: #ffe678;
+}
+
+.reference-saas-analyzer .deal-verdict--caution .deal-verdict__icon,
+.reference-saas-analyzer .deal-verdict__reason-icon--negative {
+  color: #ff6978;
+}
+
+.reference-saas-analyzer .results__big-verdict--positive,
+.reference-saas-analyzer .results__big-verdict--neutral,
+.reference-saas-analyzer .results__big-verdict--negative,
+.reference-saas-analyzer .what-changed {
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text);
+}
+
+.reference-saas-analyzer .rental-tabs,
+.reference-saas-analyzer .strategy-comparison__card,
+.reference-saas-analyzer .wealth-projection__metric,
+.reference-saas-analyzer .loan-calc__outputs,
+.reference-saas-analyzer .what-changed__item {
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.1), transparent 38%, rgba(255, 0, 184, 0.08)),
+    rgba(0, 0, 0, 0.62);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(0, 230, 255, 0.03);
+}
+
+.reference-saas-analyzer .strategy-comparison__card:hover,
+.reference-saas-analyzer .strategy-comparison__card--selected,
+.reference-saas-analyzer .strategy-comparison__card--best {
+  border-color: rgba(0, 255, 255, 0.58);
+  box-shadow: 0 0 24px rgba(0, 230, 255, 0.18), inset 0 0 0 1px rgba(255, 0, 184, 0.1);
+}
+
+.reference-saas-analyzer .rental-tabs__summary-card,
+.reference-saas-analyzer .rental-tabs__cashflow-item,
+.reference-saas-analyzer .rental-insights__str-stat,
+.reference-saas-analyzer .slider-input,
+.reference-saas-analyzer .results__tax-method-toggle,
+.reference-saas-analyzer .strategy-comparison__glance-th,
+.reference-saas-analyzer .strategy-comparison__bar-track,
+.reference-saas-analyzer .rental-insights__bar-track,
+.reference-saas-analyzer .results__comps-table th {
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.52);
+  color: var(--text);
+}
+
+.reference-saas-analyzer .rental-tabs__summary-card:hover,
+.reference-saas-analyzer .slider-input:focus-within {
+  border-color: rgba(0, 255, 255, 0.44);
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.16);
+}
+
+.reference-saas-analyzer .rental-tabs__signal-badge,
+.reference-saas-analyzer .comps__status,
+.reference-saas-analyzer .what-changed__impact {
+  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.reference-saas-analyzer .rental-tabs__signal-badge--good,
+.reference-saas-analyzer .what-changed__impact--up {
+  color: #5fffb6;
+}
+
+.reference-saas-analyzer .rental-tabs__signal-badge--fair {
+  color: #ffe678;
+}
+
+.reference-saas-analyzer .rental-tabs__signal-badge--caution,
+.reference-saas-analyzer .what-changed__impact--down {
+  color: #ff8bb3;
+}
+
+.reference-saas-analyzer .results__comps-table td,
+.reference-saas-analyzer .strategy-comparison__glance-label,
+.reference-saas-analyzer .strategy-comparison__glance-td {
+  border-color: rgba(0, 255, 255, 0.18);
+}
+
+.reference-saas-analyzer .results__comps-table tr:hover,
+.reference-saas-analyzer .comps__table .comps__row--subject {
+  background: rgba(0, 230, 255, 0.1) !important;
+}
+
+.reference-saas-analyzer .sensitivity__track {
+  background: linear-gradient(90deg, rgba(255, 59, 127, 0.34), rgba(255, 215, 0, 0.24), rgba(0, 230, 255, 0.24));
+}
+
+.reference-saas-analyzer .sensitivity__safe {
+  background: rgba(95, 255, 182, 0.42);
+}
+
+.reference-saas-analyzer .slider-input__number,
+.reference-saas-analyzer .param-input__field {
+  border-color: rgba(0, 255, 255, 0.26);
+  background: rgba(0, 0, 0, 0.56);
+  color: var(--text);
+}
+
+.reference-saas-analyzer .results__tax-method-btn--active,
+.reference-saas-analyzer .comps__view-btn--active {
+  background: #00e6ff;
+  color: #061012;
+}
+
+.reference-saas-analyzer .section-nav__item,
+.reference-saas-analyzer .results__nav-bar .section-nav__item {
+  border-color: rgba(180, 246, 250, 0.1);
+  background: rgba(32, 50, 55, 0.68);
+  box-shadow: none;
+}
+
+.reference-saas-analyzer .section-nav__item--active,
+.reference-saas-analyzer .results__nav-bar .section-nav__item--active {
+  border-color: rgba(0, 255, 255, 0.36);
+  background: rgba(0, 230, 255, 0.18);
+  box-shadow: 0 0 16px rgba(0, 230, 255, 0.14);
+}
+
+.reference-saas-analyzer .results__big-number,
+.reference-saas-analyzer .results__onetime,
+.reference-saas-analyzer .results__rent-compact,
+.reference-saas-analyzer .rental-insights__indicator,
+.reference-saas-analyzer .rental-insights__market-stat,
+.reference-saas-analyzer .rental-insights__deep-section,
+.reference-saas-analyzer .rental-insights__pill,
+.reference-saas-analyzer .rental-insights__badge,
+.reference-saas-analyzer .sensitivity__row,
+.reference-saas-analyzer .comps__chart,
+.reference-saas-analyzer .comps__position-card,
+.reference-saas-analyzer .results__comps-table th,
+.reference-saas-analyzer .comps__table th {
+  border-color: var(--border-soft);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.045), transparent 48%, rgba(255, 0, 184, 0.035)),
+    var(--surface);
+  box-shadow: none;
+}
+
+.reference-saas-analyzer .results__offer-range,
+.reference-saas-analyzer .slider-input__range,
+.reference-saas-analyzer .results__editable-input,
+.reference-saas-analyzer .slider-input__number,
+.reference-saas-analyzer .param-input__field {
+  border-color: var(--border-soft);
+  background: rgba(27, 43, 48, 0.72);
+}
+
+.reference-saas-analyzer .results__rent-compact,
+.reference-saas-analyzer .results__big-number,
+.reference-saas-analyzer .results__onetime {
+  border-radius: var(--radius-sm);
+}
+
+.reference-saas-analyzer .history {
+  padding: 1rem;
+}
+
+.reference-saas-analyzer .history__loading,
+.reference-saas-analyzer .history__empty {
+  border: 1px solid rgba(0, 255, 255, 0.26);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.12), transparent 32%, rgba(255, 0, 184, 0.1)),
+    rgba(10, 10, 10, 0.74);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer .analyzer-loading,
+.reference-saas-analyzer .analyzer__loading,
+.reference-saas-analyzer .skel-progress,
+.reference-saas-analyzer .comp-skel .skel-section,
+.reference-saas-analyzer .comp-skel__snapshot-card,
+.reference-saas-analyzer .comparison-dashboard__card,
+.reference-saas-analyzer .comparison-dashboard__chart-card,
+.reference-saas-analyzer .skel-comp {
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.08), transparent 42%, rgba(255, 0, 184, 0.06)),
+    linear-gradient(180deg, rgba(27, 43, 48, 0.9), rgba(18, 30, 34, 0.86));
+  color: var(--text-muted);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer .skel-progress__track,
+.reference-saas-analyzer .skel-bar,
+.reference-saas-analyzer .skel-circle,
+.reference-saas-analyzer .skel-chart,
+.reference-saas-analyzer .comp-skel__prop-img {
+  background: rgba(0, 230, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 255, 0.1);
+}
+
+.reference-saas-analyzer .skel-bar::after,
+.reference-saas-analyzer .skel-circle::after,
+.reference-saas-analyzer .skel-chart::after,
+.reference-saas-analyzer .comp-skel__prop-img::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.18) 50%, transparent 100%);
+}
+
+.reference-saas-analyzer .skel-progress__fill {
+  background: linear-gradient(90deg, #00e6ff, #ff00b8, #ffd700);
+  background-size: 200% 100%;
+  box-shadow: 0 0 16px rgba(0, 230, 255, 0.3);
+}
+
+.reference-saas-analyzer .skel-progress__step,
+.reference-saas-analyzer .skel-progress__pct {
+  color: var(--text-muted);
+  -webkit-text-fill-color: currentColor;
+}
+
+.reference-saas-analyzer .skel-metric {
+  border-bottom-color: rgba(0, 255, 255, 0.12);
+}
+
+.reference-saas-analyzer .analyzer-spinner {
+  border-color: rgba(0, 255, 255, 0.2);
+  border-top-color: #00e6ff;
+  filter: drop-shadow(0 0 10px rgba(0, 230, 255, 0.36));
+}
+
+.reference-saas-analyzer .history__empty svg {
+  color: #00e6ff;
+  filter: drop-shadow(0 0 14px rgba(0, 230, 255, 0.42));
+}
+
+.reference-saas-analyzer .history__empty h3 {
+  color: var(--text);
+  font-family: Orbitron, Inter, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.reference-saas-analyzer .history__list {
+  gap: 1rem;
+}
+
+.reference-saas-analyzer .history__item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 255, 0.26);
+  border-radius: calc(var(--radius) - 4px);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.13), transparent 36%, rgba(255, 0, 184, 0.1)),
+    linear-gradient(180deg, rgba(30, 30, 30, 0.96), rgba(10, 10, 10, 0.92));
+  color: var(--text);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42), 0 0 24px rgba(0, 230, 255, 0.1);
+}
+
+.reference-saas-analyzer .history__item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  content: "";
+  background: linear-gradient(to bottom, #00e6ff, #ff00b8);
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.42);
+}
+
+.reference-saas-analyzer .history__item:hover {
+  border-color: rgba(0, 255, 255, 0.58);
+  box-shadow: var(--shadow-card);
+}
+
+.reference-saas-analyzer .history__item-address strong {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.reference-saas-analyzer .history__item-location,
+.reference-saas-analyzer .history__date {
+  color: var(--text-muted);
+}
+
+.reference-saas-analyzer .history__metric {
+  border: 1px solid rgba(0, 255, 255, 0.22);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.58);
+  color: #d9fbff;
+  font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(0, 230, 255, 0.04);
+}
+
+.reference-saas-analyzer .history__metric--positive {
+  border-color: rgba(255, 215, 0, 0.42);
+  background: rgba(255, 215, 0, 0.13);
+  color: #ffe678;
+}
+
+.reference-saas-analyzer .history__metric--negative {
+  border-color: rgba(255, 59, 127, 0.38);
+  background: rgba(255, 59, 127, 0.13);
+  color: #ff8bb3;
+}
+
+.reference-saas-analyzer .history__action-btn {
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.68);
+  color: var(--text-muted);
+  box-shadow: 0 0 14px rgba(0, 230, 255, 0.12);
+}
+
+.reference-saas-analyzer .history__action-btn:hover {
+  border-color: #00e6ff;
+  background: rgba(0, 230, 255, 0.14);
+  color: #00e6ff;
+}
+
+.reference-saas-analyzer .history__action-btn--danger:hover {
+  border-color: #ff3b7f;
+  background: rgba(255, 59, 127, 0.16);
+  color: #ff8bb3;
+}
+
+.reference-saas-analyzer .history__page-btn {
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  background: rgba(10, 10, 10, 0.82);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer .history__page-btn:hover:not(:disabled) {
+  border-color: #00e6ff;
+  background: #00e6ff;
+  color: #061012;
+}
+
+.reference-saas-analyzer .history__page-info {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
 .reference-saas-smoke {
   width: min(1180px, calc(100% - 2rem));
   margin: 1rem auto;
@@ -351,7 +899,7 @@ a:hover {
 }
 
 .investor-page {
-  width: min(1180px, calc(100% - 2rem));
+  width: min(1060px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 3rem 0;
 }
@@ -376,11 +924,23 @@ a:hover {
   margin: -1rem auto -0.4rem;
 }
 
+.investor-landing {
+  display: grid;
+  gap: 4rem;
+}
+
 .investor-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 640px) minmax(260px, 360px);
   gap: 1.5rem;
   align-items: stretch;
+  justify-content: center;
+}
+
+.investor-hero > * {
+  min-width: 0;
 }
 
 .investor-eyebrow {
@@ -399,10 +959,16 @@ a:hover {
   margin: 0;
   color: #00e6ff;
   font-family: Orbitron, Inter, sans-serif;
-  font-size: clamp(2.25rem, 6vw, 5rem);
+  font-size: clamp(2rem, 4.5vw, 4rem);
   line-height: 0.98;
   letter-spacing: 0.02em;
   text-shadow: 0 0 18px rgba(0, 230, 255, 0.55), 0 0 34px rgba(255, 0, 184, 0.22);
+}
+
+.investor-hero__headline {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 680px;
 }
 
 .investor-auth-card h1 {
@@ -451,6 +1017,8 @@ a:hover {
 
 .investor-hero__card,
 .investor-auth-card,
+.investor-analysis-shot__frame,
+.investor-closing-cta,
 .investor-feature-card {
   position: relative;
   overflow: hidden;
@@ -462,6 +1030,8 @@ a:hover {
 
 .investor-hero__card::before,
 .investor-auth-card::before,
+.investor-analysis-shot__frame::before,
+.investor-closing-cta::before,
 .investor-feature-card::before {
   position: absolute;
   inset: 0;
@@ -472,19 +1042,21 @@ a:hover {
 
 .investor-hero__card > *,
 .investor-auth-card > *,
+.investor-analysis-shot__frame > *,
+.investor-closing-cta > *,
 .investor-feature-card > * {
   position: relative;
 }
 
 .investor-hero__card {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  display: grid;
+  align-content: stretch;
+  gap: 1.05rem;
   min-height: 320px;
-  padding: 1.5rem;
+  padding: 1.35rem;
 }
 
-.investor-hero__card span {
+.investor-hero__tag {
   width: fit-content;
   border: 1px solid rgba(255, 215, 0, 0.48);
   border-radius: 999px;
@@ -496,15 +1068,6 @@ a:hover {
   text-transform: uppercase;
 }
 
-.investor-hero__card strong {
-  display: block;
-  margin-top: 1rem;
-  color: #f8feff;
-  font-family: Orbitron, Inter, sans-serif;
-  font-size: 1.55rem;
-  line-height: 1.12;
-}
-
 .investor-hero__card p,
 .investor-feature-card p {
   margin-bottom: 0;
@@ -512,18 +1075,566 @@ a:hover {
   line-height: 1.55;
 }
 
+.investor-hero-verdict {
+  grid-template-rows: auto auto auto auto 1fr auto;
+  background:
+    linear-gradient(145deg, rgba(41, 91, 82, 0.78), rgba(20, 34, 47, 0.94) 52%, rgba(42, 12, 38, 0.78)),
+    rgba(10, 10, 10, 0.9);
+}
+
+.investor-hero-verdict__meta {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.investor-hero-verdict__meta span {
+  width: fit-content;
+  border: 1px solid rgba(255, 215, 0, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.investor-hero-verdict__meta p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.investor-hero-verdict__header {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding-block: 0.25rem;
+}
+
+.investor-hero-verdict__list span {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid #5cffb3;
+  border-radius: 50%;
+  color: #5cffb3;
+  font-weight: 900;
+  box-shadow: 0 0 16px rgba(92, 255, 179, 0.22);
+}
+
+.investor-hero-verdict__wheel {
+  display: grid;
+  width: 74px;
+  height: 74px;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(7, 17, 20, 0.96) 0 50%, transparent 52%),
+    conic-gradient(from -90deg, #5cffb3 0deg, #5cffb3 295deg, rgba(92, 255, 179, 0.16) 297deg 360deg);
+  box-shadow: 0 0 18px rgba(92, 255, 179, 0.24), inset 0 0 0 1px rgba(92, 255, 179, 0.22);
+  animation: investor-score-spin 1.2s cubic-bezier(0.2, 0.9, 0.2, 1) both, investor-score-pulse 2.8s ease-in-out 1.2s infinite;
+}
+
+.investor-hero-verdict__wheel span {
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: 1.32rem;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(92, 255, 179, 0.44);
+}
+
+.investor-hero-verdict__header strong {
+  display: block;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(92, 255, 179, 0.18);
+}
+
+.investor-hero-verdict__header div > span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-weight: 900;
+}
+
+.investor-hero-verdict__summary {
+  margin: 0;
+  color: #f8feff !important;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.45 !important;
+}
+
+.investor-hero-verdict__list {
+  align-content: start;
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  color: #f8feff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+  list-style: none;
+}
+
+.investor-hero-verdict__list li {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+}
+
+.investor-hero-verdict__list span {
+  width: 22px;
+  height: 22px;
+  font-size: 0.78rem;
+}
+
+.investor-hero-verdict__list li:last-child span {
+  border-color: #5cffb3;
+  color: #5cffb3;
+  box-shadow: 0 0 16px rgba(92, 255, 179, 0.22);
+}
+
+.investor-hero-verdict__strategies {
+  align-content: center;
+  display: grid;
+  gap: 0.55rem;
+  align-self: stretch;
+  padding: 0.2rem 0;
+}
+
+.investor-hero-verdict__strategies div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.28rem 0.55rem;
+  align-items: center;
+}
+
+.investor-hero-verdict__strategies span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.investor-hero-verdict__strategies strong {
+  color: #f8feff;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.investor-hero-verdict__strategies i {
+  grid-column: 1 / -1;
+  position: relative;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(168, 199, 204, 0.18);
+}
+
+.investor-hero-verdict__strategies i::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--bar-width, 50%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5cffb3, #00e6ff);
+  box-shadow: 0 0 12px rgba(92, 255, 179, 0.24);
+  content: "";
+}
+
+.investor-hero-verdict__strategies div:last-child i::before {
+  background: linear-gradient(90deg, #ff6b8d, #ffd700);
+  box-shadow: 0 0 12px rgba(255, 107, 141, 0.2);
+}
+
+.investor-hero-verdict__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding-top: 0.25rem;
+}
+
+.investor-hero-verdict__metrics span {
+  display: grid;
+  gap: 0.12rem;
+  border: 1px solid rgba(0, 230, 255, 0.28);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 230, 255, 0.08);
+  color: var(--text-muted);
+  padding: 0.58rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.investor-hero-verdict__metrics strong {
+  color: #ffd700;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.26);
+}
+
+@keyframes investor-score-spin {
+  from {
+    transform: rotate(-28deg) scale(0.86);
+    opacity: 0.45;
+  }
+
+  to {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes investor-score-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(92, 255, 179, 0.24), inset 0 0 0 1px rgba(92, 255, 179, 0.22);
+  }
+
+  50% {
+    box-shadow: 0 0 28px rgba(92, 255, 179, 0.38), inset 0 0 0 1px rgba(92, 255, 179, 0.36);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .investor-hero-verdict__wheel {
+    animation: none;
+  }
+}
+
+.investor-showcase {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.investor-showcase__header {
+  display: grid;
+  max-width: 760px;
+  gap: 0.75rem;
+  justify-items: start;
+  text-align: left;
+}
+
+.investor-showcase__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(300px, 0.96fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.investor-analysis-shot {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.investor-analysis-shot__frame {
+  box-sizing: border-box;
+  height: clamp(520px, 46vw, 640px);
+  overflow: hidden;
+  padding: 0.8rem;
+}
+
+.investor-analysis-shot__frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--radius) - 8px);
+  object-fit: cover;
+  object-position: top center;
+}
+
+.investor-analysis-shot__placeholder {
+  display: grid;
+  height: 100%;
+  min-height: 320px;
+  place-content: center;
+  gap: 0.8rem;
+  border: 1px dashed rgba(0, 230, 255, 0.42);
+  border-radius: calc(var(--radius) - 8px);
+  background:
+    linear-gradient(rgba(0, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 32% 22%, rgba(0, 230, 255, 0.2), transparent 16rem),
+    radial-gradient(circle at 78% 80%, rgba(255, 0, 184, 0.16), transparent 18rem),
+    rgba(10, 10, 10, 0.62);
+  background-size: 34px 34px, 34px 34px, auto, auto, auto;
+  color: var(--text);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.investor-analysis-shot__placeholder span {
+  justify-self: center;
+  border: 1px solid rgba(255, 215, 0, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.investor-analysis-shot__placeholder strong {
+  max-width: 18rem;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1.14;
+  text-shadow: 0 0 18px rgba(0, 230, 255, 0.38);
+}
+
+.investor-analysis-shot figcaption {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.investor-showcase__header h2,
+.investor-feature-section h2,
+.investor-closing-cta h2 {
+  margin: 0;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: clamp(1.65rem, 3vw, 2.55rem);
+  line-height: 1.08;
+  text-shadow: 0 0 18px rgba(0, 230, 255, 0.36), 0 0 28px rgba(255, 0, 184, 0.18);
+}
+
+.investor-showcase__content p:not(.investor-eyebrow),
+.investor-closing-cta p:not(.investor-eyebrow) {
+  color: var(--text-muted);
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.investor-showcase__content {
+  display: grid;
+  gap: 1rem;
+}
+
+.investor-showcase-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(30, 30, 30, 0.94), rgba(10, 10, 10, 0.88));
+  box-shadow: var(--shadow-soft);
+  padding: 1.1rem;
+}
+
+.investor-showcase-panel::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(135deg, rgba(0, 230, 255, 0.13), transparent 34%, rgba(255, 0, 184, 0.1));
+}
+
+.investor-showcase-panel > * {
+  position: relative;
+}
+
+.investor-showcase-panel--tax {
+  border-color: rgba(255, 215, 0, 0.26);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 215, 0, 0.16), transparent 16rem),
+    linear-gradient(180deg, rgba(30, 30, 30, 0.96), rgba(10, 10, 10, 0.9));
+  padding: 1.25rem;
+}
+
+.investor-showcase-panel__eyebrow {
+  width: fit-content;
+  margin: 0 0 0.65rem;
+  border: 1px solid rgba(255, 215, 0, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700 !important;
+  padding: 0.32rem 0.68rem;
+  font-size: 0.72rem !important;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.1 !important;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.24);
+}
+
+.investor-showcase-panel h3 {
+  margin: 0;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: clamp(1.2rem, 2.1vw, 1.75rem);
+  line-height: 1.1;
+  text-shadow: 0 0 14px rgba(0, 230, 255, 0.24);
+}
+
+.investor-showcase-panel--demand h3 {
+  font-size: 1.05rem;
+}
+
+.investor-showcase-panel p:not(.investor-showcase-panel__eyebrow) {
+  margin: 0.7rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.investor-showcase-panel__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.95rem;
+}
+
+.investor-showcase-stat {
+  display: grid;
+  gap: 0.22rem;
+  border: 1px solid rgba(92, 255, 179, 0.32);
+  border-radius: var(--radius-sm);
+  background: rgba(92, 255, 179, 0.08);
+  color: var(--text-muted);
+  padding: 0.72rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.3;
+  box-shadow: 0 0 16px rgba(92, 255, 179, 0.1);
+}
+
+.investor-showcase-stat strong {
+  color: #5cffb3;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: 1.08rem;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(92, 255, 179, 0.28);
+}
+
+.investor-demand-badges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.investor-demand-badge {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid rgba(0, 230, 255, 0.24);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 230, 255, 0.07);
+  color: var(--text-muted);
+  padding: 0.58rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.investor-demand-badge strong {
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: 0.94rem;
+  line-height: 1;
+}
+
+.investor-demand-badge em {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.18rem 0.42rem;
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.investor-demand-badge--good,
+.investor-demand-badge--strong {
+  border-color: rgba(92, 255, 179, 0.3);
+  background: rgba(92, 255, 179, 0.08);
+}
+
+.investor-demand-badge--good em,
+.investor-demand-badge--strong em {
+  background: rgba(92, 255, 179, 0.14);
+  color: #5cffb3;
+}
+
+.investor-demand-badge--strong strong {
+  color: #5cffb3;
+}
+
+.investor-demand-badge--caution {
+  border-color: rgba(255, 215, 0, 0.36);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.investor-demand-badge--caution em {
+  background: rgba(255, 215, 0, 0.14);
+  color: #ffd700;
+}
+
+.investor-demand-badge--fair {
+  border-color: rgba(255, 170, 0, 0.34);
+  background: rgba(255, 170, 0, 0.08);
+}
+
+.investor-demand-badge--fair em {
+  background: rgba(255, 170, 0, 0.14);
+  color: #ffaa00;
+}
+
+.investor-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+
+.investor-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(0, 230, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(0, 230, 255, 0.1);
+  color: var(--text-muted);
+  padding: 0.48rem 0.72rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.12);
+}
+
+.investor-stat-pill strong {
+  color: #ffd700;
+  font-family: Orbitron, Inter, sans-serif;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.28);
+}
+
+.investor-feature-section h2 {
+  max-width: none;
+  white-space: nowrap;
+}
+
 .investor-feature-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
 }
 
 .investor-feature-card {
-  padding: 1.1rem;
+  padding: 1.2rem;
 }
 
-.investor-feature-card span {
+.investor-feature-card__icon {
   display: grid;
   width: 34px;
   height: 34px;
@@ -534,6 +1645,106 @@ a:hover {
   color: #ffd700;
   font-weight: 900;
   box-shadow: 0 0 16px rgba(255, 215, 0, 0.24);
+}
+
+.investor-feature-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.investor-feature-card h3 {
+  margin: 0.9rem 0 0;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.investor-credibility-strip {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  border-block: 1px solid rgba(0, 230, 255, 0.28);
+  background:
+    radial-gradient(circle at 24% 50%, rgba(0, 230, 255, 0.22), transparent 28rem),
+    radial-gradient(circle at 78% 50%, rgba(255, 215, 0, 0.14), transparent 24rem),
+    linear-gradient(90deg, rgba(0, 230, 255, 0.12), rgba(255, 0, 184, 0.1), rgba(255, 215, 0, 0.1)),
+    rgba(8, 13, 15, 0.9);
+  box-shadow: 0 0 34px rgba(0, 230, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 1.4rem 1rem;
+}
+
+.investor-credibility-strip__inner {
+  display: grid;
+  width: min(980px, calc(100% - 2rem));
+  gap: 0.85rem;
+  justify-items: center;
+  margin: 0 auto;
+  padding: 1.15rem clamp(1rem, 3vw, 2rem);
+  border: 1px solid rgba(0, 230, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(10, 18, 21, 0.54);
+  box-shadow: 0 0 24px rgba(0, 230, 255, 0.08);
+  text-align: center;
+}
+
+.investor-credibility-strip__label {
+  border: 1px solid rgba(255, 215, 0, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 215, 0, 0.12);
+  color: #ffd700;
+  padding: 0.32rem 0.68rem;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.26);
+}
+
+.investor-credibility-strip p {
+  margin: 0;
+  color: #f8feff;
+  font-family: Orbitron, Inter, sans-serif;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 900;
+  line-height: 1.45;
+  text-shadow: 0 0 16px rgba(0, 230, 255, 0.18);
+}
+
+.investor-credibility-strip__sources {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.investor-credibility-strip__sources span {
+  border: 1px solid rgba(92, 255, 179, 0.3);
+  border-radius: 999px;
+  background: rgba(92, 255, 179, 0.08);
+  color: var(--text-muted);
+  padding: 0.38rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.investor-closing-cta {
+  display: grid;
+  justify-items: center;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  text-align: center;
+}
+
+.investor-closing-cta h2 {
+  max-width: 760px;
+}
+
+.investor-closing-cta p:not(.investor-eyebrow) {
+  max-width: 620px;
+  margin-bottom: 0;
+}
+
+.investor-closing-cta__actions {
+  justify-content: center;
 }
 
 .investor-auth-page {
@@ -582,14 +1793,357 @@ a:hover {
   color: #ffe678;
 }
 
+.investor-theme-toggle {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 220;
+  display: inline-flex;
+  gap: 0.15rem;
+  padding: 0.22rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  box-shadow: 0 8px 20px rgba(11, 67, 98, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.investor-theme-toggle__option {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.34rem 0.52rem;
+}
+
+.investor-theme-toggle__option--active {
+  background: linear-gradient(135deg, rgba(0, 230, 255, 0.78), rgba(0, 255, 255, 0.72));
+  color: #061012;
+  box-shadow: 0 0 8px rgba(0, 230, 255, 0.16);
+}
+
+.analyzer-app__header .investor-theme-toggle {
+  position: static;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.86;
+}
+
+.analyzer-app__header .investor-theme-toggle:hover,
+.analyzer-app__header .investor-theme-toggle:focus-within {
+  opacity: 1;
+}
+
+.reference-saas-analyzer--light {
+  position: relative;
+  overflow: hidden;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 4%, rgba(0, 230, 255, 0.58), transparent 23rem),
+    radial-gradient(circle at 84% 9%, rgba(137, 64, 220, 0.38), transparent 27rem),
+    radial-gradient(circle at 54% 0%, rgba(255, 0, 184, 0.2), transparent 24rem),
+    linear-gradient(135deg, #8ce4f3 0%, #afd8fb 34%, #c1b0ef 64%, #eaa8d9 100%);
+}
+
+.reference-saas-analyzer--light::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(115deg, rgba(0, 230, 255, 0.22), transparent 30%, rgba(137, 64, 220, 0.22) 54%, transparent 74%),
+    radial-gradient(circle at 20% 38%, rgba(0, 255, 255, 0.24), transparent 17rem),
+    radial-gradient(circle at 78% 48%, rgba(255, 0, 184, 0.18), transparent 19rem);
+  filter: blur(8px) saturate(1.28);
+}
+
+.reference-saas-analyzer--light::after {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(rgba(0, 143, 168, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 143, 168, 0.05) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.42), transparent 76%);
+}
+
+.reference-saas-analyzer--light .analyzer-app__header,
+.reference-saas-analyzer--light .analyzer-app__content {
+  position: relative;
+  z-index: 1;
+}
+
+.reference-saas-analyzer--light .analyzer-app__header {
+  border-bottom: 1px solid rgba(0, 135, 160, 0.12);
+  background:
+    linear-gradient(135deg, rgba(180, 235, 248, 0.92), rgba(213, 203, 246, 0.86) 58%, rgba(239, 181, 224, 0.82)),
+    rgba(195, 239, 250, 0.86);
+  box-shadow: 0 14px 36px rgba(30, 102, 118, 0.15);
+}
+
+.reference-saas-analyzer--light .analyzer-app__header--scrolled {
+  background:
+    linear-gradient(135deg, rgba(180, 235, 248, 0.96), rgba(213, 203, 246, 0.92) 58%, rgba(239, 181, 224, 0.88)),
+    rgba(195, 239, 250, 0.94);
+  box-shadow: 0 16px 42px rgba(30, 102, 118, 0.2);
+}
+
+.reference-saas-analyzer--light .analyzer-app__logo,
+.reference-saas-analyzer--light .analyzer-app__nav-link,
+.reference-saas-analyzer--light .analyzer-app__user,
+.reference-saas-analyzer--light .analyzer-app__logout {
+  color: var(--text);
+}
+
+.reference-saas-analyzer--light .analyzer-app__home {
+  color: #008fa8;
+  filter: drop-shadow(0 0 8px rgba(0, 183, 214, 0.16));
+}
+
+.reference-saas-analyzer--light .analyzer-app__nav-tab,
+.reference-saas-analyzer--light .analyzer-app__logout,
+.reference-saas-analyzer--light .analyzer-app__user,
+.reference-saas-analyzer--light .section-nav__item,
+.reference-saas-analyzer--light .results__nav-bar .section-nav__item {
+  border-color: rgba(0, 135, 160, 0.14);
+  background: rgba(215, 244, 251, 0.76);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.reference-saas-analyzer--light .analyzer-app__nav-tab:hover,
+.reference-saas-analyzer--light .analyzer-app__logout:hover,
+.reference-saas-analyzer--light .analyzer-app__user:hover,
+.reference-saas-analyzer--light .results__nav-bar .section-nav__item:hover {
+  border-color: rgba(0, 183, 214, 0.28);
+  background: rgba(0, 183, 214, 0.08);
+  color: var(--text);
+  box-shadow: 0 8px 22px rgba(0, 183, 214, 0.12);
+}
+
+.reference-saas-analyzer--light .analyzer-app__nav-tab--active,
+.reference-saas-analyzer--light .section-nav__item--active,
+.reference-saas-analyzer--light .results__nav-bar .section-nav__item--active {
+  border-color: rgba(0, 183, 214, 0.34);
+  background: linear-gradient(135deg, rgba(0, 230, 255, 0.22), rgba(255, 255, 255, 0.78));
+  color: #007f98;
+  box-shadow: 0 10px 24px rgba(0, 183, 214, 0.16);
+}
+
+.reference-saas-analyzer--light .results__nav-bar::before {
+  background:
+    linear-gradient(135deg, rgba(246, 253, 255, 0.86), rgba(226, 247, 255, 0.8) 42%, rgba(244, 231, 255, 0.82)),
+    rgba(236, 251, 255, 0.86);
+  border-top: 0;
+  border-bottom: 1px solid rgba(0, 111, 142, 0.14);
+  box-shadow: 0 20px 42px rgba(11, 67, 98, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.34) inset;
+}
+
+.reference-saas-analyzer--light .results__nav-bar::after {
+  background: linear-gradient(90deg, rgba(247, 253, 255, 0), rgba(247, 253, 255, 0.94) 70%);
+}
+
+.reference-saas-analyzer--light .results__property {
+  margin-bottom: 0;
+  border-color: rgba(0, 111, 142, 0.18);
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  background:
+    linear-gradient(135deg, rgba(246, 253, 255, 0.9), rgba(227, 247, 255, 0.82) 45%, rgba(244, 231, 255, 0.84)),
+    rgba(239, 252, 255, 0.9);
+  box-shadow: 0 26px 60px rgba(11, 67, 98, 0.24), 0 0 0 1px rgba(255, 255, 255, 0.42) inset;
+}
+
+.reference-saas-analyzer--light .results__nav-bar {
+  margin: -1px 0 1.35rem;
+  padding: 0.7rem 1rem 1rem;
+}
+
+.reference-saas-analyzer--light .results__nav-bar::before {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.reference-saas-analyzer--light .results__nav-bar--stuck::before {
+  border-radius: 0;
+  background: rgba(236, 251, 255, 0.94);
+  box-shadow: 0 18px 42px rgba(11, 67, 98, 0.22);
+}
+
+.reference-saas-analyzer--light .analyzer__header,
+.reference-saas-analyzer--light .analyzer__input-card,
+.reference-saas-analyzer--light .analyzer__error,
+.reference-saas-analyzer--light .history,
+.reference-saas-analyzer--light .comparison-selector,
+.reference-saas-analyzer--light .comparison-dashboard,
+.reference-saas-analyzer--light .shared-view__card,
+.reference-saas-analyzer--light .shared-view__error,
+.reference-saas-analyzer--light .results__property-card,
+.reference-saas-analyzer--light .results__card,
+.reference-saas-analyzer--light .roi-scorecard,
+.reference-saas-analyzer--light .roi-scorecard__card,
+.reference-saas-analyzer--light .metric-card,
+.reference-saas-analyzer--light .analysis-card,
+.reference-saas-analyzer--light .comparison-chart-card,
+.reference-saas-analyzer--light .property-card,
+.reference-saas-analyzer--light .scenario-sliders,
+.reference-saas-analyzer--light .deal-snapshot,
+.reference-saas-analyzer--light .ai-deal-summary,
+.reference-saas-analyzer--light .rental-tabs,
+.reference-saas-analyzer--light .strategy-comparison__card,
+.reference-saas-analyzer--light .wealth-projection__metric,
+.reference-saas-analyzer--light .loan-calc__outputs,
+.reference-saas-analyzer--light .what-changed__item,
+.reference-saas-analyzer--light .results__big-number,
+.reference-saas-analyzer--light .results__onetime,
+.reference-saas-analyzer--light .results__rent-compact,
+.reference-saas-analyzer--light .rental-insights__indicator,
+.reference-saas-analyzer--light .rental-insights__market-stat,
+.reference-saas-analyzer--light .rental-insights__deep-section,
+.reference-saas-analyzer--light .rental-insights__pill,
+.reference-saas-analyzer--light .rental-insights__badge,
+.reference-saas-analyzer--light .sensitivity__row,
+.reference-saas-analyzer--light .comps__chart,
+.reference-saas-analyzer--light .comps__position-card {
+  border-color: rgba(0, 111, 142, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.52), rgba(230, 249, 255, 0.6) 44%, rgba(245, 232, 255, 0.56)),
+    rgba(238, 252, 255, 0.9);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer--light .deal-verdict {
+  border-color: rgba(229, 62, 114, 0.18);
+  background:
+    radial-gradient(circle at 4% 0%, rgba(229, 62, 114, 0.12), transparent 24rem),
+    radial-gradient(circle at 95% 12%, rgba(0, 183, 214, 0.12), transparent 22rem),
+    rgba(241, 252, 255, 0.92);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer--light .rental-tabs__summary-card,
+.reference-saas-analyzer--light .rental-tabs__cashflow-item,
+.reference-saas-analyzer--light .rental-insights__str-stat,
+.reference-saas-analyzer--light .slider-input,
+.reference-saas-analyzer--light .results__tax-method-toggle,
+.reference-saas-analyzer--light .strategy-comparison__glance-th,
+.reference-saas-analyzer--light .strategy-comparison__bar-track,
+.reference-saas-analyzer--light .rental-insights__bar-track,
+.reference-saas-analyzer--light .results__comps-table th,
+.reference-saas-analyzer--light .comps__table th,
+.reference-saas-analyzer--light .history__metric,
+.reference-saas-analyzer--light .history__action-btn,
+.reference-saas-analyzer--light .history__page-btn {
+  border-color: rgba(0, 111, 142, 0.16);
+  background: rgba(236, 251, 255, 0.84);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.reference-saas-analyzer--light .history__item {
+  border-color: rgba(0, 135, 160, 0.12);
+  background:
+    linear-gradient(135deg, rgba(0, 230, 255, 0.1), transparent 42%, rgba(255, 0, 184, 0.06)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+.reference-saas-analyzer--light .history__item::before {
+  box-shadow: none;
+  opacity: 0.72;
+}
+
+.reference-saas-analyzer--light .deal-verdict__ask,
+.reference-saas-analyzer--light .deal-verdict__toggle,
+.reference-saas-analyzer--light .results__reset-btn,
+.reference-saas-analyzer--light .what-changed__reset,
+.reference-saas-analyzer--light .slider-input__number,
+.reference-saas-analyzer--light .param-input__field,
+.reference-saas-analyzer--light .results__offer-range,
+.reference-saas-analyzer--light .slider-input__range,
+.reference-saas-analyzer--light .results__editable-input,
+.reference-saas-analyzer--light .analyzer__url-input,
+.reference-saas-analyzer--light input,
+.reference-saas-analyzer--light select {
+  border-color: rgba(0, 135, 160, 0.16);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+}
+
+.reference-saas-analyzer--light .results__comps-table tr:hover,
+.reference-saas-analyzer--light .comps__table .comps__row--subject {
+  background: rgba(0, 183, 214, 0.1) !important;
+}
+
+.reference-saas-analyzer--light .page-title,
+.reference-saas-analyzer--light .results__property-price,
+.reference-saas-analyzer--light .results__big-value {
+  color: #009dbb;
+  text-shadow: 0 0 18px rgba(0, 183, 214, 0.16);
+}
+
 @media (max-width: 768px) {
   .investor-page {
     padding: 2rem 0;
   }
 
+  .investor-landing {
+    gap: 2.75rem;
+  }
+
   .investor-hero,
+  .investor-showcase,
+  .investor-showcase__body,
   .investor-feature-grid {
     grid-template-columns: 1fr;
+  }
+
+  .investor-feature-section h2 {
+    white-space: normal;
+  }
+
+  .investor-hero-verdict__header {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .investor-hero-verdict__wheel {
+    width: 58px;
+    height: 58px;
+  }
+
+  .investor-hero-verdict__wheel span {
+    font-size: 1.1rem;
+  }
+
+  .investor-analysis-shot__frame {
+    min-height: 280px;
+    aspect-ratio: 4 / 3;
+  }
+
+  .investor-analysis-shot__placeholder {
+    min-height: 240px;
+  }
+
+  .investor-stat-pill,
+  .investor-button {
+    max-width: 100%;
+  }
+
+  .investor-showcase-panel__stats,
+  .investor-demand-badges {
+    grid-template-columns: 1fr;
+  }
+
+  .investor-closing-cta__actions {
+    width: 100%;
   }
 
   .reference-saas-analyzer .analyzer-app__header-inner {

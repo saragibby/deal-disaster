@@ -245,6 +245,8 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
               </a>
             </div>
 
+            {shellSlots?.header}
+
             <nav className="analyzer-app__nav" aria-label="Property Analyzer navigation">
               <button
                 type="button"
@@ -283,8 +285,15 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
 
                 {sessionDisplayName ? (
                   <>
-                    <a href={profileUrl} className="analyzer-app__user" onClick={() => setMobileMenuOpen(false)}>
-                      <User size={16} /> {sessionDisplayName}
+                    <a
+                      href={profileUrl}
+                      className="analyzer-app__user"
+                      onClick={() => setMobileMenuOpen(false)}
+                      aria-label="Profile"
+                      title={sessionDisplayName}
+                    >
+                      <User size={16} />
+                      <span className="analyzer-app__user-label" aria-hidden="true">{sessionDisplayName}</span>
                     </a>
                     <button className="analyzer-app__logout" onClick={handleLogout} title="Sign out">
                       <LogOut size={14} />

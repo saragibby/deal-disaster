@@ -1,4 +1,4 @@
-import { StrictMode, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { StrictMode, useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PropertyAnalyzerCore } from '@deal-platform/property-analyzer-core';
 import type {
@@ -36,8 +36,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'htt
 const USE_LOCAL_ANALYZER_FIXTURES =
   import.meta.env.DEV && import.meta.env.VITE_INVESTOR_LAB_USE_REAL_ANALYZER !== 'true';
 const AUTH_STORAGE_KEY = 'investorLabAuth';
+const THEME_STORAGE_KEY = 'investorLabTheme';
 const PRODUCT_NAME = 'Cashflow or No?';
 const BRAND_LOGO_SRC = `${import.meta.env.BASE_URL}cashflow-or-no-logo.png`;
+const BRAND_GAUGE_SRC = `${import.meta.env.BASE_URL}cashflow-or-no-favicon.png`;
+
+type InvestorLabTheme = 'light' | 'dark';
 
 interface InvestorLabUser {
   id: number;
@@ -96,6 +100,14 @@ function storeAuth(auth: InvestorLabAuthState | null) {
     return;
   }
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+}
+
+function readStoredTheme(): InvestorLabTheme {
+  return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+}
+
+function storeTheme(theme: InvestorLabTheme) {
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
 
 function readJsonBody<T>(init: RequestInit): T {
@@ -198,10 +210,41 @@ async function investorLabAuthFetch<T>(
   return response.json() as Promise<T>;
 }
 
+const ANALYSIS_SCREENSHOT_SRC = '/investor-lab/rental-analysis-screenshot.jpg';
+
+type LandingFeatureIcon = 'strategy' | 'cashflow' | 'comps' | 'market' | 'projection' | 'loan';
+
 const LANDING_FEATURES = [
-  'Analyze rental deals in a dedicated Cashflow or No? profile.',
-  `Save ${PRODUCT_NAME} history under a separate account.`,
-  'Track focus, company, and investor profile details independently.',
+  {
+    icon: 'strategy' as const,
+    title: 'Rental Strategy Comparison',
+    body: 'See long-term, mid-term, and short-term rental income side by side, so you know which strategy actually cash flows before you commit to a lease type.',
+  },
+  {
+    icon: 'cashflow' as const,
+    title: 'Full Cash Flow Breakdown',
+    body: "Mortgage, property tax, insurance, HOA, utilities, management, and furnishing wear — broken out line by line, not buried in a single 'expenses' number.",
+  },
+  {
+    icon: 'comps' as const,
+    title: 'Comparable Properties & Rents',
+    body: "Pull nearby active listings and rental comps automatically, so you can sanity-check price and rent against what's actually on the market right now.",
+  },
+  {
+    icon: 'market' as const,
+    title: 'Local Market Snapshot',
+    body: "Median sold price, list price, days on market, and sale-to-list ratio for the property's zip code, updated with current market conditions.",
+  },
+  {
+    icon: 'projection' as const,
+    title: 'Long-Term Wealth Projection',
+    body: 'Stress-test your assumptions on rent, price, and interest rate, then see a multi-year projection of equity, appreciation, and break-even timing.',
+  },
+  {
+    icon: 'loan' as const,
+    title: 'Built-In Loan Calculator',
+    body: 'Adjust down payment, term, and rate to see monthly principal and interest update instantly, right alongside your cash flow numbers.',
+  },
 ];
 
 const INVESTOR_FOCUS_OPTIONS = [
@@ -1004,6 +1047,95 @@ function createInvestorLabApi(token: string): AnalyzerApiClient {
   };
 }
 
+function AnalysisScreenshot({ src, alt, caption }: { src?: string; alt: string; caption: string }) {
+  return (
+    <figure className="investor-analysis-shot">
+      <div className="investor-analysis-shot__frame">
+        {src ? (
+          <img src={src} alt={alt} />
+        ) : (
+          <div className="investor-analysis-shot__placeholder" role="img" aria-label={alt}>
+            <span>Analysis screenshot</span>
+            <strong>Deal score, tax savings, and demand indicators</strong>
+          </div>
+        )}
+      </div>
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
+function FeatureIcon({ icon }: { icon: LandingFeatureIcon }) {
+  const commonProps = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+
+  switch (icon) {
+    case 'strategy':
+      return (
+        <svg {...commonProps}>
+          <path d="M4 6h16" />
+          <path d="M7 6v12" />
+          <path d="M17 6v12" />
+          <path d="M4 18h16" />
+          <path d="M10 12h4" />
+        </svg>
+      );
+    case 'cashflow':
+      return (
+        <svg {...commonProps}>
+          <path d="M12 3v18" />
+          <path d="M17 7.5c0-1.7-1.9-2.7-5-2.7s-5 1-5 2.7 1.8 2.4 5 2.9 5 1.2 5 3.1-1.9 2.7-5 2.7-5-1-5-2.7" />
+        </svg>
+      );
+    case 'comps':
+      return (
+        <svg {...commonProps}>
+          <path d="M5 9l7-5 7 5" />
+          <path d="M7 10v9h10v-9" />
+          <path d="M10 19v-5h4v5" />
+          <path d="M4 20h16" />
+        </svg>
+      );
+    case 'market':
+      return (
+        <svg {...commonProps}>
+          <path d="M4 19h16" />
+          <path d="M7 16v-5" />
+          <path d="M12 16V7" />
+          <path d="M17 16v-8" />
+          <path d="M6 8l4-3 4 2 4-4" />
+        </svg>
+      );
+    case 'projection':
+      return (
+        <svg {...commonProps}>
+          <path d="M4 17l5-5 3 3 8-8" />
+          <path d="M15 7h5v5" />
+          <path d="M4 21h16" />
+        </svg>
+      );
+    case 'loan':
+      return (
+        <svg {...commonProps}>
+          <rect x="5" y="4" width="14" height="16" rx="2" />
+          <path d="M8 8h8" />
+          <path d="M8 12h2" />
+          <path d="M12 12h2" />
+          <path d="M16 12h.01" />
+          <path d="M8 16h2" />
+          <path d="M12 16h4" />
+        </svg>
+      );
+  }
+}
+
 function LandingPage({
   onNavigate,
 }: {
@@ -1014,31 +1146,135 @@ function LandingPage({
       <section className="investor-hero">
         <div>
           <img className="investor-brand-logo investor-brand-logo--hero" src={BRAND_LOGO_SRC} alt={`${PRODUCT_NAME} logo`} />
-          <p className="investor-eyebrow">Play your way to financial clarity</p>
-          <h1>Run rental deal analysis from a separate investor workspace.</h1>
+          <p className="investor-eyebrow">Rental deal analysis, instantly scored</p>
+          <h1 className="investor-hero__headline">
+            <span>Get the verdict on any rental property in seconds.</span>
+          </h1>
           <p className="investor-hero__copy">
-            {PRODUCT_NAME} now has its own account boundary, profile, and analysis history so it can move to a
-            dedicated domain without sharing another platform sign-in.
+            Run the numbers a serious investor would run — rent estimates, cash flow, comps, and financing — before you ever make an offer.
           </p>
           <div className="investor-hero__actions">
             <button className="investor-button" onClick={() => onNavigate('register')}>Create account</button>
             <button className="investor-button investor-button--secondary" onClick={() => onNavigate('login')}>Sign in</button>
           </div>
         </div>
-        <aside className="investor-hero__card">
-          <span>Investor Lab</span>
-          <strong>Cashflow check, game-show energy.</strong>
-          <p>Gate access before a user reaches deal history, saved analyses, or profile data.</p>
+        <aside className="investor-hero__card investor-hero-verdict" aria-label="Sample Cashflow or No? deal verdict">
+          <div className="investor-hero-verdict__meta">
+            <span>Sample property score</span>
+            <p>Single-family rental • Harrison Township, MI</p>
+          </div>
+          <div className="investor-hero-verdict__header">
+            <div className="investor-hero-verdict__wheel" aria-hidden="true">
+              <span>82</span>
+            </div>
+            <div>
+              <strong>Strong Deal</strong>
+              <span>Deal score 82/100</span>
+            </div>
+          </div>
+          <p className="investor-hero-verdict__summary">
+            Strong deal as a short-term rental — $420/mo cash flow and a 9.2% cash-on-cash return.
+          </p>
+          <ul className="investor-hero-verdict__list">
+            <li><span aria-hidden="true">✓</span> Best as a short-term rental</li>
+            <li><span aria-hidden="true">✓</span> Cash-on-cash return clears 8% target</li>
+            <li><span aria-hidden="true">✓</span> Healthy cap rate and demand score</li>
+          </ul>
+          <div className="investor-hero-verdict__strategies" aria-label="Sample rental strategy comparison">
+            <div>
+              <span>Short-term</span>
+              <strong>$420/mo</strong>
+              <i style={{ '--bar-width': '100%' } as CSSProperties} />
+            </div>
+            <div>
+              <span>Mid-term</span>
+              <strong>$185/mo</strong>
+              <i style={{ '--bar-width': '58%' } as CSSProperties} />
+            </div>
+            <div>
+              <span>Long-term</span>
+              <strong>-$115/mo</strong>
+              <i style={{ '--bar-width': '24%' } as CSSProperties} />
+            </div>
+          </div>
+          <div className="investor-hero-verdict__metrics" aria-label="Sample property score metrics">
+            <span><strong>$420/mo</strong> Cash flow</span>
+            <span><strong>8.4%</strong> Cap rate</span>
+          </div>
         </aside>
       </section>
 
-      <section className="investor-feature-grid" aria-label={`${PRODUCT_NAME} features`}>
-        {LANDING_FEATURES.map(feature => (
-          <article key={feature} className="investor-feature-card">
-            <span aria-hidden="true">✓</span>
-            <p>{feature}</p>
+      <section className="investor-showcase" aria-labelledby="investor-showcase-title">
+        <header className="investor-showcase__header">
+          <p className="investor-eyebrow">REAL ANALYSIS, NOT GUESSWORK</p>
+          <h2 id="investor-showcase-title">Here's what 'Cashflow or No?' looks like on an actual property.</h2>
+        </header>
+        <div className="investor-showcase__body">
+          <AnalysisScreenshot
+            src={ANALYSIS_SCREENSHOT_SRC}
+            alt="Cashflow or No? property analysis dashboard showing deal score, tax savings, and demand indicators."
+            caption="Real output from Cashflow or No?, showing the rental strategy comparison, demand indicators, and market snapshot for zip code 48047."
+          />
+          <div className="investor-showcase__content">
+          <article className="investor-showcase-panel investor-showcase-panel--tax" aria-labelledby="investor-tax-title">
+            <p className="investor-showcase-panel__eyebrow">TAX SAVINGS, BUILT IN</p>
+            <h3 id="investor-tax-title">See the tax break most calculators miss.</h3>
+            <p>
+              Cashflow or No? estimates first-year cost segregation savings automatically — breaking depreciation into building value and fast-depreciating furniture and appliances, then showing your effective first-year return once tax savings are factored in alongside cash flow.
+            </p>
+            <div className="investor-showcase-panel__stats" aria-label="Estimated cost segregation savings">
+              <span className="investor-showcase-stat investor-showcase-stat--strong"><strong>$13,983</strong> Est. Year 1 tax savings</span>
+              <span className="investor-showcase-stat investor-showcase-stat--strong"><strong>20.4%</strong> Effective first-year return (cash flow + tax savings)</span>
+            </div>
           </article>
-        ))}
+          <article className="investor-showcase-panel investor-showcase-panel--demand" aria-labelledby="investor-demand-title">
+            <p className="investor-showcase-panel__eyebrow">IS THE DEMAND REAL?</p>
+            <h3 id="investor-demand-title">Rental Demand Indicators</h3>
+            <p>Every deal gets checked against independent demand signals, not just a single score.</p>
+            <div className="investor-demand-badges" aria-label="Rental demand indicators">
+              <span className="investor-demand-badge investor-demand-badge--good"><strong>8.2x</strong> Price-to-rent <em>Good</em></span>
+              <span className="investor-demand-badge investor-demand-badge--strong"><strong>12.3%</strong> Gross yield <em>Good</em></span>
+              <span className="investor-demand-badge investor-demand-badge--good"><strong>+7.8%</strong> Rent vs. area avg <em>Good</em></span>
+              <span className="investor-demand-badge investor-demand-badge--fair"><strong>$1.02</strong> Rent per sq ft <em>Fair</em></span>
+            </div>
+          </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="investor-feature-section" aria-labelledby="investor-features-title">
+        <h2 id="investor-features-title">One address in. Every angle covered.</h2>
+        <div className="investor-feature-grid">
+          {LANDING_FEATURES.map(feature => (
+            <article key={feature.title} className="investor-feature-card">
+              <span className="investor-feature-card__icon"><FeatureIcon icon={feature.icon} /></span>
+              <h3>{feature.title}</h3>
+              <p>{feature.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="investor-credibility-strip" aria-label="Cashflow or No? data sources">
+        <div className="investor-credibility-strip__inner">
+          <span className="investor-credibility-strip__label">Real data engine</span>
+          <p>Powered by live market comps, rental data, and cash flow modeling — built for people who want the real numbers, not a hunch.</p>
+          <div className="investor-credibility-strip__sources" aria-label="Data sources included">
+            <span>Market comps</span>
+            <span>Rental data</span>
+            <span>Cash flow model</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="investor-closing-cta" aria-labelledby="investor-closing-title">
+        <p className="investor-eyebrow">Cashflow or No?</p>
+        <h2 id="investor-closing-title">Stop guessing. Start scoring your deals.</h2>
+        <p>Create your profile and run your first property analysis in minutes.</p>
+        <div className="investor-hero__actions investor-closing-cta__actions">
+          <button className="investor-button" onClick={() => onNavigate('register')}>Create account</button>
+          <button className="investor-button investor-button--secondary" onClick={() => onNavigate('login')}>Sign in</button>
+        </div>
       </section>
     </main>
   );
@@ -1239,12 +1475,45 @@ function ProfilePage({
   );
 }
 
+function ThemeToggle({ theme, onChange }: { theme: InvestorLabTheme; onChange: (theme: InvestorLabTheme) => void }) {
+  return (
+    <div className="investor-theme-toggle" role="group" aria-label="Theme preference">
+      <button
+        type="button"
+        className={`investor-theme-toggle__option${theme === 'light' ? ' investor-theme-toggle__option--active' : ''}`}
+        onClick={() => onChange('light')}
+        aria-pressed={theme === 'light'}
+      >
+        Light
+      </button>
+      <button
+        type="button"
+        className={`investor-theme-toggle__option${theme === 'dark' ? ' investor-theme-toggle__option--active' : ''}`}
+        onClick={() => onChange('dark')}
+        aria-pressed={theme === 'dark'}
+      >
+        Dark
+      </button>
+    </div>
+  );
+}
+
 function ReferenceSaasWrapper() {
   const [page, setPage] = useState<WrapperPage>(() => pageFromLocation(window.location));
   const [auth, setAuth] = useState<InvestorLabAuthState | null>(() => readStoredAuth());
   const [route, setRoute] = useState<AnalyzerRoute>(() => routeFromLocation(window.location));
+  const [theme, setTheme] = useState<InvestorLabTheme>(() => readStoredTheme());
+  const activeTheme = page === 'analyzer' ? theme : 'dark';
   const api = useMemo(() => createInvestorLabApi(auth?.token ?? ''), [auth?.token]);
   const storage = useMemo(() => createStorageAdapter(), []);
+
+  useEffect(() => {
+    document.body.dataset.cashflowTheme = activeTheme;
+  }, [activeTheme]);
+
+  useEffect(() => {
+    storeTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const pageTitle: Record<WrapperPage, string> = {
@@ -1353,6 +1622,8 @@ function ReferenceSaasWrapper() {
     },
   }), [goToPage, signOut]);
 
+  const themeToggle = <ThemeToggle theme={theme} onChange={setTheme} />;
+
   const props = useMemo<PropertyAnalyzerCoreProps>(() => ({
     basePath: APP_PATH,
     initialRoute: route,
@@ -1414,17 +1685,18 @@ function ReferenceSaasWrapper() {
       productName: PRODUCT_NAME,
       platformName: PRODUCT_NAME,
       logoText: PRODUCT_NAME,
-      logoSrc: BRAND_LOGO_SRC,
+      logoSrc: BRAND_GAUGE_SRC,
       logoAlt: `${PRODUCT_NAME} logo`,
       homeLabel: `${PRODUCT_NAME} home`,
-      themeClassName: 'analyzer-app reference-saas-analyzer',
+      themeClassName: `analyzer-app reference-saas-analyzer reference-saas-analyzer--${theme}`,
     },
     shellSlots: {
+      header: themeToggle,
       loadingFallback: <div className="reference-saas-smoke">Loading reference SaaS analyzer...</div>,
       assistant: () => null,
       publicSharedBanner: <span>{PRODUCT_NAME} public view fixture</span>,
     },
-  }), [api, auth, goToPage, navigation, route, signOut, storage]);
+  }), [api, auth, goToPage, navigation, route, signOut, storage, theme, themeToggle]);
 
   if (page === 'landing') {
     return <LandingPage onNavigate={goToPage} />;
@@ -1433,9 +1705,10 @@ function ReferenceSaasWrapper() {
     return <AuthPage mode={page} onSubmit={handleAuthSubmit} onNavigate={goToPage} />;
   }
   if (page === 'profile') {
-    return auth
+    const profilePage = auth
       ? <ProfilePage auth={auth} onSave={handleProfileSave} onSignOut={signOut} />
       : <AuthPage mode="login" onSubmit={handleAuthSubmit} onNavigate={goToPage} />;
+    return profilePage;
   }
   if (!auth) {
     return <AuthPage mode="login" onSubmit={handleAuthSubmit} onNavigate={goToPage} />;

@@ -955,7 +955,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
       {/* Decision-first verdict */}
       <div id="deal-verdict" className="results__section">
-        <DealVerdictCard verdict={verdict} address={property.address} />
+        <DealVerdictCard verdict={verdict} address={property.address} allowAskWill={features.askWill} />
       </div>
 
       {/* Rental summary strip */}
