@@ -26,7 +26,7 @@ import '@deal-platform/property-analyzer-core/styles.css';
 import './styles.css';
 
 function normalizeBasePath(value: string | undefined): string {
-  if (!value || value === '/') return '';
+  if (!value || value === '/') return '/investor-lab';
   return `/${value.replace(/^\/+|\/+$/g, '')}`;
 }
 
