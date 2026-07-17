@@ -335,6 +335,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 const ALLOWED_REDIRECT_ORIGINS = [
   process.env.CLIENT_URL,
   process.env.DASHBOARD_URL,
+  process.env.INVESTOR_LAB_URL,
   'http://localhost:5200',
   'http://localhost:5201',
 ].filter(Boolean) as string[];

@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+function normalizeBasePath(value: string | undefined): string {
+  if (!value || value === '/') return '/';
+  const normalized = value.replace(/^\/+|\/+$/g, '');
+  return `/${normalized}/`;
+}
+
 export default defineConfig({
   plugins: [react()],
-  base: '/investor-lab/',
+  base: normalizeBasePath(process.env.VITE_INVESTOR_LAB_BASE_PATH ?? '/investor-lab/'),
   server: {
     port: 5203,
     strictPort: true,
