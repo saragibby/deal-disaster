@@ -32,7 +32,7 @@ function normalizeBasePath(value: string | undefined): string {
 
 const BASE_PATH = normalizeBasePath(import.meta.env.VITE_INVESTOR_LAB_BASE_PATH ?? '/investor-lab');
 const APP_PATH = `${BASE_PATH}/app`;
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:3002' : '');
 const USE_LOCAL_ANALYZER_FIXTURES =
   import.meta.env.DEV && import.meta.env.VITE_INVESTOR_LAB_USE_REAL_ANALYZER !== 'true';
 const AUTH_STORAGE_KEY = 'investorLabAuth';
