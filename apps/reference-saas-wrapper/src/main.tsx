@@ -1,4 +1,4 @@
-import { StrictMode, useMemo, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PropertyAnalyzerCore } from '@deal-platform/property-analyzer-core';
 import type {
@@ -25,26 +25,161 @@ import {
 import '@deal-platform/property-analyzer-core/styles.css';
 import './styles.css';
 
-const BASE_PATH = '/investor-lab';
+function normalizeBasePath(value: string | undefined): string {
+  if (!value || value === '/') return '';
+  return `/${value.replace(/^\/+|\/+$/g, '')}`;
+}
+
+const BASE_PATH = normalizeBasePath(import.meta.env.VITE_INVESTOR_LAB_BASE_PATH ?? '/investor-lab');
+const APP_PATH = `${BASE_PATH}/app`;
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3002';
-const SAAS_SESSION: AnalyzerSession = {
-  userId: 'reference-member-1',
-  email: 'member@investor-lab.example',
-  displayName: 'Reference SaaS Member',
-  tenantId: 'reference-saas-tenant',
-  roles: ['member'],
-  permissions: [
-    'analysis:read',
-    'analysis:write',
-    'analysis:delete',
-    'comparison:read',
-  ],
+const USE_LOCAL_ANALYZER_FIXTURES =
+  import.meta.env.DEV && import.meta.env.VITE_INVESTOR_LAB_USE_REAL_ANALYZER !== 'true';
+const AUTH_STORAGE_KEY = 'investorLabAuth';
+const PRODUCT_NAME = 'Cashflow or No?';
+
+interface InvestorLabUser {
+  id: number;
+  email: string;
+  name?: string | null;
+  companyName?: string | null;
+  investorFocus?: string | null;
+}
+
+interface InvestorLabAuthState {
+  token: string;
+  user: InvestorLabUser;
+}
+
+type WrapperPage = 'landing' | 'login' | 'register' | 'profile' | 'analyzer';
+
+const INVESTOR_PERMISSIONS: AnalyzerSession['permissions'] = [
+  'analysis:read',
+  'analysis:write',
+  'analysis:delete',
+  'comparison:read',
+];
+
+function createAnalyzerSession(user: InvestorLabUser): AnalyzerSession {
+  return {
+    userId: String(user.id),
+    email: user.email,
+    displayName: user.name || user.email,
+    tenantId: 'investor-lab',
+    roles: ['member'],
+    permissions: INVESTOR_PERMISSIONS,
+  };
+}
+
+function readStoredAuth(): InvestorLabAuthState | null {
+  try {
+    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+    return stored ? JSON.parse(stored) as InvestorLabAuthState : null;
+  } catch {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    return null;
+  }
+}
+
+function storeAuth(auth: InvestorLabAuthState | null) {
+  if (!auth) {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+}
+
+function pageFromLocation(location: Location): WrapperPage {
+  const pathname = location.pathname.replace(/\/+$/, '') || '/';
+  const internalPath = BASE_PATH && pathname.startsWith(BASE_PATH)
+    ? pathname.slice(BASE_PATH.length) || '/'
+    : pathname;
+
+  if (internalPath === '/login') return 'login';
+  if (internalPath === '/register') return 'register';
+  if (internalPath === '/profile') return 'profile';
+  if (internalPath === '/' || internalPath === '') return 'landing';
+  return 'analyzer';
+}
+
+function wrapperPath(page: Exclude<WrapperPage, 'analyzer'>): string {
+  if (page === 'landing') return pathWithBase('/');
+  return pathWithBase(`/${page}`);
+}
+
+function navigateWrapper(page: Exclude<WrapperPage, 'analyzer'>, replace = false) {
+  const path = wrapperPath(page);
+  if (replace) {
+    window.history.replaceState(null, '', path);
+  } else {
+    window.history.pushState(null, '', path);
+  }
+}
+
+async function investorLabAuthFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init.headers,
+    },
+  });
+
+  if (!response.ok) {
+    let message = `${PRODUCT_NAME} API ${response.status}`;
+    try {
+      const body = await response.json() as { error?: string };
+      if (body.error) message = body.error;
+    } catch { /* keep status message */ }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+const LANDING_FEATURES = [
+  'Analyze rental deals without sharing your AssetDashboard profile.',
+  `Save ${PRODUCT_NAME} history under a separate account.`,
+  'Track focus, company, and investor profile details independently.',
+];
+
+const INVESTOR_FOCUS_OPTIONS = [
+  'Buy and hold rentals',
+  'BRRRR',
+  'Short-term rentals',
+  'Fix and flip',
+  'Wholesaling',
+  'Private lending',
+];
+
+const EMPTY_AUTH_FORM = {
+  name: '',
+  email: '',
+  password: '',
+  companyName: '',
+  investorFocus: INVESTOR_FOCUS_OPTIONS[0],
 };
+
+const EMPTY_PROFILE_FORM = {
+  name: '',
+  companyName: '',
+  investorFocus: INVESTOR_FOCUS_OPTIONS[0],
+};
+
+function pathWithBase(path: string): string {
+  if (!BASE_PATH) return path;
+  return path === '/' ? `${BASE_PATH}/` : `${BASE_PATH}${path}`;
+}
 
 function routeFromLocation(location: Location): AnalyzerRoute {
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
-  const internalPath = pathname.startsWith(BASE_PATH)
-    ? pathname.slice(BASE_PATH.length) || '/'
+  const internalPath = pathname.startsWith(APP_PATH)
+    ? pathname.slice(APP_PATH.length) || '/'
     : pathname;
 
   if (internalPath.startsWith('/analysis/')) {
@@ -53,6 +188,9 @@ function routeFromLocation(location: Location): AnalyzerRoute {
   if (internalPath === '/compare') {
     const props = new URLSearchParams(location.search).get('props');
     return { kind: 'compare', propertySlugs: props ? props.split(',').filter(Boolean) : undefined };
+  }
+  if (internalPath === '/history') {
+    return { kind: 'history' };
   }
   if (internalPath.startsWith('/shared/')) {
     return { kind: 'shared', slug: decodeURIComponent(internalPath.slice('/shared/'.length)) };
@@ -63,17 +201,19 @@ function routeFromLocation(location: Location): AnalyzerRoute {
 function routeToPath(route: AnalyzerRoute): string {
   switch (route.kind) {
     case 'history':
+      return `${APP_PATH}/history`;
     case 'analyze':
       return route.kind === 'analyze' && route.slug
-        ? `${BASE_PATH}/analysis/${encodeURIComponent(route.slug)}`
-        : `${BASE_PATH}/`;
+        ? `${APP_PATH}/analysis/${encodeURIComponent(route.slug)}`
+        : `${APP_PATH}/`;
     case 'compare': {
       const props = route.propertySlugs?.filter(Boolean).map(encodeURIComponent).join(',');
-      return props ? `${BASE_PATH}/compare?props=${props}` : `${BASE_PATH}/compare`;
+      return props ? `${APP_PATH}/compare?props=${props}` : `${APP_PATH}/compare`;
     }
     case 'shared':
-      return `${BASE_PATH}/shared/${encodeURIComponent(route.slug)}`;
+      return `${APP_PATH}/shared/${encodeURIComponent(route.slug)}`;
   }
+  return `${APP_PATH}/`;
 }
 
 function absolute(path: string): string {
@@ -227,7 +367,7 @@ function buildProperty(index: number, sourceUrl?: string): PropertyData {
     lotSize: 4200 + (index % 6) * 650,
     yearBuilt: 1986 + (index % 34),
     propertyType: profile.type,
-    description: `Reference SaaS fixture generated from source ${sourceSuffix} through injected mock adapters.`,
+    description: `${PRODUCT_NAME} fixture generated from source ${sourceSuffix} through injected mock adapters.`,
     photos: [],
     taxHistory: [{ year: 2025, amount: round(price * 0.012) }],
     priceHistory: [
@@ -560,7 +700,7 @@ function buildResults(property: PropertyData, params: AnalysisParams, rentalComp
     verdict: {
       rating: monthlyCashFlow >= 0 ? 'strong' : 'marginal',
       score: monthlyCashFlow >= 0 ? 72 : 54,
-      headline: 'Reference SaaS wrapper rendered a deterministic analyzer result.',
+      headline: `${PRODUCT_NAME} rendered a deterministic analyzer result.`,
       reasons: [
         {
           code: 'reference-saas-wrapper',
@@ -630,7 +770,7 @@ function createMockApi(): AnalyzerApiClient {
   const findAnalysis = (slug: string) => {
     const analysis = analyses.get(slug);
     if (!analysis) {
-      throw new Error(`Reference SaaS fixture "${slug}" was not found.`);
+      throw new Error(`${PRODUCT_NAME} fixture "${slug}" was not found.`);
     }
     return analysis;
   };
@@ -691,12 +831,12 @@ function createMockApi(): AnalyzerApiClient {
     },
     async getSavedComparison(id) {
       const comparison = comparisons.get(id);
-      if (!comparison) throw new Error(`Reference SaaS comparison "${id}" was not found.`);
+      if (!comparison) throw new Error(`${PRODUCT_NAME} comparison "${id}" was not found.`);
       return comparison;
     },
     async updateComparisonSlugs(id, propertySlugs) {
       const comparison = comparisons.get(id);
-      if (!comparison) throw new Error(`Reference SaaS comparison "${id}" was not found.`);
+      if (!comparison) throw new Error(`${PRODUCT_NAME} comparison "${id}" was not found.`);
       const updated = { ...comparison, property_slugs: propertySlugs, updated_at: new Date().toISOString() };
       comparisons.set(id, updated);
       return updated;
@@ -725,18 +865,18 @@ function createMockApi(): AnalyzerApiClient {
   };
 }
 
-async function investorLabFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function investorLabFetch<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'X-Investor-Lab-Email': SAAS_SESSION.email ?? 'member@investor-lab.example',
+      Authorization: `Bearer ${token}`,
       ...init.headers,
     },
   });
 
   if (!response.ok) {
-    let message = `Investor Lab API ${response.status}`;
+    let message = `${PRODUCT_NAME} API ${response.status}`;
     try {
       const body = await response.json() as { error?: string };
       if (body.error) message = body.error;
@@ -747,13 +887,17 @@ async function investorLabFetch<T>(path: string, init: RequestInit = {}): Promis
   return response.json() as Promise<T>;
 }
 
-function createInvestorLabApi(): AnalyzerApiClient {
+function createInvestorLabApi(token: string): AnalyzerApiClient {
   const fallback = createMockApi();
+
+  if (USE_LOCAL_ANALYZER_FIXTURES) {
+    return fallback;
+  }
 
   return {
     ...fallback,
     runAnalysis(input) {
-      return investorLabFetch<PropertyAnalysis>('/api/investor-lab/analyzer/run', {
+      return investorLabFetch<PropertyAnalysis>('/api/investor-lab/analyzer/run', token, {
         method: 'POST',
         body: JSON.stringify({ url: input.url, params: input.params }),
       });
@@ -761,34 +905,36 @@ function createInvestorLabApi(): AnalyzerApiClient {
     async getHistory({ page = 1, limit = 10 }) {
       const response = await investorLabFetch<{ analyses: PropertyAnalysis[]; total: number; page: number; limit: number }>(
         `/api/investor-lab/analyzer/history?page=${page}&limit=${limit}`,
+        token,
       );
       return { items: response.analyses, total: response.total, page: response.page, limit: response.limit };
     },
     async getAnalysis(slug) {
       const response = await investorLabFetch<{ analysis: PropertyAnalysis }>(
         `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}`,
+        token,
       );
       return response.analysis;
     },
     async deleteAnalysis(slug) {
-      await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}`, {
+      await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}`, token, {
         method: 'DELETE',
       });
     },
     reAnalyze(slug, params) {
-      return investorLabFetch<PropertyAnalysis>(`/api/investor-lab/analyzer/re-analyze/${encodeURIComponent(slug)}`, {
+      return investorLabFetch<PropertyAnalysis>(`/api/investor-lab/analyzer/re-analyze/${encodeURIComponent(slug)}`, token, {
         method: 'POST',
         body: JSON.stringify({ params }),
       });
     },
     async saveAdjustments(slug, payload) {
-      await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/overrides`, {
+      await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/overrides`, token, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
     },
     searchForeclosures(params) {
-      return investorLabFetch<unknown>('/api/investor-lab/xome/search', {
+      return investorLabFetch<unknown>('/api/investor-lab/xome/search', token, {
         method: 'POST',
         body: JSON.stringify(params),
       });
@@ -796,15 +942,307 @@ function createInvestorLabApi(): AnalyzerApiClient {
     getMarketTrends(postalCode) {
       return investorLabFetch<unknown>(
         `/api/investor-lab/xome/market-trends?postalCode=${encodeURIComponent(postalCode)}`,
+        token,
       );
     },
   };
 }
 
+function LandingPage({
+  onNavigate,
+}: {
+  onNavigate: (page: Exclude<WrapperPage, 'analyzer'>) => void;
+}) {
+  return (
+    <main className="investor-page investor-landing">
+      <section className="investor-hero">
+        <div>
+          <p className="investor-eyebrow">{PRODUCT_NAME}</p>
+          <h1>Run rental deal analysis from a separate investor workspace.</h1>
+          <p className="investor-hero__copy">
+            {PRODUCT_NAME} now has its own account boundary, profile, and analysis history so it can move to a
+            dedicated domain without sharing AssetDashboard sign-ins.
+          </p>
+          <div className="investor-hero__actions">
+            <button className="investor-button" onClick={() => onNavigate('register')}>Create account</button>
+            <button className="investor-button investor-button--secondary" onClick={() => onNavigate('login')}>Sign in</button>
+          </div>
+        </div>
+        <aside className="investor-hero__card">
+          <span>Private beta</span>
+          <strong>Investor-only analyzer</strong>
+          <p>Gate access before a user reaches deal history, saved analyses, or profile data.</p>
+        </aside>
+      </section>
+
+      <section className="investor-feature-grid" aria-label={`${PRODUCT_NAME} features`}>
+        {LANDING_FEATURES.map(feature => (
+          <article key={feature} className="investor-feature-card">
+            <span aria-hidden="true">✓</span>
+            <p>{feature}</p>
+          </article>
+        ))}
+      </section>
+    </main>
+  );
+}
+
+function AuthPage({
+  mode,
+  onSubmit,
+  onNavigate,
+}: {
+  mode: 'login' | 'register';
+  onSubmit: (mode: 'login' | 'register', form: typeof EMPTY_AUTH_FORM) => Promise<void>;
+  onNavigate: (page: Exclude<WrapperPage, 'analyzer'>) => void;
+}) {
+  const [form, setForm] = useState(EMPTY_AUTH_FORM);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isRegistering = mode === 'register';
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(mode, form);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : `${PRODUCT_NAME} sign-in failed.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="investor-page investor-auth-page">
+      <form className="investor-auth-card" onSubmit={handleSubmit}>
+        <p className="investor-eyebrow">{PRODUCT_NAME} account</p>
+        <h1>{isRegistering ? 'Create your investor account' : 'Welcome back'}</h1>
+        <p className="investor-muted">
+          {isRegistering
+            ? 'This account is separate from AssetDashboard and keeps its own profile.'
+            : `Use your ${PRODUCT_NAME} credentials, not your AssetDashboard account.`}
+        </p>
+
+        {isRegistering && (
+          <label>
+            Name
+            <input
+              value={form.name}
+              onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
+              autoComplete="name"
+            />
+          </label>
+        )}
+
+        <label>
+          Email
+          <input
+            type="email"
+            value={form.email}
+            onChange={event => setForm(current => ({ ...current, email: event.target.value }))}
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label>
+          Password
+          <input
+            type="password"
+            value={form.password}
+            onChange={event => setForm(current => ({ ...current, password: event.target.value }))}
+            autoComplete={isRegistering ? 'new-password' : 'current-password'}
+            minLength={8}
+            required
+          />
+        </label>
+
+        {isRegistering && (
+          <>
+            <label>
+              Company
+              <input
+                value={form.companyName}
+                onChange={event => setForm(current => ({ ...current, companyName: event.target.value }))}
+                autoComplete="organization"
+              />
+            </label>
+            <label>
+              Investor focus
+              <select
+                value={form.investorFocus}
+                onChange={event => setForm(current => ({ ...current, investorFocus: event.target.value }))}
+              >
+                {INVESTOR_FOCUS_OPTIONS.map(option => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {error && <div className="investor-error" role="alert">{error}</div>}
+
+        <button className="investor-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Please wait...' : isRegistering ? 'Create account' : 'Sign in'}
+        </button>
+
+        <button
+          className="investor-link-button"
+          type="button"
+          onClick={() => onNavigate(isRegistering ? 'login' : 'register')}
+        >
+          {isRegistering ? `Already have a ${PRODUCT_NAME} account?` : `Need a ${PRODUCT_NAME} account?`}
+        </button>
+      </form>
+    </main>
+  );
+}
+
+function ProfilePage({
+  auth,
+  onSave,
+  onSignOut,
+}: {
+  auth: InvestorLabAuthState;
+  onSave: (form: typeof EMPTY_PROFILE_FORM) => Promise<void>;
+  onSignOut: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: auth.user.name || '',
+    companyName: auth.user.companyName || '',
+    investorFocus: auth.user.investorFocus || INVESTOR_FOCUS_OPTIONS[0],
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+    setIsSubmitting(true);
+    try {
+      await onSave(form);
+      setMessage('Profile updated.');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to update profile.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="investor-page investor-auth-page">
+      <form className="investor-auth-card" onSubmit={handleSubmit}>
+        <p className="investor-eyebrow">Investor profile</p>
+        <h1>{auth.user.name || auth.user.email}</h1>
+        <p className="investor-muted">This profile is only used for {PRODUCT_NAME}.</p>
+
+        <label>
+          Email
+          <input value={auth.user.email} disabled />
+        </label>
+        <label>
+          Name
+          <input value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} />
+        </label>
+        <label>
+          Company
+          <input
+            value={form.companyName}
+            onChange={event => setForm(current => ({ ...current, companyName: event.target.value }))}
+          />
+        </label>
+        <label>
+          Investor focus
+          <select
+            value={form.investorFocus}
+            onChange={event => setForm(current => ({ ...current, investorFocus: event.target.value }))}
+          >
+            {INVESTOR_FOCUS_OPTIONS.map(option => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+
+        {error && <div className="investor-error" role="alert">{error}</div>}
+        {message && <div className="investor-success" role="status">{message}</div>}
+
+        <button className="investor-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save profile'}
+        </button>
+        <button className="investor-link-button" type="button" onClick={onSignOut}>Sign out</button>
+      </form>
+    </main>
+  );
+}
+
 function ReferenceSaasWrapper() {
+  const [page, setPage] = useState<WrapperPage>(() => pageFromLocation(window.location));
+  const [auth, setAuth] = useState<InvestorLabAuthState | null>(() => readStoredAuth());
   const [route, setRoute] = useState<AnalyzerRoute>(() => routeFromLocation(window.location));
-  const api = useMemo(() => createInvestorLabApi(), []);
+  const api = useMemo(() => createInvestorLabApi(auth?.token ?? ''), [auth?.token]);
   const storage = useMemo(() => createStorageAdapter(), []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPage(pageFromLocation(window.location));
+      setRoute(routeFromLocation(window.location));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const goToPage = useCallback((nextPage: Exclude<WrapperPage, 'analyzer'>, replace = false) => {
+    navigateWrapper(nextPage, replace);
+    setPage(nextPage);
+    setRoute(routeFromLocation(window.location));
+  }, []);
+
+  const goToAnalyzer = useCallback((replace = false) => {
+    if (replace) {
+      window.history.replaceState(null, '', routeToPath({ kind: 'analyze' }));
+    } else {
+      window.history.pushState(null, '', routeToPath({ kind: 'analyze' }));
+    }
+    setPage('analyzer');
+    setRoute({ kind: 'analyze' });
+  }, []);
+
+  const persistAuth = useCallback((nextAuth: InvestorLabAuthState | null) => {
+    storeAuth(nextAuth);
+    setAuth(nextAuth);
+  }, []);
+
+  const signOut = useCallback(() => {
+    persistAuth(null);
+    goToPage('login', true);
+  }, [goToPage, persistAuth]);
+
+  const handleAuthSubmit = useCallback(async (mode: 'login' | 'register', form: typeof EMPTY_AUTH_FORM) => {
+    const response = await investorLabAuthFetch<InvestorLabAuthState>(`/api/investor-lab/auth/${mode}`, {
+      method: 'POST',
+      body: JSON.stringify(form),
+    });
+    persistAuth(response);
+    goToAnalyzer(true);
+  }, [goToAnalyzer, persistAuth]);
+
+  const handleProfileSave = useCallback(async (form: typeof EMPTY_PROFILE_FORM) => {
+    if (!auth) throw new Error(`${PRODUCT_NAME} account required.`);
+    const response = await investorLabAuthFetch<{ user: InvestorLabUser }>(
+      '/api/investor-lab/auth/me',
+      {
+        method: 'PATCH',
+        body: JSON.stringify(form),
+      },
+      auth.token,
+    );
+    persistAuth({ ...auth, user: response.user });
+  }, [auth, persistAuth]);
 
   const navigation = useMemo<AnalyzerNavigationAdapter>(() => ({
     currentUrl() {
@@ -823,9 +1261,19 @@ function ReferenceSaasWrapper() {
       setRoute(nextRoute);
     },
     external(path) {
+      if (path === '/profile') return absolute(wrapperPath('profile'));
+      if (path === '/') return absolute(wrapperPath('landing'));
       return absolute(path);
     },
     navigateExternal(path, options) {
+      if (path === '/login') {
+        signOut();
+        return;
+      }
+      if (path === '/profile') {
+        goToPage('profile', options?.replace);
+        return;
+      }
       const url = absolute(path);
       if (options?.replace) {
         window.location.replace(url);
@@ -833,25 +1281,27 @@ function ReferenceSaasWrapper() {
       }
       window.location.href = url;
     },
-  }), []);
+  }), [goToPage, signOut]);
 
   const props = useMemo<PropertyAnalyzerCoreProps>(() => ({
-    basePath: BASE_PATH,
+    basePath: APP_PATH,
     initialRoute: route,
     adapters: {
       auth: {
         isLoading: false,
         async getSession() {
-          return SAAS_SESSION;
+          return auth ? createAnalyzerSession(auth.user) : null;
         },
         async requireSession() {
-          return SAAS_SESSION;
+          if (!auth) throw new Error(`${PRODUCT_NAME} account required.`);
+          return createAnalyzerSession(auth.user);
         },
         onUnauthorized(error) {
-          throw error instanceof Error ? error : new Error('Reference SaaS session is required.');
+          console.warn(`${PRODUCT_NAME} session required:`, error);
+          goToPage('login', true);
         },
         signOut() {
-          window.dispatchEvent(new CustomEvent('reference-saas:sign-out'));
+          signOut();
         },
       },
       api,
@@ -891,18 +1341,33 @@ function ReferenceSaasWrapper() {
       aiPropertyNarratives: false,
     },
     branding: {
-      productName: 'Investor Lab Analyzer',
-      platformName: 'Reference SaaS Platform',
-      logoText: 'Investor Lab Analyzer',
-      homeLabel: 'Reference SaaS home',
+      productName: PRODUCT_NAME,
+      platformName: PRODUCT_NAME,
+      logoText: PRODUCT_NAME,
+      homeLabel: `${PRODUCT_NAME} home`,
       themeClassName: 'analyzer-app reference-saas-analyzer',
     },
     shellSlots: {
       loadingFallback: <div className="reference-saas-smoke">Loading reference SaaS analyzer...</div>,
       assistant: () => null,
-      publicSharedBanner: <span>Reference SaaS public view fixture</span>,
+      publicSharedBanner: <span>{PRODUCT_NAME} public view fixture</span>,
     },
-  }), [api, navigation, route, storage]);
+  }), [api, auth, goToPage, navigation, route, signOut, storage]);
+
+  if (page === 'landing') {
+    return <LandingPage onNavigate={goToPage} />;
+  }
+  if (page === 'login' || page === 'register') {
+    return <AuthPage mode={page} onSubmit={handleAuthSubmit} onNavigate={goToPage} />;
+  }
+  if (page === 'profile') {
+    return auth
+      ? <ProfilePage auth={auth} onSave={handleProfileSave} onSignOut={signOut} />
+      : <AuthPage mode="login" onSubmit={handleAuthSubmit} onNavigate={goToPage} />;
+  }
+  if (!auth) {
+    return <AuthPage mode="login" onSubmit={handleAuthSubmit} onNavigate={goToPage} />;
+  }
 
   return <PropertyAnalyzerCore {...props} />;
 }

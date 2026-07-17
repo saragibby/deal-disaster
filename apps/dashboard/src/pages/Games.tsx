@@ -38,6 +38,18 @@ const ALL_GAMES: GameInfo[] = [
     color: '#3498db',
   },
   {
+    id: 'investor-lab',
+    name: 'Cashflow or No?',
+    description: 'Analyze rental properties in a separate investor workspace with its own account, profile, and deal history before it moves to its own domain.',
+    shortDescription: 'Private investor analyzer workspace',
+    path: '/investor-lab/',
+    icon: '📊',
+    status: 'beta',
+    category: 'Real Estate',
+    color: '#0f766e',
+    is_featured: true,
+  },
+  {
     id: 'market-mayhem',
     name: 'Market Mayhem',
     description: 'Navigate real estate market cycles. Time your buys and sells, manage a portfolio through booms and busts, and learn how macroeconomics affects property values.',

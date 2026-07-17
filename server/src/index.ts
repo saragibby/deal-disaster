@@ -10,11 +10,11 @@ import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
 import feedbackRoutes from './routes/feedback.js';
 import portalRoutes from './routes/portal.js';
+import investorLabAuthRoutes, { authenticateInvestorLab } from './routes/investorLabAuth.js';
 import { createAnalyzerBackendRouter, createAssetDashboardAnalyzerBackendRouter } from './analyzer/backend.js';
 import { initializeScheduledTasks } from './scheduler.js';
 import { pool } from './db/pool.js';
 import { buildOwnerContextForPlatform } from './middleware/ownerContext.js';
-import type { AuthRequest } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -24,31 +24,50 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-const investorLabDevAuth: express.RequestHandler = async (req: AuthRequest, _res, next) => {
-  try {
-    const email = String(req.header('X-Investor-Lab-Email') || 'member@investor-lab.example');
-    const result = await pool.query<{ id: number }>(
-      `INSERT INTO users (email, name, oauth_provider, oauth_id, email_verified)
-       VALUES ($1, $2, 'investor-lab-dev', $1, TRUE)
-       ON CONFLICT (email) DO UPDATE
-       SET name = COALESCE(users.name, EXCLUDED.name),
-           email_verified = TRUE,
-           oauth_provider = COALESCE(users.oauth_provider, EXCLUDED.oauth_provider),
-           oauth_id = COALESCE(users.oauth_id, EXCLUDED.oauth_id)
-       RETURNING id`,
-      [email, 'Investor Lab Member'],
-    );
-    req.userId = result.rows[0].id;
-    next();
-  } catch (error) {
-    next(error);
-  }
-};
+function parseHostList(...values: Array<string | undefined>): string[] {
+  return values
+    .flatMap(value => (value || '').split(','))
+    .map(value => {
+      const trimmed = value.trim();
+      if (!trimmed) return '';
+      try {
+        return new URL(trimmed).hostname.toLowerCase();
+      } catch {
+        return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase();
+      }
+    })
+    .filter(Boolean);
+}
+
+const investorLabHosts = parseHostList(
+  process.env.INVESTOR_LAB_HOSTS,
+  process.env.INVESTOR_LAB_DOMAIN,
+  process.env.INVESTOR_LAB_URL,
+);
+
+function isInvestorLabHost(req: express.Request): boolean {
+  if (investorLabHosts.length === 0) return false;
+  return investorLabHosts.includes(req.hostname.toLowerCase());
+}
+
+function isApiOrHealthPath(req: express.Request): boolean {
+  return req.path === '/health' || req.path.startsWith('/api/');
+}
+
+function productionCorsOrigin(): boolean | string[] {
+  const origins = [
+    process.env.CLIENT_URL,
+    process.env.DASHBOARD_URL,
+    process.env.INVESTOR_LAB_URL,
+  ].filter(Boolean) as string[];
+
+  return origins.length > 0 ? origins : true;
+}
 
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? process.env.CLIENT_URL || true
+    ? productionCorsOrigin()
     : ['http://localhost:5200', 'http://localhost:5201', 'http://localhost:5202', 'http://localhost:5203'],
   credentials: true,
 }));
@@ -63,14 +82,15 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api', createAssetDashboardAnalyzerBackendRouter());
+app.use('/api/investor-lab/auth', investorLabAuthRoutes);
 app.use('/api/investor-lab', createAnalyzerBackendRouter({
   config: {
     platform: 'investor-lab',
     tenantId: 'investor-lab',
   },
   auth: {
-    requireAuth: investorLabDevAuth,
-    optionalAuth: investorLabDevAuth,
+    requireAuth: authenticateInvestorLab,
+    optionalAuth: authenticateInvestorLab,
     buildOwnerContext: (req) => buildOwnerContextForPlatform(req, 'investor-lab', 'investor-lab'),
   },
   routes: {
@@ -99,6 +119,31 @@ if (process.env.NODE_ENV === 'production') {
   app.use('/property-analyzer', express.static(analyzerAppPath));
   app.get('/property-analyzer/*', (req, res) => {
     res.sendFile(path.join(analyzerAppPath, 'index.html'));
+  });
+
+  // Investor Lab app — served at /investor-lab/
+  const investorLabAppPath = path.join(__dirname, '../../apps/reference-saas-wrapper/dist');
+  const investorLabStatic = express.static(investorLabAppPath);
+
+  // Investor Lab custom domains serve the same app at the domain root.
+  app.use((req, res, next) => {
+    if (!isInvestorLabHost(req) || isApiOrHealthPath(req)) {
+      next();
+      return;
+    }
+    investorLabStatic(req, res, next);
+  });
+  app.get('*', (req, res, next) => {
+    if (!isInvestorLabHost(req) || isApiOrHealthPath(req)) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(investorLabAppPath, 'index.html'));
+  });
+
+  app.use('/investor-lab', express.static(investorLabAppPath));
+  app.get('/investor-lab/*', (req, res) => {
+    res.sendFile(path.join(investorLabAppPath, 'index.html'));
   });
 
   // Dashboard app — served at / (catch-all, must be last)

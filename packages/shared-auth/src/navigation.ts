@@ -14,6 +14,7 @@
 const DEV_APP_PORTS: Record<string, number> = {
   '/deal-or-disaster/': 5201,
   '/property-analyzer/': 5202,
+  '/investor-lab/': 5203,
 };
 
 /** The dashboard port — used as the default for any path not in DEV_APP_PORTS. */

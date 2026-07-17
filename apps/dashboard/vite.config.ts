@@ -20,6 +20,10 @@ export default defineConfig({
         target: 'http://localhost:5202',
         changeOrigin: true,
       },
+      '/investor-lab': {
+        target: 'http://localhost:5203',
+        changeOrigin: true,
+      },
     },
     watch: {
       // Watch shared packages for HMR
