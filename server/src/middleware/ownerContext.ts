@@ -1,4 +1,4 @@
-import type { OwnerContext, AnalyzerPermission } from '@deal-platform/shared-types';
+import type { OwnerContext, AnalyzerPermission, AnalyzerPlatform } from '@deal-platform/shared-types';
 import type { AuthRequest } from './auth.js';
 import { pool } from '../db/pool.js';
 
@@ -21,7 +21,11 @@ const ADMIN_PERMISSIONS: AnalyzerPermission[] = [
   'admin:tenant',
 ];
 
-export async function buildAssetDashboardOwnerContext(req: AuthRequest): Promise<OwnerContext> {
+export async function buildOwnerContextForPlatform(
+  req: AuthRequest,
+  tenantId: string,
+  platform: AnalyzerPlatform,
+): Promise<OwnerContext> {
   if (req.userId == null) {
     throw new Error('Authenticated user id is required to build owner context.');
   }
@@ -41,11 +45,15 @@ export async function buildAssetDashboardOwnerContext(req: AuthRequest): Promise
   return {
     actorUserId: userId,
     ownerUserId: userId,
-    tenantId: ASSET_DASHBOARD_TENANT_ID,
-    platform: ASSET_DASHBOARD_PLATFORM,
+    tenantId,
+    platform,
     roles: isAdmin ? ['user', 'admin'] : ['user'],
     permissions: [...(isAdmin ? ADMIN_PERMISSIONS : USER_PERMISSIONS)],
   };
+}
+
+export async function buildAssetDashboardOwnerContext(req: AuthRequest): Promise<OwnerContext> {
+  return buildOwnerContextForPlatform(req, ASSET_DASHBOARD_TENANT_ID, ASSET_DASHBOARD_PLATFORM);
 }
 
 export function getOwnerUserId(ownerContext: OwnerContext): number {

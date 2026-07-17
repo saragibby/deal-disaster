@@ -14,7 +14,7 @@
  */
 
 import { Router, Response } from 'express';
-import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { authenticateOptional, authenticateToken, AuthRequest } from '../middleware/auth.js';
 import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
@@ -29,6 +29,7 @@ import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
+import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
 import { generatePropertySlug } from '../utils/slugify.js';
 import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
 import {
@@ -44,7 +45,24 @@ import {
   updateAnalysisOverrides,
 } from '../services/analyzerPersistenceService.js';
 
+function createDefaultRuntime(): AnalyzerBackendRuntime {
+  return {
+    auth: {
+      requireAuth: authenticateToken,
+      optionalAuth: authenticateOptional,
+      buildOwnerContext: buildAssetDashboardOwnerContext,
+    },
+    config: {
+      platform: 'asset-dashboard',
+      tenantId: 'asset-dashboard',
+    },
+  };
+}
+
+export function createPropertyAnalyzerRouter(runtime: AnalyzerBackendRuntime = createDefaultRuntime()): Router {
 const router = Router();
+const requireAuth = runtime.auth.requireAuth;
+const buildOwnerContext = runtime.auth.buildOwnerContext;
 
 // ── Helper: enrich similar properties with rent estimates ────────────────
 function enrichComparables(
@@ -96,13 +114,13 @@ function enrichComparables(
 
 // ── POST /run ────────────────────────────────────────────────────────────
 // Full pipeline: fetch property → estimate rent → compute analysis → persist
-router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { url, params: userParams } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'Please enter a property address or URL.' });
     }
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
 
     const { property, source, sourceUrl } = await resolvePropertyInput(url);
     const zpid = property.zpid || '';
@@ -351,9 +369,9 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 });
 
 // ── GET /history ─────────────────────────────────────────────────────────
-router.get('/history', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
     const page = Math.max(1, parseInt(String(req.query.page)) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit)) || 20));
     const offset = (page - 1) * limit;
@@ -373,9 +391,9 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 // ── GET /history/:slug ─────────────────────────────────────────────────────
-router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/history/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
     const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
 
     if (analysis == null) {
@@ -390,9 +408,9 @@ router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Re
 });
 
 // ── DELETE /history/:slug ──────────────────────────────────────────────────
-router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/history/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
 
     if (!await deleteAnalysisBySlug(ownerContext, req.params.slug)) {
       return res.status(404).json({ error: 'Analysis not found.' });
@@ -408,9 +426,9 @@ router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res:
 // ── POST /re-analyze/:slug ────────────────────────────────────────────────
 // Re-run analysis on a previously-saved property with new params.
 // Updates the existing entry in-place (same slug/URL).
-router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
     const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
 
     if (row == null) {
@@ -593,14 +611,14 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
 
 // ── PATCH /history/:slug/share ───────────────────────────────────────────
 // Toggle sharing on or off for a saved analysis.
-router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.patch('/history/:slug/share', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { shared } = req.body as { shared?: boolean };
     if (typeof shared !== 'boolean') {
       return res.status(400).json({ error: '"shared" must be a boolean.' });
     }
 
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
 
     const shareState = await setAnalysisShared(ownerContext, req.params.slug, shared);
 
@@ -622,7 +640,7 @@ router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest,
 // the stored analysis_results so the values flow into property comparisons.
 // Gross revenue is left RAW; only net figures are updated so a reload recomputes
 // identically from the raw gross + overrides (no double-counting).
-router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.patch('/history/:slug/overrides', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { overrides, derived } = req.body as {
       overrides?: Record<string, unknown>;
@@ -639,7 +657,7 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
       return res.status(400).json({ error: '"overrides" must be an object.' });
     }
 
-    const ownerContext = await buildAssetDashboardOwnerContext(req);
+    const ownerContext = await buildOwnerContext(req);
 
     const results = await getAnalysisResultsForOverrides(ownerContext, req.params.slug);
 
@@ -689,4 +707,8 @@ router.get('/shared/:identifier', async (req, res: Response) => {
   }
 });
 
+return router;
+}
+
+const router = createPropertyAnalyzerRouter();
 export default router;

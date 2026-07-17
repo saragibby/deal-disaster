@@ -1064,7 +1064,7 @@ export interface AnalyzerSession {
   permissions: AnalyzerPermission[];
 }
 
-export type AnalyzerPlatform = 'asset-dashboard' | 'property-analyzer-saas';
+export type AnalyzerPlatform = 'asset-dashboard' | 'property-analyzer-saas' | 'investor-lab';
 
 export interface OwnerContext {
   actorUserId: string;

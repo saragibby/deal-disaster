@@ -50,7 +50,7 @@ interface AssetDashboardAnalyzerContextValue extends PropertyAnalyzerCoreProps {
 const AssetDashboardAnalyzerContext = createContext<AssetDashboardAnalyzerContextValue | null>(null);
 
 function redirectToLogin(): never {
-  window.location.href = '/login';
+  window.location.href = buildAppUrl('/login');
   throw new Error('Authentication required.');
 }
 

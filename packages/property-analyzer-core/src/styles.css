@@ -50,7 +50,7 @@ a:hover { color: var(--primary-dark); }
 
 /* Offset anchored sections so the sticky header + nav bar never cover their top. */
 .results__section {
-  scroll-margin-top: calc(var(--analyzer-header-h, 76px) + 72px);
+  scroll-margin-top: calc(var(--analyzer-header-h, 56px) + 72px);
 }
 
 .analyzer-app__header {
@@ -255,7 +255,7 @@ a:hover { color: var(--primary-dark); }
 /* Section nav relocated below the property card (light surface, sticky) */
 .results__nav-bar {
   position: sticky;
-  top: var(--analyzer-header-h, 76px);
+  top: var(--analyzer-header-h, 56px);
   z-index: 90;
   margin: 0 0 1rem;
   padding: 0.55rem 0.85rem;
@@ -1974,7 +1974,7 @@ a:hover { color: var(--primary-dark); }
 /* Demand indicators */
 .rental-insights__indicators {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -2325,6 +2325,9 @@ a:hover { color: var(--primary-dark); }
 }
 
 @media (max-width: 480px) {
+  .rental-insights__indicators {
+    grid-template-columns: 1fr;
+  }
   .rental-tabs__summary {
     grid-template-columns: 1fr 1fr;
   }

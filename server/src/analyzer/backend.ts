@@ -5,7 +5,8 @@ import { authenticateOptional, authenticateToken } from '../middleware/auth.js';
 import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
 
 type RouterModule = { default: Router };
-type RouterLoaderResult = Router | RouterModule;
+type RouterFactoryModule = { createPropertyAnalyzerRouter: (runtime: AnalyzerBackendRuntime) => Router };
+type RouterLoaderResult = Router | RouterModule | RouterFactoryModule;
 
 export type AnalyzerMountPath = 'analyzer' | 'property' | 'comparisons' | 'ai' | 'xome';
 
@@ -61,7 +62,15 @@ function createRuntime(options: AnalyzerBackendOptions): AnalyzerBackendRuntime 
 }
 
 function normalizeRouter(result: RouterLoaderResult): Router {
+  if ('createPropertyAnalyzerRouter' in result) {
+    throw new Error('Router factory modules must be normalized with runtime.');
+  }
   return 'default' in result ? result.default : result;
+}
+
+function normalizeRouterWithRuntime(result: RouterLoaderResult, runtime: AnalyzerBackendRuntime): Router {
+  if ('createPropertyAnalyzerRouter' in result) return result.createPropertyAnalyzerRouter(runtime);
+  return normalizeRouter(result);
 }
 
 function mountLazyRouter(
@@ -70,7 +79,7 @@ function mountLazyRouter(
   runtime: AnalyzerBackendRuntime,
   loader: AnalyzerRouteLoader,
 ): void {
-  const loadRouter = once(async () => normalizeRouter(await loader(runtime)));
+  const loadRouter = once(async () => normalizeRouterWithRuntime(await loader(runtime), runtime));
 
   parent.use(path, async (req, res, next) => {
     try {
@@ -88,7 +97,7 @@ function defaultRouteLoaders(): AnalyzerRouteLoaders {
     property: () => import('../routes/property.js'),
     comparisons: () => import('../routes/comparisons.js'),
     ai: () => import('../routes/aiComparison.js'),
-    xome: () => import('../routes/xome.js'),
+    xome: (runtime) => import('../routes/xome.js').then((module) => module.createXomeRouter(runtime.auth.requireAuth)),
   };
 }
 
