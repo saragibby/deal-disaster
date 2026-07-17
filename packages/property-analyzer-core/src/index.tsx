@@ -12,6 +12,7 @@ import {
 import type {
   AnalyzerAssistantContext,
   AnalyzerRoute,
+  PropertyAnalyzerBranding,
   PropertyAnalyzerCoreProps,
 } from '@deal-platform/shared-types';
 import PropertyAnalyzer from './components/PropertyAnalyzer.js';
@@ -56,6 +57,23 @@ export type {
 } from '@deal-platform/shared-types';
 
 export { usePropertyAnalyzerCore } from './context.js';
+
+function BrandLogo({ branding }: { branding: PropertyAnalyzerBranding }) {
+  const label = branding.logoText ?? branding.productName;
+  if (branding.logoSrc) {
+    return (
+      <>
+        <img
+          className="analyzer-app__logo-img"
+          src={branding.logoSrc}
+          alt={branding.logoAlt ?? label}
+        />
+        <span className="analyzer-app__logo-text">{label}</span>
+      </>
+    );
+  }
+  return <>{label}</>;
+}
 
 function tabForRoute(route: AnalyzerRoute, comparisonsEnabled: boolean): AnalyzerTab {
   if (route.kind === 'compare' && comparisonsEnabled) return 'compare';
@@ -223,7 +241,7 @@ export function PropertyAnalyzerCore(props: PropertyAnalyzerCoreProps): ReactEle
               </a>
               <span className="analyzer-app__brand-divider" aria-hidden="true" />
               <a href={analyzerHomeUrl} className="analyzer-app__logo">
-                {branding.logoText ?? branding.productName}
+                <BrandLogo branding={branding} />
               </a>
             </div>
 

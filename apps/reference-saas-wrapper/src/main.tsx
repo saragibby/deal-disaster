@@ -37,6 +37,7 @@ const USE_LOCAL_ANALYZER_FIXTURES =
   import.meta.env.DEV && import.meta.env.VITE_INVESTOR_LAB_USE_REAL_ANALYZER !== 'true';
 const AUTH_STORAGE_KEY = 'investorLabAuth';
 const PRODUCT_NAME = 'Cashflow or No?';
+const BRAND_LOGO_SRC = `${import.meta.env.BASE_URL}cashflow-or-no-logo.png`;
 
 interface InvestorLabUser {
   id: number;
@@ -49,6 +50,14 @@ interface InvestorLabUser {
 interface InvestorLabAuthState {
   token: string;
   user: InvestorLabUser;
+}
+
+interface InvestorLabAuthForm {
+  name?: string;
+  email?: string;
+  password?: string;
+  companyName?: string;
+  investorFocus?: string;
 }
 
 type WrapperPage = 'landing' | 'login' | 'register' | 'profile' | 'analyzer';
@@ -89,6 +98,49 @@ function storeAuth(auth: InvestorLabAuthState | null) {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
 }
 
+function readJsonBody<T>(init: RequestInit): T {
+  if (typeof init.body !== 'string') {
+    throw new Error(`${PRODUCT_NAME} local fixture requests must send a JSON body.`);
+  }
+  return JSON.parse(init.body) as T;
+}
+
+function createLocalAuthState(form: InvestorLabAuthForm): InvestorLabAuthState {
+  const email = form.email?.trim() || 'investor@example.test';
+  return {
+    token: 'local-investor-lab-fixture-token',
+    user: {
+      id: 1,
+      email,
+      name: form.name?.trim() || email.split('@')[0] || 'Investor',
+      companyName: form.companyName?.trim() || null,
+      investorFocus: form.investorFocus || INVESTOR_FOCUS_OPTIONS[0],
+    },
+  };
+}
+
+async function investorLabLocalAuthFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (path === '/api/investor-lab/auth/login' || path === '/api/investor-lab/auth/register') {
+    return createLocalAuthState(readJsonBody<InvestorLabAuthForm>(init)) as T;
+  }
+
+  if (path === '/api/investor-lab/auth/me' && (init.method ?? 'GET').toUpperCase() === 'PATCH') {
+    const stored = readStoredAuth();
+    if (!stored) throw new Error(`${PRODUCT_NAME} account required.`);
+    const form = readJsonBody<InvestorLabAuthForm>(init);
+    return {
+      user: {
+        ...stored.user,
+        name: form.name?.trim() || stored.user.name,
+        companyName: form.companyName?.trim() || null,
+        investorFocus: form.investorFocus || stored.user.investorFocus,
+      },
+    } as T;
+  }
+
+  throw new Error(`${PRODUCT_NAME} local fixture auth route "${path}" is not implemented.`);
+}
+
 function pageFromLocation(location: Location): WrapperPage {
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
   const internalPath = BASE_PATH && pathname.startsWith(BASE_PATH)
@@ -121,6 +173,10 @@ async function investorLabAuthFetch<T>(
   init: RequestInit = {},
   token?: string,
 ): Promise<T> {
+  if (USE_LOCAL_ANALYZER_FIXTURES) {
+    return investorLabLocalAuthFetch<T>(path, init);
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
@@ -143,7 +199,7 @@ async function investorLabAuthFetch<T>(
 }
 
 const LANDING_FEATURES = [
-  'Analyze rental deals without sharing your AssetDashboard profile.',
+  'Analyze rental deals in a dedicated Cashflow or No? profile.',
   `Save ${PRODUCT_NAME} history under a separate account.`,
   'Track focus, company, and investor profile details independently.',
 ];
@@ -957,11 +1013,12 @@ function LandingPage({
     <main className="investor-page investor-landing">
       <section className="investor-hero">
         <div>
-          <p className="investor-eyebrow">{PRODUCT_NAME}</p>
+          <img className="investor-brand-logo investor-brand-logo--hero" src={BRAND_LOGO_SRC} alt={`${PRODUCT_NAME} logo`} />
+          <p className="investor-eyebrow">Play your way to financial clarity</p>
           <h1>Run rental deal analysis from a separate investor workspace.</h1>
           <p className="investor-hero__copy">
             {PRODUCT_NAME} now has its own account boundary, profile, and analysis history so it can move to a
-            dedicated domain without sharing AssetDashboard sign-ins.
+            dedicated domain without sharing another platform sign-in.
           </p>
           <div className="investor-hero__actions">
             <button className="investor-button" onClick={() => onNavigate('register')}>Create account</button>
@@ -969,8 +1026,8 @@ function LandingPage({
           </div>
         </div>
         <aside className="investor-hero__card">
-          <span>Private beta</span>
-          <strong>Investor-only analyzer</strong>
+          <span>Investor Lab</span>
+          <strong>Cashflow check, game-show energy.</strong>
           <p>Gate access before a user reaches deal history, saved analyses, or profile data.</p>
         </aside>
       </section>
@@ -1017,12 +1074,13 @@ function AuthPage({
   return (
     <main className="investor-page investor-auth-page">
       <form className="investor-auth-card" onSubmit={handleSubmit}>
+        <img className="investor-brand-logo investor-brand-logo--card" src={BRAND_LOGO_SRC} alt={`${PRODUCT_NAME} logo`} />
         <p className="investor-eyebrow">{PRODUCT_NAME} account</p>
         <h1>{isRegistering ? 'Create your investor account' : 'Welcome back'}</h1>
         <p className="investor-muted">
           {isRegistering
-            ? 'This account is separate from AssetDashboard and keeps its own profile.'
-            : `Use your ${PRODUCT_NAME} credentials, not your AssetDashboard account.`}
+            ? 'This account is separate from other workspaces and keeps its own profile.'
+            : `Use your ${PRODUCT_NAME} credentials for this investor workspace.`}
         </p>
 
         {isRegistering && (
@@ -1137,6 +1195,7 @@ function ProfilePage({
   return (
     <main className="investor-page investor-auth-page">
       <form className="investor-auth-card" onSubmit={handleSubmit}>
+        <img className="investor-brand-logo investor-brand-logo--card" src={BRAND_LOGO_SRC} alt={`${PRODUCT_NAME} logo`} />
         <p className="investor-eyebrow">Investor profile</p>
         <h1>{auth.user.name || auth.user.email}</h1>
         <p className="investor-muted">This profile is only used for {PRODUCT_NAME}.</p>
@@ -1186,6 +1245,17 @@ function ReferenceSaasWrapper() {
   const [route, setRoute] = useState<AnalyzerRoute>(() => routeFromLocation(window.location));
   const api = useMemo(() => createInvestorLabApi(auth?.token ?? ''), [auth?.token]);
   const storage = useMemo(() => createStorageAdapter(), []);
+
+  useEffect(() => {
+    const pageTitle: Record<WrapperPage, string> = {
+      landing: `${PRODUCT_NAME} - Investor Lab`,
+      login: `Sign in - ${PRODUCT_NAME}`,
+      register: `Create account - ${PRODUCT_NAME}`,
+      profile: `Investor profile - ${PRODUCT_NAME}`,
+      analyzer: `${PRODUCT_NAME} App - Investor Lab`,
+    };
+    document.title = pageTitle[page];
+  }, [page]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -1344,6 +1414,8 @@ function ReferenceSaasWrapper() {
       productName: PRODUCT_NAME,
       platformName: PRODUCT_NAME,
       logoText: PRODUCT_NAME,
+      logoSrc: BRAND_LOGO_SRC,
+      logoAlt: `${PRODUCT_NAME} logo`,
       homeLabel: `${PRODUCT_NAME} home`,
       themeClassName: 'analyzer-app reference-saas-analyzer',
     },
