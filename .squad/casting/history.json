@@ -1,0 +1,22 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Glengarry Glen Ross",
+      "assignment_id": "deal-disaster-2026-07-10",
+      "used_at": "2026-07-10T21:29:57.857-04:00"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "deal-disaster-2026-07-10": {
+      "universe": "Glengarry Glen Ross",
+      "agents": {
+        "lead": "Roma",
+        "frontend": "Blake",
+        "backend": "Moss",
+        "data-integration": "Williamson",
+        "tester": "Levene"
+      },
+      "created_at": "2026-07-10T21:29:57.857-04:00"
+    }
+  }
+}

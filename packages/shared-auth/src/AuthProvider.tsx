@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User, AuthState } from '@deal-platform/shared-types';
 import { api } from './ApiService';
+import { consumeSsoParams } from './navigation';
 
 interface AuthContextType extends AuthState {
   login: (token: string, user: User) => void;
@@ -13,6 +14,14 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 function getInitialAuthState(): { authState: AuthState; loading: boolean } {
   try {
+    const sso = consumeSsoParams();
+    if (sso) {
+      return {
+        authState: { isAuthenticated: true, user: sso.user, token: sso.token },
+        loading: false,
+      };
+    }
+
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (token && savedUser) {

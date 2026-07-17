@@ -18,6 +18,8 @@ dotenv.config({ path: resolve(__dirname, '../server/.env') });
 
 const { Pool } = pg;
 const FIXTURE_SLUG_PATTERN = 'e2e-pa-%';
+const FIXTURE_TENANT_ID = 'asset-dashboard';
+const FIXTURE_PLATFORM = 'asset-dashboard';
 
 export const PROPERTY_ANALYZER_FIXTURE_USERS = {
   owner: {
@@ -99,6 +101,9 @@ export async function ensurePropertyAnalyzerFixtureSchema(pool: pg.Pool) {
     CREATE TABLE IF NOT EXISTS property_analyses (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+      platform VARCHAR(50) DEFAULT 'asset-dashboard',
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       slug VARCHAR(100) NOT NULL,
       zillow_url VARCHAR(1000) NOT NULL,
       zpid VARCHAR(50),
@@ -110,32 +115,82 @@ export async function ensurePropertyAnalyzerFixtureSchema(pool: pg.Pool) {
       rental_comps JSONB,
       user_overrides JSONB,
       is_shared BOOLEAN DEFAULT FALSE,
+      public_share_id VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
+  await pool.query("ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'");
+  await pool.query("ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'");
+  await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS source_url VARCHAR(1000)');
   await pool.query("ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) DEFAULT 'address'");
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS user_overrides JSONB');
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS is_shared BOOLEAN DEFAULT FALSE');
+  await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS public_share_id VARCHAR(64)');
+  await pool.query(`
+    UPDATE property_analyses
+    SET
+      tenant_id = COALESCE(tenant_id, 'asset-dashboard'),
+      platform = COALESCE(platform, 'asset-dashboard'),
+      owner_user_id = COALESCE(owner_user_id, user_id)
+    WHERE tenant_id IS NULL
+       OR platform IS NULL
+       OR owner_user_id IS NULL
+  `);
   await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_user_slug
     ON property_analyses(user_id, slug)
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_public_share_id
+    ON property_analyses(public_share_id)
+    WHERE public_share_id IS NOT NULL
   `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS saved_comparisons (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+      platform VARCHAR(50) DEFAULT 'asset-dashboard',
+      owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       name VARCHAR(255) NOT NULL,
       property_slugs TEXT[] NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query("ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'");
+  await pool.query("ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'");
+  await pool.query('ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE');
+  await pool.query(`
+    UPDATE saved_comparisons
+    SET
+      tenant_id = COALESCE(tenant_id, 'asset-dashboard'),
+      platform = COALESCE(platform, 'asset-dashboard'),
+      owner_user_id = COALESCE(owner_user_id, user_id)
+    WHERE tenant_id IS NULL
+       OR platform IS NULL
+       OR owner_user_id IS NULL
+  `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
     ON saved_comparisons(user_id, updated_at DESC)
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS saved_comparison_members (
+      comparison_id INTEGER NOT NULL REFERENCES saved_comparisons(id) ON DELETE CASCADE,
+      analysis_id INTEGER NOT NULL REFERENCES property_analyses(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position >= 1 AND position <= 6),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (comparison_id, analysis_id),
+      UNIQUE (comparison_id, position)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_saved_comparison_members_analysis
+    ON saved_comparison_members(analysis_id)
   `);
 }
 
@@ -393,15 +448,19 @@ export async function seedPropertyAnalysis(
   const rentalComps = buildRentalComps(options.index);
   const results = buildAnalysisResults(property, params, rentalComps, options.index);
   const slug = `${options.slugPrefix}-${options.index}`;
+  const publicShareId = options.isShared ? `${slug}-public-share` : null;
   const createdAt = new Date(Date.UTC(2026, 0, options.index, 12, 0, 0));
 
   const { rows } = await pool.query(
     `INSERT INTO property_analyses (
-       user_id, slug, zillow_url, zpid, source_url, source_type, property_data,
-       analysis_params, analysis_results, rental_comps, user_overrides, is_shared, created_at
+       user_id, tenant_id, platform, owner_user_id, slug, zillow_url, zpid, source_url, source_type, property_data,
+       analysis_params, analysis_results, rental_comps, user_overrides, is_shared, public_share_id, created_at
      )
-     VALUES ($1, $2, $3, $4, $5, 'address', $6, $7, $8, $9, NULL, $10, $11)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'address', $9, $10, $11, $12, NULL, $13, $14, $15)
      ON CONFLICT (user_id, slug) DO UPDATE SET
+       tenant_id = EXCLUDED.tenant_id,
+       platform = EXCLUDED.platform,
+       owner_user_id = EXCLUDED.owner_user_id,
        zillow_url = EXCLUDED.zillow_url,
        zpid = EXCLUDED.zpid,
        source_url = EXCLUDED.source_url,
@@ -412,11 +471,15 @@ export async function seedPropertyAnalysis(
        rental_comps = EXCLUDED.rental_comps,
        user_overrides = EXCLUDED.user_overrides,
        is_shared = EXCLUDED.is_shared,
+       public_share_id = EXCLUDED.public_share_id,
        created_at = EXCLUDED.created_at
-     RETURNING id, user_id, slug, zillow_url, zpid, source_url, source_type,
+     RETURNING id, user_id, slug, public_share_id, zillow_url, zpid, source_url, source_type,
        property_data, analysis_params, analysis_results, rental_comps,
        user_overrides, is_shared, created_at`,
     [
+      options.userId,
+      FIXTURE_TENANT_ID,
+      FIXTURE_PLATFORM,
       options.userId,
       slug,
       property.zillowUrl,
@@ -427,6 +490,7 @@ export async function seedPropertyAnalysis(
       JSON.stringify(results),
       JSON.stringify(rentalComps),
       options.isShared ?? false,
+      publicShareId,
       createdAt,
     ],
   );
@@ -444,22 +508,46 @@ export async function seedSavedComparison(
     throw new Error('Property Analyzer comparison fixtures must contain 2 to 6 property slugs.');
   }
 
-  const { rows: validRows } = await pool.query(
-    'SELECT slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)',
+  const { rows: validRows } = await pool.query<{ id: number; slug: string }>(
+    'SELECT id, slug FROM property_analyses WHERE user_id = $1 AND slug = ANY($2)',
     [userId, propertySlugs],
   );
   if (validRows.length !== propertySlugs.length) {
     throw new Error('All comparison fixture slugs must belong to the seeded user.');
   }
 
-  const { rows } = await pool.query(
-    `INSERT INTO saved_comparisons (user_id, name, property_slugs)
-     VALUES ($1, $2, $3)
-     RETURNING id, name, property_slugs, created_at, updated_at`,
-    [userId, name, propertySlugs],
-  );
+  const idsBySlug = new Map(validRows.map(row => [row.slug, row.id]));
+  const analysisIds = propertySlugs.map((slug) => {
+    const id = idsBySlug.get(slug);
+    if (id == null) {
+      throw new Error('All comparison fixture slugs must belong to the seeded user.');
+    }
+    return id;
+  });
 
-  return rows[0];
+  await pool.query('BEGIN');
+  try {
+    const { rows } = await pool.query<SeededSavedComparison>(
+      `INSERT INTO saved_comparisons (user_id, tenant_id, platform, owner_user_id, name, property_slugs)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, property_slugs, created_at, updated_at`,
+      [userId, FIXTURE_TENANT_ID, FIXTURE_PLATFORM, userId, name, propertySlugs],
+    );
+    const comparison = rows[0];
+
+    await pool.query(
+      `INSERT INTO saved_comparison_members (comparison_id, analysis_id, position)
+       SELECT $1, member.analysis_id, member.ordinality::int
+       FROM unnest($2::int[]) WITH ORDINALITY AS member(analysis_id, ordinality)`,
+      [comparison.id, analysisIds],
+    );
+    await pool.query('COMMIT');
+
+    return comparison;
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    throw error;
+  }
 }
 
 export async function seedPropertyAnalyzerFixtures(options?: {

@@ -1,4 +1,93 @@
+import { randomBytes } from 'crypto';
 import { pool } from './pool.js';
+
+const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
+const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
+
+type AnalyzerOwnerTable = 'property_analyses' | 'saved_comparisons';
+
+function generatePublicShareId(): string {
+  return randomBytes(18).toString('base64url');
+}
+
+async function backfillAnalyzerOwnership(tableName: AnalyzerOwnerTable) {
+  const beforeResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const beforeCount = beforeResult.rows[0].count;
+
+  await pool.query(
+    `UPDATE ${tableName}
+     SET
+       tenant_id = COALESCE(tenant_id, $1),
+       platform = COALESCE(platform, $2),
+       owner_user_id = COALESCE(owner_user_id, user_id)
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+    [ASSET_DASHBOARD_OWNER_TENANT_ID, ASSET_DASHBOARD_OWNER_PLATFORM],
+  );
+
+  const afterResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ${tableName}`,
+  );
+  const afterCount = afterResult.rows[0].count;
+
+  if (afterCount !== beforeCount) {
+    throw new Error(
+      `Analyzer ownership backfill changed ${tableName} row count from ${beforeCount} to ${afterCount}.`,
+    );
+  }
+
+  const missingResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count
+     FROM ${tableName}
+     WHERE tenant_id IS NULL
+        OR platform IS NULL
+        OR owner_user_id IS NULL`,
+  );
+  const missingCount = missingResult.rows[0].count;
+
+  if (missingCount > 0) {
+    throw new Error(
+      `Analyzer ownership backfill left ${missingCount} ${tableName} rows without tenant, platform, or owner user fields.`,
+    );
+  }
+}
+
+async function backfillPropertyAnalysisPublicShareIds() {
+  const result = await pool.query<{ id: number }>(
+    `SELECT id
+     FROM property_analyses
+     WHERE is_shared = TRUE
+       AND public_share_id IS NULL`,
+  );
+
+  for (const row of result.rows) {
+    await pool.query(
+      `UPDATE property_analyses
+       SET public_share_id = $1
+       WHERE id = $2
+         AND public_share_id IS NULL`,
+      [generatePublicShareId(), row.id],
+    );
+  }
+}
+
+async function backfillSavedComparisonMembers() {
+  await pool.query(`
+    INSERT INTO saved_comparison_members (comparison_id, analysis_id, position)
+    SELECT sc.id, pa.id, slug_position.ordinality::int
+    FROM saved_comparisons sc
+    CROSS JOIN LATERAL unnest(sc.property_slugs) WITH ORDINALITY AS slug_position(slug, ordinality)
+    JOIN property_analyses pa
+      ON COALESCE(pa.tenant_id, $1) = COALESCE(sc.tenant_id, $1)
+     AND COALESCE(pa.platform, $2) = COALESCE(sc.platform, $2)
+     AND COALESCE(pa.owner_user_id, pa.user_id) = COALESCE(sc.owner_user_id, sc.user_id)
+     AND pa.slug = slug_position.slug
+    ON CONFLICT DO NOTHING
+  `, [ASSET_DASHBOARD_OWNER_TENANT_ID, ASSET_DASHBOARD_OWNER_PLATFORM]);
+}
 
 export async function setupDatabase() {
   try {
@@ -112,6 +201,9 @@ export async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS saved_comparisons (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+        platform VARCHAR(50) DEFAULT 'asset-dashboard',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         property_slugs TEXT[] NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -119,10 +211,117 @@ export async function setupDatabase() {
       )
     `);
     await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE saved_comparisons ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    `);
+    await backfillAnalyzerOwnership('saved_comparisons');
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_saved_comparisons_user
       ON saved_comparisons(user_id, updated_at DESC)
     `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_tenant_owner_updated
+      ON saved_comparisons(tenant_id, owner_user_id, updated_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_tenant_owner_id
+      ON saved_comparisons(tenant_id, owner_user_id, id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparisons_platform_owner
+      ON saved_comparisons(platform, owner_user_id)
+    `);
     console.log('✅ Saved comparisons table created');
+
+    // Create property_analyses table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_analyses (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tenant_id VARCHAR(100) DEFAULT 'asset-dashboard',
+        platform VARCHAR(50) DEFAULT 'asset-dashboard',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        slug VARCHAR(100) NOT NULL,
+        zillow_url VARCHAR(1000) NOT NULL,
+        zpid VARCHAR(50),
+        source_url VARCHAR(1000),
+        source_type VARCHAR(50) DEFAULT 'zillow',
+        property_data JSONB NOT NULL,
+        analysis_params JSONB NOT NULL,
+        analysis_results JSONB NOT NULL,
+        rental_comps JSONB,
+        user_overrides JSONB,
+        is_shared BOOLEAN DEFAULT FALSE,
+        public_share_id VARCHAR(64),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(100) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'asset-dashboard'
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS public_share_id VARCHAR(64)
+    `);
+    await backfillAnalyzerOwnership('property_analyses');
+    await backfillPropertyAnalysisPublicShareIds();
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_user
+      ON property_analyses(user_id, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_zpid
+      ON property_analyses(zpid)
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_user_slug
+      ON property_analyses(user_id, slug)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_tenant_owner_slug
+      ON property_analyses(tenant_id, owner_user_id, slug)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_tenant_owner_created
+      ON property_analyses(tenant_id, owner_user_id, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_analyses_platform_owner
+      ON property_analyses(platform, owner_user_id)
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_property_analyses_public_share_id
+      ON property_analyses(public_share_id)
+      WHERE public_share_id IS NOT NULL
+    `);
+    console.log('✅ Property analyses table created');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_comparison_members (
+        comparison_id INTEGER NOT NULL REFERENCES saved_comparisons(id) ON DELETE CASCADE,
+        analysis_id INTEGER NOT NULL REFERENCES property_analyses(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL CHECK (position >= 1 AND position <= 6),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (comparison_id, analysis_id),
+        UNIQUE (comparison_id, position)
+      )
+    `);
+    await backfillSavedComparisonMembers();
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_comparison_members_analysis
+      ON saved_comparison_members(analysis_id)
+    `);
+    console.log('✅ Saved comparison membership table created');
 
     // Create leaderboard view
     await pool.query(`

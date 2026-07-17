@@ -477,8 +477,9 @@ export class ApiService {
     return this.fetchJson<{ results: any[] }>(`/api/property/search?q=${encodeURIComponent(query)}`, { auth: true });
   }
 
-  // ===== Property Analyzer endpoints (app-specific with history) =====
+  // ===== Property Analyzer endpoints (deprecated compatibility pass-throughs) =====
 
+  /** @deprecated Use createAnalyzerApiClient(api).runAnalysis({ url, params }) instead. */
   async runAndSaveAnalysis(url: string, params?: Record<string, any>) {
     return this.fetchJson<any>('/api/analyzer/run', {
       method: 'POST',
@@ -487,6 +488,7 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getHistory({ page, limit }) instead. */
   async getAnalysisHistory(page = 1, limit = 20) {
     return this.fetchJson<{ analyses: any[]; total: number; page: number; limit: number }>(
       `/api/analyzer/history?page=${page}&limit=${limit}`,
@@ -494,10 +496,12 @@ export class ApiService {
     );
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getAnalysis(slug) instead. */
   async getAnalysis(slug: string) {
     return this.fetchJson<{ analysis: any }>(`/api/analyzer/history/${encodeURIComponent(slug)}`, { auth: true });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).deleteAnalysis(slug) instead. */
   async deleteAnalysis(slug: string) {
     return this.fetchJson<{ success: boolean }>(`/api/analyzer/history/${encodeURIComponent(slug)}`, {
       method: 'DELETE',
@@ -505,6 +509,7 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).reAnalyze(slug, params) instead. */
   async reAnalyze(slug: string, params: Record<string, any>) {
     return this.fetchJson<any>(`/api/analyzer/re-analyze/${encodeURIComponent(slug)}`, {
       method: 'POST',
@@ -513,13 +518,15 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).setShared(slug, shared) instead. */
   async toggleShareAnalysis(slug: string, shared: boolean) {
-    return this.fetchJson<{ slug: string; is_shared: boolean }>(
+    return this.fetchJson<{ slug: string; is_shared: boolean; public_share_id: string | null }>(
       `/api/analyzer/history/${encodeURIComponent(slug)}/share`,
       { method: 'PATCH', auth: true, body: JSON.stringify({ shared }) },
     );
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).saveAdjustments(slug, payload) instead. */
   async saveAnalysisAdjustments(
     slug: string,
     payload: {
@@ -539,6 +546,7 @@ export class ApiService {
     );
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getSharedAnalysis(slug) instead. */
   async getSharedAnalysis(slug: string) {
     return this.fetchJson<{ analysis: any }>(`/api/analyzer/shared/${encodeURIComponent(slug)}`);
   }
@@ -557,8 +565,9 @@ export class ApiService {
     return this.fetchJson<any>(`/api/xome/market-trends?postalCode=${encodeURIComponent(postalCode)}`, { auth: true });
   }
 
-  // ===== AI Comparison endpoints =====
+  // ===== AI Comparison endpoints (deprecated analyzer compatibility pass-throughs) =====
 
+  /** @deprecated Use createAnalyzerApiClient(api).getComparisonSummary(propertySlugs) instead. */
   async getComparisonSummary(propertySlugs: string[]) {
     return this.fetchJson<{ summary: string; generatedAt: string }>('/api/ai/comparison-summary', {
       method: 'POST',
@@ -567,6 +576,7 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getPropertyNarratives(propertySlugs) instead. */
   async getPropertyNarratives(propertySlugs: string[]) {
     return this.fetchJson<{ narratives: Array<{ propertyId: string; address: string; narrative: string }>; generatedAt: string }>('/api/ai/property-narratives', {
       method: 'POST',
@@ -575,8 +585,9 @@ export class ApiService {
     });
   }
 
-  // ===== Saved Comparisons =====
+  // ===== Saved Comparisons (deprecated analyzer compatibility pass-throughs) =====
 
+  /** @deprecated Use createAnalyzerApiClient(api).saveComparison(name, propertySlugs) instead. */
   async saveComparison(name: string, propertySlugs: string[]) {
     return this.fetchJson<{ comparison: any }>('/api/comparisons', {
       method: 'POST',
@@ -585,6 +596,7 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getSavedComparisons({ page, limit }) instead. */
   async getSavedComparisons(page = 1, limit = 20) {
     return this.fetchJson<{ comparisons: any[]; total: number; page: number; limit: number }>(
       `/api/comparisons?page=${page}&limit=${limit}`,
@@ -592,10 +604,12 @@ export class ApiService {
     );
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).getSavedComparison(id) instead. */
   async getSavedComparison(id: number) {
     return this.fetchJson<{ comparison: any }>(`/api/comparisons/${id}`, { auth: true });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).deleteSavedComparison(id) instead. */
   async deleteSavedComparison(id: number) {
     return this.fetchJson<{ success: boolean }>(`/api/comparisons/${id}`, {
       method: 'DELETE',
@@ -603,6 +617,7 @@ export class ApiService {
     });
   }
 
+  /** @deprecated Use createAnalyzerApiClient(api).updateComparisonSlugs(id, propertySlugs) instead. */
   async updateComparisonSlugs(id: number, propertySlugs: string[]) {
     return this.fetchJson<{ comparison: any }>(`/api/comparisons/${id}`, {
       method: 'PATCH',

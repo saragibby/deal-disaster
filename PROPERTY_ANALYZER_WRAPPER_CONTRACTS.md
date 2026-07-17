@@ -312,6 +312,23 @@ Backend routes should pass `OwnerContext` into analyzer services and persistence
 - Private comparison links using `?props=slug1,slug2` remain authenticated and owner-scoped; they are not public share links.
 - If public comparison sharing is introduced later, it must use a separate public comparison token and a sanitized payload, not private analysis slugs.
 
+## Reference SaaS wrapper smoke harness
+
+Issue #26 adds `apps/reference-saas-wrapper` as the Investor Lab wrapper foundation for future SaaS wrapper work. It mounts `@deal-platform/property-analyzer-core` at `/investor-lab/` with injected SaaS adapters, `Investor Lab Analyzer` / `Reference SaaS Platform` branding, and disabled optional features (`askWill`, comparisons, saved comparisons, public sharing, PDF export, Street View, and AI comparison/narrative helpers). Core analysis/history/detail/re-analysis calls use the real analyzer backend under the `investor-lab` tenant/platform, while disabled or not-yet-productized optional surfaces still use local fixture behavior. The wrapper intentionally does not depend on `@deal-platform/shared-auth`, `@deal-platform/shared-ui`, dashboard shell components, or dashboard auth storage.
+
+Run `npm run smoke:reference-saas-wrapper` from the repo root to verify the harness constraints and build it. The regular Asset Dashboard wrapper remains the production wrapper at `/property-analyzer`.
+
+### Productized SaaS wrapper gaps
+
+The Investor Lab wrapper now shares the real analyzer pipeline and database tables for core analysis behavior, but these items are still required before shipping a real standalone SaaS product:
+
+1. Replace mock auth/session adapters with tenant-aware SaaS identity, membership, plan entitlement, and logout flows.
+2. Mount the analyzer backend factory with SaaS-specific `OwnerContext` creation, tenant routing, rate limits, and provider/cache policy selection.
+3. Add persistent SaaS storage for analyses, comparisons, user overrides, billing/plan state, and opaque public share identifiers.
+4. Define production SaaS navigation, marketing/home/profile routes, error pages, loading states, and support/feedback surfaces.
+5. Add branded design tokens/assets and accessibility/visual regression coverage for the SaaS shell.
+6. Add SaaS E2E coverage for auth, disabled plan features, base-path deep links, sharing policy, comparison entitlements, and export behavior.
+
 ## Cache and provider credential sharing policy
 
 Decision: share provider caches between Asset Dashboard and future SaaS only for non-user-specific public/provider data, and keep credentials centrally managed unless a future tenant plan requires bring-your-own-provider keys.

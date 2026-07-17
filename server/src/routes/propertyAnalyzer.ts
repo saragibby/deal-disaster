@@ -10,12 +10,11 @@
  * DELETE /api/analyzer/history/:slug     – delete saved analysis
  * POST   /api/analyzer/re-analyze/:slug  – re-run with updated params
  * PATCH  /api/analyzer/history/:slug/share – toggle sharing on/off
- * GET    /api/analyzer/shared/:slug      – public read-only view (no auth required)
+ * GET    /api/analyzer/shared/:identifier – public read-only view (no auth required)
  */
 
 import { Router, Response } from 'express';
-import { authenticateToken, AuthRequest } from '../middleware/auth.js';
-import { pool } from '../db/pool.js';
+import { authenticateOptional, authenticateToken, AuthRequest } from '../middleware/auth.js';
 import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
@@ -30,9 +29,40 @@ import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
+import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
 import { generatePropertySlug } from '../utils/slugify.js';
+import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
+import {
+  deleteAnalysisBySlug,
+  getAnalysisBySlug,
+  getAnalysisForReanalysis,
+  getAnalysisResultsForOverrides,
+  getSharedAnalysisByPublicIdentifier,
+  listAnalyses,
+  saveAnalysis,
+  setAnalysisShared,
+  updateAnalysisAfterReanalysis,
+  updateAnalysisOverrides,
+} from '../services/analyzerPersistenceService.js';
 
+function createDefaultRuntime(): AnalyzerBackendRuntime {
+  return {
+    auth: {
+      requireAuth: authenticateToken,
+      optionalAuth: authenticateOptional,
+      buildOwnerContext: buildAssetDashboardOwnerContext,
+    },
+    config: {
+      platform: 'asset-dashboard',
+      tenantId: 'asset-dashboard',
+    },
+  };
+}
+
+export function createPropertyAnalyzerRouter(runtime: AnalyzerBackendRuntime = createDefaultRuntime()): Router {
 const router = Router();
+const requireAuth = runtime.auth.requireAuth;
+const buildOwnerContext = runtime.auth.buildOwnerContext;
 
 // ── Helper: enrich similar properties with rent estimates ────────────────
 function enrichComparables(
@@ -84,12 +114,13 @@ function enrichComparables(
 
 // ── POST /run ────────────────────────────────────────────────────────────
 // Full pipeline: fetch property → estimate rent → compute analysis → persist
-router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { url, params: userParams } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'Please enter a property address or URL.' });
     }
+    const ownerContext = await buildOwnerContext(req);
 
     const { property, source, sourceUrl } = await resolvePropertyInput(url);
     const zpid = property.zpid || '';
@@ -306,39 +337,21 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 
     // Persist to DB (upsert — re-analysing same property overwrites the old entry)
     const slug = generatePropertySlug(property.address, property.zip);
-    const insertResult = await pool.query(
-      `INSERT INTO property_analyses
-        (user_id, slug, zillow_url, zpid, source_url, source_type, property_data, analysis_params, analysis_results, rental_comps)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (user_id, slug) DO UPDATE SET
-        zillow_url       = EXCLUDED.zillow_url,
-        zpid             = EXCLUDED.zpid,
-        source_url       = EXCLUDED.source_url,
-        source_type      = EXCLUDED.source_type,
-        property_data    = EXCLUDED.property_data,
-        analysis_params  = EXCLUDED.analysis_params,
-        analysis_results = EXCLUDED.analysis_results,
-        rental_comps     = EXCLUDED.rental_comps,
-        created_at       = CURRENT_TIMESTAMP
-       RETURNING slug, created_at`,
-      [
-        req.userId,
-        slug,
-        sourceUrl || url,
-        zpid,
-        sourceUrl || url,
-        source,
-        JSON.stringify(property),
-        JSON.stringify(params),
-        JSON.stringify(results),
-        JSON.stringify(rentalEstimate.comps || []),
-      ],
-    );
-
-    const saved = insertResult.rows[0];
+    const saved = await saveAnalysis(ownerContext, {
+      slug,
+      zillowUrl: sourceUrl || url,
+      zpid,
+      sourceUrl: sourceUrl || url,
+      sourceType: source,
+      propertyData: property,
+      analysisParams: params,
+      analysisResults: results,
+      rentalComps: rentalEstimate.comps || [],
+    });
 
     res.json({
       slug: saved.slug,
+      public_share_id: saved.public_share_id,
       zillow_url: sourceUrl || url,
       zpid,
       source_url: sourceUrl || url,
@@ -356,31 +369,18 @@ router.post('/run', authenticateToken, async (req: AuthRequest, res: Response) =
 });
 
 // ── GET /history ─────────────────────────────────────────────────────────
-router.get('/history', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    const ownerContext = await buildOwnerContext(req);
     const page = Math.max(1, parseInt(String(req.query.page)) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit)) || 20));
     const offset = (page - 1) * limit;
 
-    const [dataRes, countRes] = await Promise.all([
-      pool.query(
-        `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-                analysis_results, rental_comps, user_overrides, is_shared, created_at
-         FROM property_analyses
-         WHERE user_id = $1
-         ORDER BY created_at DESC
-         LIMIT $2 OFFSET $3`,
-        [req.userId, limit, offset],
-      ),
-      pool.query(
-        `SELECT COUNT(*)::int AS total FROM property_analyses WHERE user_id = $1`,
-        [req.userId],
-      ),
-    ]);
+    const { analyses, total } = await listAnalyses(ownerContext, limit, offset);
 
     res.json({
-      analyses: dataRes.rows,
-      total: countRes.rows[0].total,
+      analyses,
+      total,
       page,
       limit,
     });
@@ -391,20 +391,16 @@ router.get('/history', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 // ── GET /history/:slug ─────────────────────────────────────────────────────
-router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/history/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const result = await pool.query(
-      `SELECT slug, zillow_url, zpid, property_data, analysis_params,
-              analysis_results, rental_comps, user_overrides, is_shared, created_at
-       FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
-    );
+    const ownerContext = await buildOwnerContext(req);
+    const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
 
-    if (result.rows.length === 0) {
+    if (analysis == null) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
-    res.json({ analysis: result.rows[0] });
+    res.json({ analysis });
   } catch (err: any) {
     console.error('[analyzer/history/:id]', err.message);
     res.status(500).json({ error: err.message });
@@ -412,14 +408,11 @@ router.get('/history/:slug', authenticateToken, async (req: AuthRequest, res: Re
 });
 
 // ── DELETE /history/:slug ──────────────────────────────────────────────────
-router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/history/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const result = await pool.query(
-      `DELETE FROM property_analyses WHERE slug = $1 AND user_id = $2 RETURNING slug`,
-      [req.params.slug, req.userId],
-    );
+    const ownerContext = await buildOwnerContext(req);
 
-    if (result.rows.length === 0) {
+    if (!await deleteAnalysisBySlug(ownerContext, req.params.slug)) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
@@ -433,18 +426,15 @@ router.delete('/history/:slug', authenticateToken, async (req: AuthRequest, res:
 // ── POST /re-analyze/:slug ────────────────────────────────────────────────
 // Re-run analysis on a previously-saved property with new params.
 // Updates the existing entry in-place (same slug/URL).
-router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const original = await pool.query(
-      `SELECT * FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
-    );
+    const ownerContext = await buildOwnerContext(req);
+    const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
 
-    if (original.rows.length === 0) {
+    if (row == null) {
       return res.status(404).json({ error: 'Original analysis not found.' });
     }
 
-    const row = original.rows[0];
     const property = row.property_data;
     const newParams: AnalysisParams = {
       ...DEFAULT_ANALYSIS_PARAMS,
@@ -587,29 +577,21 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
     investmentAnalysisService.finalizeAnalysis(results);
 
     // Update existing entry in-place
-    const updateResult = await pool.query(
-      `UPDATE property_analyses
-       SET property_data    = $1,
-           analysis_params  = $2,
-           analysis_results = $3,
-           rental_comps     = $4,
-           created_at       = CURRENT_TIMESTAMP
-       WHERE slug = $5 AND user_id = $6
-       RETURNING slug, created_at`,
-      [
-        JSON.stringify(property),
-        JSON.stringify(newParams),
-        JSON.stringify(results),
-        JSON.stringify(rentalEstimate.comps || []),
-        req.params.slug,
-        req.userId,
-      ],
-    );
+    const saved = await updateAnalysisAfterReanalysis(ownerContext, {
+      slug: req.params.slug,
+      propertyData: property,
+      analysisParams: newParams,
+      analysisResults: results,
+      rentalComps: rentalEstimate.comps || [],
+    });
 
-    const saved = updateResult.rows[0];
+    if (saved == null) {
+      return res.status(404).json({ error: 'Original analysis not found.' });
+    }
 
     res.json({
       slug: saved.slug,
+      public_share_id: saved.public_share_id,
       zillow_url: row.zillow_url,
       zpid: row.zpid,
       source_url: row.source_url || row.zillow_url,
@@ -629,25 +611,22 @@ router.post('/re-analyze/:slug', authenticateToken, async (req: AuthRequest, res
 
 // ── PATCH /history/:slug/share ───────────────────────────────────────────
 // Toggle sharing on or off for a saved analysis.
-router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.patch('/history/:slug/share', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { shared } = req.body as { shared?: boolean };
     if (typeof shared !== 'boolean') {
       return res.status(400).json({ error: '"shared" must be a boolean.' });
     }
 
-    const result = await pool.query(
-      `UPDATE property_analyses SET is_shared = $1
-       WHERE slug = $2 AND user_id = $3
-       RETURNING slug, is_shared`,
-      [shared, req.params.slug, req.userId],
-    );
+    const ownerContext = await buildOwnerContext(req);
 
-    if (result.rows.length === 0) {
+    const shareState = await setAnalysisShared(ownerContext, req.params.slug, shared);
+
+    if (shareState == null) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
-    res.json(result.rows[0]);
+    res.json(shareState);
   } catch (err: any) {
     console.error('[analyzer/share]', err.message);
     res.status(500).json({ error: err.message });
@@ -661,7 +640,7 @@ router.patch('/history/:slug/share', authenticateToken, async (req: AuthRequest,
 // the stored analysis_results so the values flow into property comparisons.
 // Gross revenue is left RAW; only net figures are updated so a reload recomputes
 // identically from the raw gross + overrides (no double-counting).
-router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.patch('/history/:slug/overrides', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { overrides, derived } = req.body as {
       overrides?: Record<string, unknown>;
@@ -678,16 +657,14 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
       return res.status(400).json({ error: '"overrides" must be an object.' });
     }
 
-    const existing = await pool.query(
-      `SELECT analysis_results FROM property_analyses WHERE slug = $1 AND user_id = $2`,
-      [req.params.slug, req.userId],
-    );
+    const ownerContext = await buildOwnerContext(req);
 
-    if (existing.rows.length === 0) {
+    const results = await getAnalysisResultsForOverrides(ownerContext, req.params.slug);
+
+    if (results == null) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
-    const results = existing.rows[0].analysis_results || {};
     const d = derived || {};
 
     if (d.cashFlow != null) results.cashFlow = d.cashFlow;
@@ -700,15 +677,7 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
       results.mtrEstimate.netMonthlyRevenue = d.mtrNet;
     }
 
-    const updateResult = await pool.query(
-      `UPDATE property_analyses
-       SET analysis_results = $1, user_overrides = $2
-       WHERE slug = $3 AND user_id = $4
-       RETURNING slug`,
-      [JSON.stringify(results), JSON.stringify(overrides), req.params.slug, req.userId],
-    );
-
-    if (updateResult.rows.length === 0) {
+    if (!await updateAnalysisOverrides(ownerContext, req.params.slug, results, overrides)) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
@@ -719,27 +688,27 @@ router.patch('/history/:slug/overrides', authenticateToken, async (req: AuthRequ
   }
 });
 
-// ── GET /shared/:slug ────────────────────────────────────────────────────
+// ── GET /shared/:identifier ───────────────────────────────────────────────
 // Public read-only view — no authentication required.
-// Only returns the analysis if the owner has enabled sharing.
-router.get('/shared/:slug', async (req, res: Response) => {
+// Accepts either the opaque public share ID or a legacy slug alias, and only
+// returns the analysis if the owner has enabled sharing.
+router.get('/shared/:identifier', async (req, res: Response) => {
   try {
-    const result = await pool.query(
-      `SELECT slug, property_data, analysis_params, analysis_results, rental_comps, created_at
-       FROM property_analyses
-       WHERE slug = $1 AND is_shared = TRUE`,
-      [req.params.slug],
-    );
+    const analysis = await getSharedAnalysisByPublicIdentifier(req.params.identifier);
 
-    if (result.rows.length === 0) {
+    if (analysis == null) {
       return res.status(404).json({ error: 'Shared analysis not found or sharing is disabled.' });
     }
 
-    res.json({ analysis: result.rows[0] });
+    res.json({ analysis });
   } catch (err: any) {
     console.error('[analyzer/shared]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
+return router;
+}
+
+const router = createPropertyAnalyzerRouter();
 export default router;
