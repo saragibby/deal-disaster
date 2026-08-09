@@ -24,6 +24,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Heroku terminates TLS at its router, so trust the first proxy hop to get the
+// real client IP in req.ip (used by auth rate limiting).
+app.set('trust proxy', 1);
+
 function parseHostList(...values: Array<string | undefined>): string[] {
   return values
     .flatMap(value => (value || '').split(','))

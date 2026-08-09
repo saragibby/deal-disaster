@@ -57,7 +57,12 @@ export class ApiService {
     });
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
+      const err = new Error(error.error || 'Registration failed') as Error & { needsVerification?: boolean; email?: string };
+      if (error.needsVerification) {
+        err.needsVerification = true;
+        err.email = error.email;
+      }
+      throw err;
     }
     return response.json();
   }
@@ -70,7 +75,25 @@ export class ApiService {
     });
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+      const err = new Error(error.error || 'Login failed') as Error & { needsVerification?: boolean; email?: string };
+      if (error.needsVerification) {
+        err.needsVerification = true;
+        err.email = error.email;
+      }
+      throw err;
+    }
+    return response.json();
+  }
+
+  async resendVerification(email: string) {
+    const response = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to resend verification email');
     }
     return response.json();
   }
