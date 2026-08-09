@@ -13,6 +13,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   // In production, use same origin. In dev, use localhost:3002
   const apiUrl = api.getBaseUrl();
@@ -52,6 +53,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setNeedsVerification(false);
     setLoading(true);
 
     try {
@@ -65,6 +67,25 @@ export default function Login() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
+      if ((err as { needsVerification?: boolean })?.needsVerification) {
+        setNeedsVerification(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const data = await api.resendVerification(email);
+      setSuccess(data.message || 'Verification email sent! Please check your inbox.');
+      setNeedsVerification(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend verification email');
     } finally {
       setLoading(false);
     }
@@ -191,13 +212,23 @@ export default function Login() {
               <button
                 type="button"
                 className="login-card__forgot"
-                onClick={() => { setShowForgotPassword(true); setError(''); setSuccess(''); }}
+                onClick={() => { setShowForgotPassword(true); setError(''); setSuccess(''); setNeedsVerification(false); }}
               >
                 Forgot password?
               </button>
             )}
 
             {error && <div className="login-form__error">{error}</div>}
+            {needsVerification && (
+              <button
+                type="button"
+                className="login-card__forgot"
+                onClick={handleResendVerification}
+                disabled={loading}
+              >
+                Resend verification email
+              </button>
+            )}
             {success && <div className="login-form__success">{success}</div>}
 
             <button type="submit" className="btn btn--primary btn--full" disabled={loading}>
@@ -208,11 +239,11 @@ export default function Login() {
 
         <div className="login-card__footer">
           {showForgotPassword ? (
-            <button className="login-card__toggle" onClick={() => { setShowForgotPassword(false); setError(''); setSuccess(''); }}>
+            <button className="login-card__toggle" onClick={() => { setShowForgotPassword(false); setError(''); setSuccess(''); setNeedsVerification(false); }}>
               ← Back to sign in
             </button>
           ) : (
-            <button className="login-card__toggle" onClick={() => { setIsLoginMode(!isLoginMode); setError(''); setSuccess(''); }}>
+            <button className="login-card__toggle" onClick={() => { setIsLoginMode(!isLoginMode); setError(''); setSuccess(''); setNeedsVerification(false); }}>
               {isLoginMode ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
             </button>
           )}
