@@ -57,9 +57,10 @@ export class ApiService {
     });
     if (!response.ok) {
       const error = await response.json();
-      const err = new Error(error.error || 'Registration failed') as Error & { needsVerification?: boolean };
+      const err = new Error(error.error || 'Registration failed') as Error & { needsVerification?: boolean; email?: string };
       if (error.needsVerification) {
         err.needsVerification = true;
+        err.email = error.email;
       }
       throw err;
     }
@@ -74,9 +75,10 @@ export class ApiService {
     });
     if (!response.ok) {
       const error = await response.json();
-      const err = new Error(error.error || 'Login failed') as Error & { needsVerification?: boolean };
+      const err = new Error(error.error || 'Login failed') as Error & { needsVerification?: boolean; email?: string };
       if (error.needsVerification) {
         err.needsVerification = true;
+        err.email = error.email;
       }
       throw err;
     }

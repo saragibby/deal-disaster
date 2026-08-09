@@ -5,9 +5,16 @@ import passport from '../config/passport.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { pool } from '../db/pool.js';
 import { generateToken, sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService.js';
+import { isRateLimited } from '../middleware/rateLimit.js';
 
 const router = Router();
 const SALT_ROUNDS = 10;
+
+// Limits for the unauthenticated resend-verification endpoint, keyed by email
+// and by client IP so a single actor can't spam either axis.
+const RESEND_WINDOW_MS = 15 * 60 * 1000;
+const RESEND_MAX_PER_EMAIL = 3;
+const RESEND_MAX_PER_IP = 10;
 
 // Email/Password Registration
 router.post('/register', async (req: Request, res: Response) => {
@@ -200,10 +207,22 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
+    const normalizedEmail = email.toLowerCase();
+    const clientIp = req.ip || 'unknown';
+
+    if (
+      isRateLimited({ key: `resend:email:${normalizedEmail}`, max: RESEND_MAX_PER_EMAIL, windowMs: RESEND_WINDOW_MS }) ||
+      isRateLimited({ key: `resend:ip:${clientIp}`, max: RESEND_MAX_PER_IP, windowMs: RESEND_WINDOW_MS })
+    ) {
+      return res.status(429).json({
+        error: 'Too many verification email requests. Please wait a few minutes and try again.',
+      });
+    }
+
     // Find user
     const result = await pool.query(
       'SELECT id, email, name, email_verified FROM users WHERE email = $1',
-      [email.toLowerCase()]
+      [normalizedEmail]
     );
 
     if (result.rows.length === 0) {

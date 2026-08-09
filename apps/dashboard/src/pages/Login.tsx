@@ -14,6 +14,7 @@ export default function Login() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   // In production, use same origin. In dev, use localhost:3002
   const apiUrl = api.getBaseUrl();
@@ -67,7 +68,9 @@ export default function Login() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
-      if ((err as { needsVerification?: boolean })?.needsVerification) {
+      const verificationErr = err as { needsVerification?: boolean; email?: string };
+      if (verificationErr?.needsVerification) {
+        setVerificationEmail(verificationErr.email || email);
         setNeedsVerification(true);
       }
     } finally {
@@ -81,7 +84,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const data = await api.resendVerification(email);
+      const data = await api.resendVerification(verificationEmail);
       setSuccess(data.message || 'Verification email sent! Please check your inbox.');
       setNeedsVerification(false);
     } catch (err) {
@@ -194,7 +197,7 @@ export default function Login() {
               type="email"
               placeholder="Email address"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={e => { setEmail(e.target.value); setNeedsVerification(false); }}
               required
               className="login-form__input"
             />
@@ -226,7 +229,7 @@ export default function Login() {
                 onClick={handleResendVerification}
                 disabled={loading}
               >
-                Resend verification email
+                Resend verification email to {verificationEmail}
               </button>
             )}
             {success && <div className="login-form__success">{success}</div>}
