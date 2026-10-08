@@ -122,6 +122,275 @@ test.describe('Property Analyzer', () => {
 propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => {
   propertyAnalyzerTest.setTimeout(60000);
 
+  for (const viewport of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }]) {
+  propertyAnalyzerTest(`paginates, filters, and sorts LTR and MTR deep-dive comparables consistently on ${viewport.name}`, async ({ page, propertyFixtures }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await loginAsFixtureOwner(page, propertyFixtures);
+    const analysis = structuredClone(propertyFixtures.ownedAnalyses[0]);
+    analysis.analysis_results.rentalEstimate.comps = Array.from({ length: 18 }, (_, index) => ({
+      address: `Rental ${String(index + 1).padStart(2, '0')}`,
+      source: 'rentcast',
+      rent: 1000 + index * 100,
+      bedrooms: index % 3,
+      sqft: 1000 + index * 50,
+    }));
+    const mtr = analysis.analysis_results.mtrEstimate = {
+      monthlyRate: 3000, furnishedPremium: 1.35, occupancyRate: 0.9,
+      avgStayMonths: 3, turnoversPerYear: 4, grossMonthlyRevenue: 2700,
+      utilityCosts: 200, turnoverCosts: 50, platformFees: 0, managementCosts: 100,
+      netMonthlyRevenue: 2350, confidence: 'high', source: 'furnished-finder',
+      seasonality: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        .map((month, index) => ({ month, revenue: 2500 + index * 20, occupancy: 0.9 })),
+      revenueRange: { low: 2200, mid: 2700, high: 3200 },
+      furnishingCosts: {
+        perBedroomCost: 2000, commonAreaCost: 3000, totalCost: 9000,
+        amortizedMonthly: 150, usefulLifeYears: 5, quality: 'standard',
+      },
+      demandFactors: {
+        bedroomScore: 90, propertyTypeScore: 65, overallScore: 93,
+        nearbyInstitutions: [
+          { name: 'Fixture Medical Center', emoji: '🏥', miles: 2.4 },
+          { name: 'Fixture University', emoji: '🎓', miles: 4.8 },
+        ],
+      },
+      marketComps: { radiusMiles: 10, sampleSize: 18, totalListings: 30, comps: [] },
+    };
+    mtr.marketComps = {
+      radiusMiles: 10, sampleSize: 18, totalListings: 30,
+      comps: Array.from({ length: 18 }, (_, index) => ({
+        bedrooms: index === 17 ? null : index % 3,
+        bathrooms: index === 17 ? null : 1 + index % 2,
+        propertyType: index === 17 ? null : index % 2 === 0 ? 'single_family' : 'apartment',
+        monthlyRate: 2000 + index * 100,
+      })),
+    };
+    analysis.analysis_results.strEstimate = {
+      nightlyRate: 150, occupancyRate: 0.65, grossMonthlyRevenue: 2925,
+      cleaningCosts: 300, platformFees: 90, netMonthlyRevenue: 2535,
+      confidence: 'medium', source: 'algorithm',
+    };
+    await page.route(`**/api/analyzer/history/${analysis.slug}`, route => route.fulfill({
+      json: { analysis },
+    }));
+    await page.goto(`/property-analyzer/analysis/${analysis.slug}`);
+    await expectFixtureAnalysisVisible(page, analysis);
+
+    const deepDive = page.locator('.rental-tabs');
+    await expect(deepDive.getByRole('button', { name: 'Long-Term', exact: true }))
+      .toContainText('High confidence');
+    await expect(deepDive.getByRole('button', { name: 'Mid-Term', exact: true }))
+      .toContainText('High confidence');
+    await expect(deepDive.getByRole('button', { name: 'Short-Term', exact: true }))
+      .toContainText('Medium confidence');
+    for (const tab of ['Long-Term', 'Mid-Term', 'Short-Term']) {
+      await deepDive.getByRole('button', { name: tab, exact: true }).click();
+      const cards = deepDive.locator('.rental-tabs__panel').locator(
+        '.rental-insights__str-stat, .rental-insights__deep-section, .rental-tabs__cashflow, .rental-tabs__cashflow-item, .mtr-furnishing-card, .mtr-demand',
+      );
+      expect(await cards.count()).toBeGreaterThan(0);
+      for (const card of await cards.all()) {
+        await expect(card).toHaveCSS('border-top-width', '1px');
+        await expect(card).toHaveCSS('border-right-width', '1px');
+        await expect(card).toHaveCSS('border-bottom-width', '1px');
+        await expect(card).toHaveCSS('border-left-width', '1px');
+        await expect(card).toHaveCSS('border-top-style', 'solid');
+        await expect(card).toHaveCSS('border-radius', '12px');
+      }
+    }
+    await deepDive.getByRole('button', { name: 'Long-Term', exact: true }).click();
+    for (const strategy of ['LTR', 'MTR']) {
+      if (strategy === 'MTR') {
+        await deepDive.getByRole('button', { name: 'Mid-Term', exact: true }).click();
+        const demand = deepDive.getByRole('region', { name: 'MTR Demand', exact: true });
+        await expect(demand).toContainText('93/100');
+        await expect(demand).toContainText('Strong');
+        await expect(demand).toContainText('Estimated suitability for mid-term rentals');
+        await expect(demand.getByRole('meter', { name: 'Bedroom fit', exact: true })).toHaveAttribute('aria-valuenow', '90');
+        await expect(demand.getByRole('meter', { name: 'Property-type fit', exact: true })).toHaveAttribute('aria-valuenow', '65');
+        const rentalBar = page.locator('.strategy-comparison__bar-fill--income-mtr').first();
+        const demandBars = demand.locator('.strategy-comparison__bar-fill');
+        for (const property of ['background-image', 'border-radius', 'height']) {
+          const rentalStyle = await rentalBar.evaluate((element, name) => getComputedStyle(element).getPropertyValue(name), property);
+          await expect(demandBars.nth(0)).toHaveCSS(property, rentalStyle);
+          await expect(demandBars.nth(1)).toHaveCSS(property, rentalStyle);
+        }
+        await expect(demand).toContainText('+15 points');
+        const institutions = deepDive.getByRole('region', { name: 'Nearby Institutions', exact: true });
+        await expect(institutions).toContainText('Fixture Medical Center');
+        await expect(institutions).toContainText('2.4 mi');
+        await expect(demand).not.toContainText('Fixture Medical Center');
+        const leftColumn = deepDive.locator('.mtr-demand-column');
+        await expect(leftColumn.getByRole('region', { name: 'MTR Demand', exact: true })).toBeVisible();
+        const furnishingBox = await leftColumn.locator('.rental-insights__mtr-furnishing').boundingBox();
+        await expect(leftColumn.getByRole('region', { name: 'Upfront furnishing', exact: true })).toContainText('$9,000');
+        await expect(leftColumn.getByRole('region', { name: 'Monthly amortization', exact: true })).toContainText('$150/mo');
+        await expect(leftColumn.locator('.mtr-furnishing-card')).toHaveCount(2);
+        await expect(leftColumn.locator('.mtr-furnishing-card').first()).toHaveCSS('border-top-style', 'solid');
+        const demandBox = await demand.boundingBox();
+        if (!furnishingBox || !demandBox) throw new Error('Furnishing and demand layout is not visible.');
+        expect(furnishingBox.x).toBe(demandBox.x);
+        expect(furnishingBox.width).toBe(demandBox.width);
+        expect(demandBox.y).toBeGreaterThanOrEqual(furnishingBox.y + furnishingBox.height);
+        const factorsBox = await leftColumn.boundingBox();
+        const institutionsBox = await institutions.boundingBox();
+        if (!factorsBox || !institutionsBox) throw new Error('Demand card layout is not visible.');
+        if (viewport.name === 'mobile') {
+          expect(institutionsBox.y).toBeGreaterThanOrEqual(factorsBox.y + factorsBox.height);
+        } else {
+          expect(institutionsBox.x).toBeGreaterThan(factorsBox.x);
+          expect(institutionsBox.y).toBe(factorsBox.y);
+        }
+        await expect(deepDive.locator('.rental-insights__mtr-furnishing')).toContainText('Upfront furnishing');
+        await expect(deepDive.locator('.rental-insights__mtr-furnishing')).toContainText('$9,000');
+        await expect(deepDive.locator('.rental-insights__mtr-furnishing')).toContainText('Monthly amortization');
+        await expect(deepDive.locator('.rental-insights__mtr-furnishing')).toContainText('$150/mo');
+        const charts = deepDive.locator('.mtr-revenue-charts');
+        await expect(charts).toContainText('MTR Monthly Revenue Seasonality');
+        await expect(charts).toContainText('MTR Revenue Range');
+        const demandBarHeight = await demand.getByRole('meter', { name: 'Bedroom fit', exact: true })
+          .evaluate(element => getComputedStyle(element).height);
+        await expect(charts.locator('.rental-insights__range-track')).toHaveCSS('height', demandBarHeight);
+        const seasonalityBox = await charts.locator(':scope > div').nth(0).boundingBox();
+        const rangeBox = await charts.locator(':scope > div').nth(1).boundingBox();
+        if (!seasonalityBox || !rangeBox) throw new Error('MTR revenue charts are not visible.');
+        if (viewport.name === 'desktop') {
+          expect(rangeBox.x).toBeGreaterThan(seasonalityBox.x);
+          expect(rangeBox.y).toBe(seasonalityBox.y);
+          const plotBox = await charts.locator('.rental-insights__seasonality-chart').boundingBox();
+          const rangePlotBox = await charts.locator('.rental-insights__range').boundingBox();
+          if (!plotBox || !rangePlotBox) throw new Error('Revenue plotting areas are not visible.');
+          expect(Math.abs((rangePlotBox.y + rangePlotBox.height / 2) - (plotBox.y + plotBox.height / 2)))
+            .toBeLessThanOrEqual(1);
+        } else {
+          expect(rangeBox.y).toBeGreaterThanOrEqual(seasonalityBox.y + seasonalityBox.height);
+        }
+      }
+      const table = deepDive.getByRole('table', {
+        name: strategy === 'LTR' ? 'LTR rental comparables' : 'MTR furnished comparables',
+      });
+      const section = deepDive.getByRole('region', {
+        name: strategy === 'LTR' ? 'LTR rental comparables' : 'MTR furnished comparables',
+      });
+      await expect(table.locator('tbody tr')).toHaveCount(8);
+      await expect(table.getByRole('spinbutton')).toHaveCount(0);
+      await expect(table.getByRole('searchbox')).toHaveCount(0);
+      await expect(section.getByRole('status')).toContainText('1-8 of 18');
+      await expect(section.getByRole('button', { name: 'Previous page', exact: true })).toBeDisabled();
+      await section.getByRole('button', { name: 'Next page', exact: true }).click();
+      await expect(section.getByRole('status')).toContainText('9-16 of 18');
+      await section.getByRole('button', { name: 'Next page', exact: true }).click();
+      await expect(table.locator('tbody tr')).toHaveCount(2);
+      await expect(section.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+
+      for (const label of strategy === 'LTR' ? ['Source', 'Rent / mo', 'Beds', 'Sq Ft'] : ['Beds', 'Baths', 'Property Type', 'Rent / mo']) {
+        const header = table.getByRole('columnheader').filter({ has: page.getByRole('button', { name: label, exact: true }) });
+        await header.getByRole('button', { name: label, exact: true }).click();
+        await expect(header).toHaveAttribute('aria-sort', 'ascending');
+        await expect(section.getByRole('status')).toContainText('Page 1 of 3');
+        await header.getByRole('button', { name: label, exact: true }).click();
+        await expect(header).toHaveAttribute('aria-sort', 'descending');
+      }
+      const rentIndex = strategy === 'LTR' ? 1 : 3;
+      await expect(table.locator('tbody tr').first().locator('td').nth(rentIndex)).toHaveText(strategy === 'LTR' ? '$2,700' : '$3,700');
+      await table.getByRole('button', { name: 'Rent / mo', exact: true }).click();
+      await expect(table.locator('tbody tr').first().locator('td').nth(rentIndex)).toHaveText(strategy === 'LTR' ? '$1,000' : '$2,000');
+
+      await section.getByRole('button', { name: 'Next page', exact: true }).click();
+      const editor = page.getByRole('dialog');
+      await table.getByRole('button', { name: 'Edit Rent / mo filter', exact: true }).click();
+      await expect(editor).toBeVisible();
+      await expect(editor).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      await expect(editor.getByRole('spinbutton', { name: 'Minimum Rent / mo', exact: true }))
+        .toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      const editorBox = await editor.boundingBox();
+      expect(editorBox).not.toBeNull();
+      expect(editorBox!.x).toBeGreaterThanOrEqual(0);
+      expect(editorBox!.x + editorBox!.width).toBeLessThanOrEqual(viewport.width);
+      await editor.getByRole('spinbutton', { name: 'Minimum Rent / mo', exact: true }).fill(strategy === 'LTR' ? '1500' : '2500');
+      await editor.getByRole('spinbutton', { name: 'Maximum Rent / mo', exact: true }).fill(strategy === 'LTR' ? '1800' : '2800');
+      await editor.getByRole('button', { name: 'Done', exact: true }).click();
+      await expect(section.locator('.rental-comps__toolbar')).toContainText(strategy === 'LTR' ? 'Rent / mo: $1,500 - $1,800' : 'Rent / mo: $2,500 - $2,800');
+      await expect(table.locator('tbody tr')).toHaveCount(4);
+      await expect(section.getByRole('status')).toContainText('1-4 of 4 (18 total)');
+      await table.getByRole('button', { name: 'Edit Beds filter', exact: true }).click();
+      await editor.getByRole('spinbutton', { name: 'Maximum Beds', exact: true }).fill('0');
+      await page.keyboard.press('Escape');
+      await expect(editor).toHaveCount(0);
+      await expect(table.getByRole('button', { name: 'Edit Beds filter', exact: true })).toBeFocused();
+      await expect(table.locator('tbody tr')).toHaveCount(1);
+      await section.getByRole('button', { name: 'Remove Beds filter', exact: true }).click();
+      await expect(table.locator('tbody tr')).toHaveCount(4);
+      await section.getByRole('button', { name: 'Clear filters', exact: true }).click();
+
+      await table.getByRole('button', { name: strategy === 'LTR' ? 'Edit Source filter' : 'Edit Property Type filter', exact: true }).click();
+      await editor.getByRole('searchbox', { name: strategy === 'LTR' ? 'Filter Source' : 'Filter Property Type', exact: true })
+        .fill(strategy === 'LTR' ? 'rEnTaL 01' : 'SINGLE FAMILY');
+      await expect(table.locator('tbody tr')).toHaveCount(strategy === 'LTR' ? 1 : 8);
+      await expect(section.getByRole('status')).toContainText(strategy === 'LTR' ? 'of 1 (18 total)' : 'of 9 (18 total)');
+      await editor.getByRole('searchbox').fill('no such property');
+      await expect(table).toContainText('No comparable properties match these filters.');
+      await expect(section.getByRole('status')).toContainText('0 of 0');
+      await expect(section.getByRole('button', { name: 'Next page', exact: true })).toBeDisabled();
+      await editor.getByRole('button', { name: 'Done', exact: true }).click();
+      await section.getByRole('button', { name: 'Clear filters', exact: true }).click();
+      await expect(table.locator('tbody tr')).toHaveCount(8);
+      await table.getByRole('button', { name: 'Edit Beds filter', exact: true }).click();
+      await editor.getByRole('spinbutton', { name: 'Maximum Beds', exact: true }).fill('0');
+      await expect(table.locator('tbody tr')).toHaveCount(6);
+      await expect(table.locator('tbody tr').first().locator('td').nth(strategy === 'LTR' ? 2 : 0)).toHaveText('0');
+      await editor.getByRole('button', { name: 'Reset filter', exact: true }).click();
+      await expect(editor.getByRole('spinbutton', { name: 'Maximum Beds', exact: true })).toHaveValue('');
+      await expect(table.locator('tbody tr')).toHaveCount(8);
+      await section.locator('.rental-comps__toolbar > span').click();
+      await expect(editor).toHaveCount(0);
+      await expect(section.getByRole('button', { name: 'Clear filters', exact: true })).toBeDisabled();
+      if (strategy === 'MTR') {
+        await table.getByRole('button', { name: 'Beds', exact: true }).click();
+        await table.getByRole('button', { name: 'Beds', exact: true }).click();
+        await expect(table.locator('tbody tr').first().locator('td').first()).toHaveText('2');
+        await section.getByRole('button', { name: 'Next page', exact: true }).click();
+        await section.getByRole('button', { name: 'Next page', exact: true }).click();
+        await expect(table.locator('tbody tr').last().locator('td').first()).toHaveText('—');
+        await expect(table.locator('tbody tr').last().locator('td').nth(2)).toHaveText('—');
+      }
+    }
+  });
+  }
+
+  propertyAnalyzerTest('shows unavailable demand data without inventing a location boost', async ({ page, propertyFixtures }) => {
+    await loginAsFixtureOwner(page, propertyFixtures);
+    const analysis = structuredClone(propertyFixtures.ownedAnalyses[0]);
+    analysis.analysis_results.mtrEstimate = {
+      monthlyRate: 3000, furnishedPremium: 1.35, occupancyRate: 0.9,
+      avgStayMonths: 3, turnoversPerYear: 4, grossMonthlyRevenue: 2700,
+      utilityCosts: 200, turnoverCosts: 50, platformFees: 0, managementCosts: 100,
+      netMonthlyRevenue: 2350, confidence: 'low', source: 'algorithm',
+      furnishingCosts: {
+        perBedroomCost: 2000, commonAreaCost: 3000, totalCost: 9000,
+        amortizedMonthly: 150, usefulLifeYears: 5, quality: 'standard',
+      },
+      demandFactors: { bedroomScore: 90, propertyTypeScore: 65, overallScore: 78 },
+    };
+    await page.route(`**/api/analyzer/history/${analysis.slug}`, route => route.fulfill({ json: { analysis } }));
+    await page.goto(`/property-analyzer/analysis/${analysis.slug}`);
+    await expectFixtureAnalysisVisible(page, analysis);
+    await page.locator('.rental-tabs').getByRole('button', { name: 'Mid-Term', exact: true }).click();
+    await expect(page.locator('.rental-tabs').getByRole('button', { name: 'Mid-Term', exact: true })).toContainText('Low confidence');
+    const demand = page.getByRole('region', { name: 'MTR Demand', exact: true });
+    await expect(demand).toContainText('No added boost');
+    await expect(page.getByRole('region', { name: 'Nearby Institutions', exact: true })).toContainText('Nearby institution data is unavailable');
+    await expect(demand).not.toContainText('+1 points');
+    analysis.analysis_results.mtrEstimate.demandFactors = {
+      bedroomScore: 95, propertyTypeScore: 90, overallScore: 100,
+      nearbyInstitutions: [{ name: 'Fixture Hospital', emoji: '🏥', miles: 1 }],
+    };
+    await page.reload();
+    await expectFixtureAnalysisVisible(page, analysis);
+    await page.locator('.rental-tabs').getByRole('button', { name: 'Mid-Term', exact: true }).click();
+    await expect(demand).toContainText('100/100');
+    await expect(demand).toContainText('+7 points');
+  });
+
   propertyAnalyzerTest('loads authenticated analyzer shell with header navigation, tabs, and AskWill', async ({ page, propertyFixtures }) => {
     await openAnalyzerShell(page, propertyFixtures);
 

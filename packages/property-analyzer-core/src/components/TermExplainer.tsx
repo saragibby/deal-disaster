@@ -144,7 +144,8 @@ export const TERM_EXPLAINERS: Record<string, TermDefinition> = {
   'mtr demand score': {
     term: 'MTR Demand Score',
     definition:
-      'A composite score (0–100) indicating how suitable a property is for mid-term rentals based on bedroom count and property type. Higher scores suggest stronger demand from traveling nurses, corporate relocations, and insurance claims.',
+      'A modeled suitability score (0–100), not measured rental demand. Bedroom fit and property-type fit are weighted equally. Nearby hospitals, military bases, universities, corporate offices, and government buildings can add up to 15 points when lookup data is available.',
+    formula: 'min(100, round(Bedroom Score × 50% + Property Type Score × 50% + Proximity Boost))',
   },
   'turnover costs': {
     term: 'Turnover Costs',

@@ -6,6 +6,8 @@ import type {
   STREstimate,
   MTREstimate,
   MTRMarketComps,
+  MTRComp,
+  RentalComp,
   ComparableProperty,
   CashFlowBreakdown,
   ROIMetrics,
@@ -22,6 +24,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import StrategyComparison from './StrategyComparison';
+import RentalCompsTable, { type RentalCompsColumn } from './RentalCompsTable';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import { usePropertyAnalyzerCore } from '../context.js';
 
@@ -164,10 +167,10 @@ export default function RentalTabs({
     setActiveTab('ltr');
   }, [propertyKey]);
 
-  const tabs: { key: TabKey; label: string; icon: React.ReactNode; className: string; show: boolean }[] = [
-    { key: 'ltr', label: 'Long-Term', icon: <Home size={15} />, className: 'rental-tabs__tab--ltr', show: true },
-    { key: 'mtr', label: 'Mid-Term', icon: <Building2 size={15} />, className: 'rental-tabs__tab--mtr', show: !!mtrEstimate },
-    { key: 'str', label: 'Short-Term', icon: <Sparkles size={15} />, className: 'rental-tabs__tab--str', show: !!strEstimate },
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode; className: string; show: boolean; confidence?: RentalEstimate['confidence'] }[] = [
+    { key: 'ltr', label: 'Long-Term', icon: <Home size={15} />, className: 'rental-tabs__tab--ltr', show: true, confidence: rental.confidence },
+    { key: 'mtr', label: 'Mid-Term', icon: <Building2 size={15} />, className: 'rental-tabs__tab--mtr', show: !!mtrEstimate, confidence: mtrEstimate?.confidence },
+    { key: 'str', label: 'Short-Term', icon: <Sparkles size={15} />, className: 'rental-tabs__tab--str', show: !!strEstimate, confidence: strEstimate?.confidence },
   ];
 
   return (
@@ -182,10 +185,18 @@ export default function RentalTabs({
           <button
             key={t.key}
             type="button"
+            aria-label={t.label}
+            title={t.confidence ? `${t.label} estimation confidence: ${t.confidence}` : undefined}
             className={`rental-tabs__tab ${t.className}${activeTab === t.key ? ' rental-tabs__tab--active' : ''}`}
             onClick={() => setActiveTab(t.key)}
           >
             {t.icon} {t.label}
+            {t.confidence && (
+              <span className={`rental-tabs__confidence rental-tabs__confidence--${t.confidence}`}
+                aria-label={`${t.confidence} estimation confidence`}>
+                {t.confidence.charAt(0).toUpperCase() + t.confidence.slice(1)} confidence
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -194,6 +205,7 @@ export default function RentalTabs({
       <div className="rental-tabs__panel">
         {activeTab === 'ltr' && (
           <LTRPanel
+            key={propertyKey}
             rental={rental}
             effectiveRent={effectiveRent}
             cashFlow={cashFlow}
@@ -204,6 +216,7 @@ export default function RentalTabs({
         )}
         {activeTab === 'mtr' && mtrEstimate && (
           <MTRPanel
+            key={propertyKey}
             mtrEstimate={mtrEstimate}
             ltrRent={effectiveRent}
             cashFlow={cashFlow}
@@ -278,30 +291,14 @@ function LTRPanel({
 
       {/* Rental comps table */}
       {rental.comps && rental.comps.length > 0 && (
-        <div className="results__comps-table" style={{ marginTop: '1rem' }}>
+        <div className="rental-insights__deep-section" style={{ marginTop: '1rem' }}>
           <h4 className="rental-insights__heading">
             <Home size={15} /> Rental Comparables
           </h4>
-          <table>
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Rent</th>
-                {rental.comps.some(c => c.bedrooms) && <th>Beds</th>}
-                {rental.comps.some(c => c.sqft) && <th>Sq Ft</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rental.comps.map((comp, i) => (
-                <tr key={i}>
-                  <td>{comp.address || comp.source}</td>
-                  <td><strong>{fmt(comp.rent)}</strong></td>
-                  {rental.comps!.some(c => c.bedrooms) && <td>{comp.bedrooms || '—'}</td>}
-                  {rental.comps!.some(c => c.sqft) && <td>{comp.sqft?.toLocaleString() || '—'}</td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RentalCompsTable label="LTR rental comparables" rows={rental.comps}
+            columns={LTR_COMP_COLUMNS.filter(column =>
+              !['bedrooms', 'sqft'].includes(column.key) ||
+              rental.comps?.some(comp => column.value(comp) != null))} />
         </div>
       )}
 
@@ -360,11 +357,12 @@ function MTRPanel({
 
   const mtrVsLtr = ltrRent > 0 ? ((netMonthlyRevenue - ltrRent) / ltrRent) * 100 : 0;
 
-  const demandColor = demandFactors.overallScore >= 75
-    ? 'rental-insights__demand-badge--green'
-    : demandFactors.overallScore >= 50
-      ? 'rental-insights__demand-badge--yellow'
-      : 'rental-insights__demand-badge--red';
+  const demandLevel = demandFactors.overallScore >= 75 ? 'Strong'
+    : demandFactors.overallScore >= 50 ? 'Moderate' : 'Limited';
+  const demandSignal = demandFactors.overallScore >= 75 ? 'good'
+    : demandFactors.overallScore >= 50 ? 'fair' : 'caution';
+  const baseDemandScore = Math.round((demandFactors.bedroomScore + demandFactors.propertyTypeScore) / 2);
+  const locationContribution = Math.max(0, demandFactors.overallScore - baseDemandScore);
 
   // MTR cash flow: net revenue minus shared ownership costs
   const ownershipCosts = cashFlow.monthlyMortgage + cashFlow.monthlyTax + cashFlow.monthlyInsurance + cashFlow.monthlyHoa;
@@ -399,51 +397,69 @@ function MTRPanel({
         <span>Management {fmt(managementCosts)}/mo</span>
       </div>
 
+      <div className="mtr-demand-row">
+      <div className="mtr-demand-column">
       {/* Furnishing cost summary */}
       <div className="rental-insights__mtr-furnishing">
-        <span>One-time cost: <strong>{fmt(furnishingCosts.totalCost)}</strong> ({furnishingCosts.quality} quality)</span>
-        <span className="rental-insights__dot">·</span>
-        <span>Amortized: <strong>{fmt(furnishingCosts.amortizedMonthly)}/mo</strong> over {furnishingCosts.usefulLifeYears} years</span>
+        <section className="mtr-furnishing-card" aria-label="Upfront furnishing">
+          <span>Upfront furnishing</span>
+          <strong>{fmt(furnishingCosts.totalCost)}</strong>
+          <small>{furnishingCosts.quality} quality</small>
+        </section>
+        <section className="mtr-furnishing-card" aria-label="Monthly amortization">
+          <span>Monthly amortization</span>
+          <strong>{fmt(furnishingCosts.amortizedMonthly)}/mo</strong>
+          <small>Over {furnishingCosts.usefulLifeYears} years</small>
+        </section>
       </div>
 
-      {/* Demand score badge */}
-      <div className="rental-insights__mtr-demand">
-        <TermExplainer info={findExplainer('MTR Demand Score')!} />
-        <span className={`rental-insights__demand-badge ${demandColor}`}>
-          MTR Demand Score: {demandFactors.overallScore}/100
-        </span>
-      </div>
-
-      {/* Demand breakdown — always visible in tab */}
-      <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div className="rental-insights__deep-section">
-          <h5 className="rental-insights__deep-heading">Demand Breakdown</h5>
-          <div className="rental-insights__context-pills">
-            <DemandPill label="Bedroom Score" score={demandFactors.bedroomScore} />
-            <DemandPill label="Property Type Score" score={demandFactors.propertyTypeScore} />
+      <section className={`mtr-demand mtr-demand--${demandSignal}`} aria-label="MTR Demand">
+        <div className="mtr-demand__header">
+          <div>
+            <h5 className="rental-insights__deep-heading">
+              MTR Demand <TermExplainer info={findExplainer('MTR Demand Score')!} />
+            </h5>
+            <p>Estimated suitability for mid-term rentals</p>
+          </div>
+          <div className="mtr-demand__score">
+            <strong>{demandFactors.overallScore}<small>/100</small></strong>
+            <span>{demandLevel}</span>
           </div>
         </div>
-
-        {/* Nearby institutions (hospitals, military bases, universities, etc.) */}
-        {demandFactors.nearbyInstitutions && demandFactors.nearbyInstitutions.length > 0 && (
-          <div className="rental-insights__deep-section">
-            <h5 className="rental-insights__deep-heading">
-              <Building2 size={13} /> Nearby Institutions
-            </h5>
-            <div className="rental-insights__institutions-grid">
-              {demandFactors.nearbyInstitutions.map((inst, i) => (
-                <div key={i} className="rental-insights__institution-row">
-                  <span className="rental-insights__institution-emoji">{inst.emoji}</span>
-                  <span className="rental-insights__institution-name">{inst.name}</span>
-                  {inst.miles > 0 && (
-                    <span className="rental-insights__institution-miles">{inst.miles} mi</span>
-                  )}
-                </div>
-              ))}
+          <div className="mtr-demand__factors">
+            <DemandFactor label="Bedroom fit" score={demandFactors.bedroomScore} />
+            <DemandFactor label="Property-type fit" score={demandFactors.propertyTypeScore} />
+            <div className="mtr-demand__location">
+              <span>Nearby demand drivers</span>
+              <strong>{locationContribution > 0 ? `+${locationContribution} points` : 'No added boost'}</strong>
             </div>
+            <p className="mtr-demand__note">
+              Bedroom and property-type fit are weighted equally. Nearby institutions can add up to 15 points;
+              the total is capped at 100. The contribution shown reflects the rounded, capped score.
+            </p>
           </div>
-        )}
+      </section>
+      </div>
+          <section className="mtr-demand mtr-demand__institutions" aria-label="Nearby Institutions">
+            <h5 className="rental-insights__deep-heading"><Building2 size={13} /> Nearby Institutions</h5>
+            {demandFactors.nearbyInstitutions && demandFactors.nearbyInstitutions.length > 0 ? (
+              <div className="rental-insights__institutions-grid">
+                {demandFactors.nearbyInstitutions.map((inst, i) => (
+                  <div key={i} className="rental-insights__institution-row">
+                    <span className="rental-insights__institution-emoji" aria-hidden="true">{inst.emoji}</span>
+                    <span className="rental-insights__institution-name" title={inst.name}>{inst.name}</span>
+                    {inst.miles > 0 && <span className="rental-insights__institution-miles">{inst.miles} mi</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mtr-demand__note">Nearby institution data is unavailable for this analysis. This does not mean there are no demand drivers nearby.</p>
+            )}
+          </section>
+      </div>
 
+      <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="mtr-revenue-charts">
         {/* Seasonality chart */}
         <SeasonalityChart
           seasonality={seasonality}
@@ -454,6 +470,7 @@ function MTRPanel({
 
         {/* Revenue range */}
         <RevenueRange revenueRange={revenueRange} source={source} label="MTR Revenue Range" />
+        </div>
 
         {/* Furnished Finder comps */}
         <MTRCompsSection marketComps={marketComps} />
@@ -789,14 +806,17 @@ function ExpenseItem({ label, amount }: { label: string; amount: string }) {
   );
 }
 
-function DemandPill({ label, score }: { label: string; score: number }) {
-  const cls = score >= 75 ? 'rental-insights__pill--green'
-    : score >= 50 ? 'rental-insights__pill--yellow'
-      : 'rental-insights__pill--red';
+function DemandFactor({ label, score }: { label: string; score: number }) {
   return (
-    <span className={`rental-insights__pill ${cls}`}>
-      {label}: {score}/100
-    </span>
+    <div className="mtr-demand__factor strategy-comparison__bar-row">
+      <span className="strategy-comparison__bar-label">{label}</span>
+      <div className="strategy-comparison__bar-track" role="meter" aria-label={label}
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
+        <div className="strategy-comparison__bar-fill strategy-comparison__bar-fill--income-mtr"
+          style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+      </div>
+      <strong className="strategy-comparison__bar-value">{score}/100</strong>
+    </div>
   );
 }
 
@@ -915,6 +935,20 @@ function formatPropertyType(type: string | null): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const LTR_COMP_COLUMNS: RentalCompsColumn<RentalComp>[] = [
+  { key: 'source', label: 'Source', type: 'text', value: comp => comp.address || comp.source },
+  { key: 'rent', label: 'Rent / mo', type: 'number', value: comp => comp.rent, format: value => fmt(Number(value)), emphasis: true },
+  { key: 'bedrooms', label: 'Beds', type: 'number', value: comp => comp.bedrooms },
+  { key: 'sqft', label: 'Sq Ft', type: 'number', value: comp => comp.sqft, format: value => Number(value).toLocaleString() },
+];
+
+const MTR_COMP_COLUMNS: RentalCompsColumn<MTRComp>[] = [
+  { key: 'bedrooms', label: 'Beds', type: 'number', value: comp => comp.bedrooms },
+  { key: 'bathrooms', label: 'Baths', type: 'number', value: comp => comp.bathrooms },
+  { key: 'propertyType', label: 'Property Type', type: 'text', value: comp => comp.propertyType ? formatPropertyType(comp.propertyType) : null },
+  { key: 'monthlyRate', label: 'Rent / mo', type: 'number', value: comp => comp.monthlyRate, format: value => fmt(Number(value)), emphasis: true },
+];
+
 function MTRCompsSection({ marketComps }: { marketComps?: MTRMarketComps }) {
   if (!marketComps || marketComps.comps.length === 0) return null;
 
@@ -931,22 +965,7 @@ function MTRCompsSection({ marketComps }: { marketComps?: MTRMarketComps }) {
         <span className="rental-insights__pill">{sampleSize} comparable comps</span>
         <span className="rental-insights__pill">{totalListings} furnished listings nearby</span>
       </div>
-      <div className="rental-insights__comps-table">
-        <div className="rental-insights__comps-row rental-insights__comps-row--head">
-          <span>Beds</span>
-          <span>Baths</span>
-          <span>Property Type</span>
-          <span className="rental-insights__comps-rate">Rate / mo</span>
-        </div>
-        {comps.map((c, i) => (
-          <div key={i} className="rental-insights__comps-row">
-            <span>{c.bedrooms ?? '—'}</span>
-            <span>{c.bathrooms ?? '—'}</span>
-            <span>{formatPropertyType(c.propertyType)}</span>
-            <span className="rental-insights__comps-rate">{fmt(c.monthlyRate)}</span>
-          </div>
-        ))}
-      </div>
+      <RentalCompsTable label="MTR furnished comparables" rows={comps} columns={MTR_COMP_COLUMNS} />
     </div>
   );
 }

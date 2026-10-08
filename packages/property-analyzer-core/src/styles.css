@@ -2190,6 +2190,25 @@ a:hover { color: var(--primary-dark); }
 .rental-tabs__tab:hover {
   color: var(--text);
 }
+.rental-tabs__confidence {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.rental-tabs__confidence--high {
+  color: #15803d;
+  background: #dcfce7;
+}
+.rental-tabs__confidence--medium {
+  color: #854d0e;
+  background: #fef9c3;
+}
+.rental-tabs__confidence--low {
+  color: #9a3412;
+  background: #ffedd5;
+}
 .rental-tabs__tab--active {
   color: var(--color-primary, #2563eb);
   border-bottom-color: var(--color-primary, #2563eb);
@@ -2210,6 +2229,21 @@ a:hover { color: var(--primary-dark); }
 /* Tab content panel */
 .rental-tabs__panel {
   min-height: 200px;
+}
+.rental-tabs__panel :is(
+  .rental-insights__str-stat,
+  .rental-insights__deep-section,
+  .rental-tabs__cashflow,
+  .rental-tabs__cashflow-item,
+  .mtr-furnishing-card,
+  .mtr-demand
+) {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.rental-tabs__panel .rental-tabs__cashflow {
+  padding: 1rem;
 }
 
 /* Constrain strategy comparison in full-width context */
@@ -6456,45 +6490,147 @@ a:hover { color: var(--primary-dark); }
   white-space: nowrap;
 }
 
-/* ── Furnished comps table (MTR / Furnished Finder) ── */
-.rental-insights__comps-table {
+/* Shared LTR / MTR comparable tables */
+.rental-comps__toolbar {
   display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
-.rental-insights__comps-row {
-  display: grid;
-  grid-template-columns: 0.6fr 0.6fr 1.6fr 0.9fr;
+.rental-comps__toolbar > .comps__page-btn {
+  margin-left: auto;
+}
+.rental-comps__header {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.7rem;
-  font-size: 0.78rem;
-  color: var(--text);
-  border-top: 1px solid var(--border);
 }
-.rental-insights__comps-row:first-child {
-  border-top: none;
-}
-.rental-insights__comps-row:nth-child(even) {
-  background: var(--bg);
-}
-.rental-insights__comps-row--head {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+.rental-comps__filter-trigger,
+.rental-comps__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: none;
   color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.rental-comps__filter-trigger:hover,
+.rental-comps__filter-trigger--active,
+.rental-comps__filter-chip {
+  color: var(--primary);
+  background: var(--bg);
+  border-color: var(--border);
+}
+.rental-comps__filter-chip {
+  padding: 0.3rem 0.5rem;
+}
+.rental-comps__popover {
+  position: fixed;
+  z-index: 10001;
+  box-sizing: border-box;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  padding: 14px 16px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: 0.85rem;
+}
+.rental-comps__popover-heading,
+.rental-comps__popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.rental-comps__popover-actions {
+  margin-top: 0.75rem;
+}
+.rental-comps__filters label {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+}
+.rental-comps__filters label input {
+  margin-top: 0.3rem;
+}
+.rental-comps__table-wrap {
+  margin-top: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.rental-comps__sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.rental-comps__sort:hover,
+.rental-comps__table th[aria-sort="ascending"],
+.rental-comps__table th[aria-sort="descending"] {
+  color: var(--primary);
+}
+.rental-comps__filters {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.rental-comps__filters input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 5rem;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+.rental-comps__filters input[type="search"] {
+  min-width: 10rem;
+}
+.rental-comps__table tbody tr {
+  cursor: default;
+}
+.rental-comps__table tbody tr:nth-child(even) {
   background: var(--bg);
 }
-.rental-insights__comps-rate {
-  text-align: right;
-  font-weight: 700;
+.rental-comps__table td {
   font-variant-numeric: tabular-nums;
 }
-.rental-insights__comps-row--head .rental-insights__comps-rate {
-  font-weight: 700;
+.rental-comps__table td.rental-comps__empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+.rental-comps__pagination {
+  flex-wrap: wrap;
+}
+.rental-comps__sort:focus-visible,
+.rental-comps__filter-trigger:focus-visible,
+.rental-comps__filter-chip:focus-visible,
+.rental-comps__filters input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* ── Market Trend Badge ── */
@@ -6531,18 +6667,168 @@ a:hover { color: var(--primary-dark); }
 }
 
 .rental-insights__mtr-furnishing {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   font-size: 0.78rem;
   color: var(--text-muted);
   margin: 0.5rem 0 0.75rem;
-  padding: 0.5rem 0.75rem;
+}
+.mtr-furnishing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
   background: var(--bg);
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }
 .rental-insights__mtr-furnishing strong {
   color: var(--text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.rental-insights__mtr-furnishing small {
+  font-size: 0.75rem;
+}
+.mtr-demand {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.mtr-demand--good { --demand-accent: var(--success-dark); }
+.mtr-demand--fair { --demand-accent: #b45309; }
+.mtr-demand--caution { --demand-accent: var(--danger); }
+.mtr-demand__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.mtr-demand__header .rental-insights__deep-heading {
+  margin-bottom: 0.25rem;
+}
+.mtr-demand__header p,
+.mtr-demand__note {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.mtr-demand__score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--demand-accent);
+  flex-shrink: 0;
+}
+.mtr-demand__score strong {
+  font-size: 1.65rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.mtr-demand__score small {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.mtr-demand__score > span {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.mtr-demand-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+}
+.mtr-revenue-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.mtr-revenue-charts > * {
+  min-width: 0;
+}
+.mtr-revenue-charts .rental-insights__range-track {
+  height: 14px;
+}
+.mtr-revenue-charts .rental-insights__range-marker {
+  height: 20px;
+}
+@media (min-width: 1024px) {
+  .mtr-revenue-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mtr-revenue-charts > .rental-insights__deep-section {
+    display: grid;
+    grid-template-rows: auto 140px auto;
+    align-content: start;
+  }
+  .mtr-revenue-charts .rental-insights__deep-heading {
+    min-height: 2rem;
+  }
+  .mtr-revenue-charts .rental-insights__range {
+    align-self: center;
+  }
+  .mtr-revenue-charts .rental-insights__seasonality-chart {
+    margin-bottom: 0;
+  }
+  .mtr-revenue-charts > :only-child {
+    grid-column: 1 / -1;
+  }
+}
+.mtr-demand-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.mtr-demand-column .rental-insights__mtr-furnishing {
+  margin: 0;
+}
+.mtr-demand__factors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.mtr-demand__factor .strategy-comparison__bar-label {
+  width: 115px;
+  white-space: normal;
+}
+.mtr-demand__factor .strategy-comparison__bar-value {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.mtr-demand__factor .strategy-comparison__bar-track {
+  background: var(--border);
+}
+.mtr-demand__location {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+.mtr-demand__institutions {
+  align-self: stretch;
+}
+.mtr-demand__institutions .rental-insights__institutions-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mtr-demand__institutions .rental-insights__institution-row {
+  background: var(--card);
+}
+@media (max-width: 640px) {
+  .mtr-demand__header {
+    align-items: flex-start;
+  }
+  .mtr-demand-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
 }
 
 .rental-insights__mtr-demand {
@@ -6695,8 +6981,7 @@ a:hover { color: var(--primary-dark); }
     font-size: 0.68rem;
   }
   .rental-insights__mtr-furnishing {
-    flex-direction: column;
-    text-align: center;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
