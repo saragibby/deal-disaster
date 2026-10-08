@@ -27,11 +27,52 @@ import { getAreaMarketData } from './areaMarketService.js';
 const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
 const RAPIDAPI_HOST = () => process.env.RAPIDAPI_HOST || 'private-zillow.p.rapidapi.com';
 
+export class PropertyDataProviderError extends Error {
+  readonly upstreamStatus: number;
+
+  constructor(upstreamStatus: number, message: string) {
+    super(message);
+    this.name = 'PropertyDataProviderError';
+    this.upstreamStatus = upstreamStatus;
+  }
+}
+
 function rapidHeaders() {
   return {
     'x-rapidapi-key': RAPIDAPI_KEY(),
     'x-rapidapi-host': RAPIDAPI_HOST(),
   };
+}
+
+async function throwProviderError(res: Response, operation: string): Promise<never> {
+  await res.body?.cancel();
+  console.error(`[propertyDataService] ${operation} failed with upstream status ${res.status}`);
+
+  if (res.status === 402) {
+    throw new PropertyDataProviderError(
+      res.status,
+      'Property lookup is temporarily unavailable because the property data provider rejected the account billing or credit status. Please contact support if this continues.',
+    );
+  }
+
+  if (res.status === 429) {
+    throw new PropertyDataProviderError(
+      res.status,
+      'Property lookup is temporarily unavailable due to provider rate limiting. Please try again shortly.',
+    );
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new PropertyDataProviderError(
+      res.status,
+      'Property lookup is temporarily unavailable because the property data provider is not configured correctly.',
+    );
+  }
+
+  throw new PropertyDataProviderError(
+    res.status,
+    'Property lookup is temporarily unavailable. Please try again later.',
+  );
 }
 
 // ---------- simple in-memory cache ----------
@@ -92,8 +133,7 @@ export async function getPropertyByZpid(zpid: string): Promise<PropertyData> {
   const res = await fetch(url, { headers: rapidHeaders() });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Property lookup failed (${res.status}): ${body}`);
+    await throwProviderError(res, 'ZPID lookup');
   }
 
   const raw = await res.json() as any;
@@ -184,7 +224,7 @@ export async function getPropertyByAddress(
 
   const res = await fetch(url, { headers: rapidHeaders() });
   if (!res.ok) {
-    throw new Error(`Address search failed (${res.status})`);
+    await throwProviderError(res, 'address lookup');
   }
 
   const raw = await res.json() as any;

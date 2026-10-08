@@ -44,6 +44,116 @@ export function isConfigured(): boolean {
   return RAPIDAPI_KEY().length > 0;
 }
 
+function normalizeAddress(value: string): string {
+  return decodeURIComponent(value)
+    .toLowerCase()
+    .replace(/https?:\/\/[^/]+/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(?:street|st)\b/g, 'st')
+    .replace(/\b(?:avenue|ave)\b/g, 'ave')
+    .replace(/\b(?:road|rd)\b/g, 'rd')
+    .replace(/\b(?:drive|dr)\b/g, 'dr')
+    .replace(/\b(?:lane|ln)\b/g, 'ln')
+    .replace(/\b(?:boulevard|blvd)\b/g, 'blvd')
+    .replace(/\b(?:court|ct)\b/g, 'ct')
+    .replace(/\b(?:circle|cir)\b/g, 'cir')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractPostalCode(input: string): string | null {
+  const match = decodeURIComponent(input).match(/\b\d{5}(?:-\d{4})?\b/);
+  return match?.[0].slice(0, 5) || null;
+}
+
+function normalizeForSaleProperty(result: any, sourceInput: string): PropertyData | null {
+  const address = result?.location?.address || {};
+  const description = result?.description || {};
+  const price = Number(result?.list_price) || 0;
+  const streetAddress = String(address.line || '');
+
+  if (!streetAddress || !price) return null;
+
+  const photos = [
+    result?.primary_photo?.href,
+    ...(Array.isArray(result?.photos) ? result.photos.map((photo: any) => photo?.href) : []),
+  ].filter((photo): photo is string => typeof photo === 'string' && photo.length > 0);
+
+  return {
+    zpid: '',
+    address: streetAddress,
+    city: String(address.city || ''),
+    state: String(address.state_code || ''),
+    zip: String(address.postal_code || ''),
+    price,
+    bedrooms: Number(description.beds) || 0,
+    bathrooms: Number(description.baths) || 0,
+    sqft: Number(description.sqft) || 0,
+    lotSize: Number(description.lot_sqft) || undefined,
+    yearBuilt: Number(description.year_built) || 0,
+    propertyType: description.type ? String(description.type) : undefined,
+    description: result?.description?.text ? String(result.description.text) : undefined,
+    photos: [...new Set(photos)],
+    homeStatus: result?.status ? String(result.status) : undefined,
+    latitude: Number(address.coordinate?.lat) || undefined,
+    longitude: Number(address.coordinate?.lon) || undefined,
+    zillowUrl: sourceInput.toLowerCase().includes('zillow.com') ? sourceInput : undefined,
+  };
+}
+
+/**
+ * Resolve an exact active for-sale listing through Realty In US.
+ *
+ * This is intentionally strict: the caller must provide a ZIP code and the
+ * returned listing's street address must appear in the original input.
+ */
+export async function getForSaleProperty(input: string): Promise<PropertyData | null> {
+  if (!isConfigured()) return null;
+
+  const postalCode = extractPostalCode(input);
+  if (!postalCode) return null;
+
+  try {
+    const res = await fetch(`https://${HOST}/properties/v3/list`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        limit: 200,
+        offset: 0,
+        postal_code: postalCode,
+        status: ['for_sale'],
+        sort: { direction: 'desc', field: 'list_date' },
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`[Realty-in-US] For-sale fallback failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const data = await res.json() as any;
+    const results: any[] = data?.data?.home_search?.results || [];
+    if (!Array.isArray(results)) return null;
+
+    const normalizedInput = normalizeAddress(input);
+    const exactMatch = results.find((result) => {
+      const streetAddress = normalizeAddress(String(result?.location?.address?.line || ''));
+      return streetAddress.length > 0 && normalizedInput.includes(streetAddress);
+    });
+
+    if (!exactMatch) return null;
+
+    const property = normalizeForSaleProperty(exactMatch, input);
+    if (property) {
+      console.warn(`[Realty-in-US] Using for-sale fallback for ${property.address}, ${property.zip}`);
+    }
+    return property;
+  } catch (err: any) {
+    console.warn('[Realty-in-US] For-sale fallback error:', err.message);
+    return null;
+  }
+}
+
 /**
  * Fetch real active for-rent listings as rental comps for the subject's ZIP.
  *

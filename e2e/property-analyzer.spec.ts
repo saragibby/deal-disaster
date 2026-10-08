@@ -91,6 +91,25 @@ test.describe('Property Analyzer', () => {
     await expect(page.locator('.analyzer__error')).toBeVisible({ timeout: 10000 });
   });
 
+  test('shows an actionable error when the property data provider is unavailable', async ({ page }) => {
+    await page.route('**/api/analyzer/run', async route => {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'Property lookup is temporarily unavailable because the property data provider rejected the account billing or credit status. Please contact support if this continues.',
+        }),
+      });
+    });
+
+    await page.locator('.analyzer__url-input').fill('https://www.zillow.com/homedetails/12345678_zpid/');
+    await page.locator('.analyzer__submit-btn').click();
+
+    await expect(page.locator('.analyzer__error')).toContainText(
+      'Property lookup is temporarily unavailable because the property data provider rejected the account billing or credit status. Please contact support if this continues.',
+    );
+  });
+
   test('can switch to history tab', async ({ page }) => {
     await expect(page.locator('.page-title')).toBeVisible({ timeout: 15000 });
     await page.locator('.analyzer-app__nav-tab', { hasText: 'History' }).click();

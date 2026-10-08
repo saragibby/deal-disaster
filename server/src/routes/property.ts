@@ -48,7 +48,8 @@ router.post('/lookup', authenticateOptional, async (req: Request, res: Response)
     res.json({ property });
   } catch (err: any) {
     console.error('[property/lookup]', err.message);
-    res.status(500).json({ error: err.message });
+    const status = err instanceof propertyDataService.PropertyDataProviderError ? 503 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

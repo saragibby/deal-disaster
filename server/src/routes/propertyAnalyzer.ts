@@ -364,7 +364,8 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     });
   } catch (err: any) {
     console.error('[analyzer/run]', err.message);
-    res.status(500).json({ error: err.message });
+    const status = err instanceof propertyDataService.PropertyDataProviderError ? 503 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

@@ -13,7 +13,9 @@ import {
   parseZillowUrl,
   getPropertyByZpid,
   getPropertyByAddress,
+  PropertyDataProviderError,
 } from './propertyDataService.js';
+import { getForSaleProperty } from './realtyInUsService.js';
 
 export type PropertySource = 'zillow' | 'redfin' | 'realtor' | 'trulia' | 'address';
 
@@ -137,38 +139,51 @@ export async function resolvePropertyInput(input: string): Promise<ResolvedPrope
 
   const source = detectSource(trimmed);
 
-  switch (source) {
-    case 'zillow': {
-      const zpid = parseZillowUrl(trimmed);
-      const property = await getPropertyByZpid(zpid);
-      return { property, source, sourceUrl: trimmed };
-    }
+  try {
+    switch (source) {
+      case 'zillow': {
+        const zpid = parseZillowUrl(trimmed);
+        const property = await getPropertyByZpid(zpid);
+        return { property, source, sourceUrl: trimmed };
+      }
 
-    case 'redfin': {
-      const address = parseRedfinUrl(trimmed);
-      const property = await getPropertyByAddress(address);
-      return { property, source, sourceUrl: trimmed };
-    }
+      case 'redfin': {
+        const address = parseRedfinUrl(trimmed);
+        const property = await getPropertyByAddress(address);
+        return { property, source, sourceUrl: trimmed };
+      }
 
-    case 'realtor': {
-      const address = parseRealtorUrl(trimmed);
-      const property = await getPropertyByAddress(address);
-      return { property, source, sourceUrl: trimmed };
-    }
+      case 'realtor': {
+        const address = parseRealtorUrl(trimmed);
+        const property = await getPropertyByAddress(address);
+        return { property, source, sourceUrl: trimmed };
+      }
 
-    case 'trulia': {
-      const address = parseTruliaUrl(trimmed);
-      const property = await getPropertyByAddress(address);
-      return { property, source, sourceUrl: trimmed };
-    }
+      case 'trulia': {
+        const address = parseTruliaUrl(trimmed);
+        const property = await getPropertyByAddress(address);
+        return { property, source, sourceUrl: trimmed };
+      }
 
-    case 'address':
-    default: {
-      // Plain address or unrecognized URL — try address lookup
-      const query = isUrl(trimmed) ? extractAddressFromGenericUrl(trimmed) : trimmed;
-      const property = await getPropertyByAddress(query);
-      return { property, source: 'address', sourceUrl: isUrl(trimmed) ? trimmed : undefined };
+      case 'address':
+      default: {
+        // Plain address or unrecognized URL — try address lookup
+        const query = isUrl(trimmed) ? extractAddressFromGenericUrl(trimmed) : trimmed;
+        const property = await getPropertyByAddress(query);
+        return { property, source: 'address', sourceUrl: isUrl(trimmed) ? trimmed : undefined };
+      }
     }
+  } catch (err) {
+    if (!(err instanceof PropertyDataProviderError)) throw err;
+
+    const fallbackProperty = await getForSaleProperty(trimmed);
+    if (!fallbackProperty) throw err;
+
+    return {
+      property: fallbackProperty,
+      source,
+      sourceUrl: isUrl(trimmed) ? trimmed : undefined,
+    };
   }
 }
 
