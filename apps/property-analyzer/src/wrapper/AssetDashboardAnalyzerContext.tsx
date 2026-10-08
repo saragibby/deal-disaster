@@ -137,6 +137,7 @@ function createFeatureFlags(): PropertyAnalyzerFeatureFlags {
   const runtime = window.__PROPERTY_ANALYZER_FLAGS__ ?? {};
   return {
     askWill: import.meta.env.VITE_DISABLE_ASK_WILL !== 'true' && runtime.askWill !== false,
+    savedScenarios: runtime.savedScenarios === true,
     comparisons: runtime.comparisons !== false,
     savedComparisons: runtime.savedComparisons !== false,
     publicSharing: runtime.publicSharing !== false,

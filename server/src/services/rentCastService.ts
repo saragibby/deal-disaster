@@ -14,7 +14,7 @@
  * We cache aggressively to stay well within limits.
  */
 
-import type { RentalComp, PropertyData } from '@deal-platform/shared-types';
+import type { RentalComp, PropertyData, PropertyRecords } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
 
@@ -84,6 +84,130 @@ export interface MarketStatistics {
 }
 
 // ---------- public API ----------
+
+interface RentCastPropertyRecord {
+  owner?: {
+    names?: string[];
+    type?: string;
+    mailingAddress?: {
+      formattedAddress?: string;
+      addressLine1?: string;
+      addressLine2?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+    };
+  };
+  ownerOccupied?: boolean;
+  history?: Record<string, { date?: string; price?: number; event?: string }>;
+  lastSaleDate?: string;
+  lastSalePrice?: number;
+}
+
+export class PropertyRecordsUnavailableError extends Error {}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPropertyRecord(value: unknown): value is RentCastPropertyRecord {
+  if (!isObject(value)) return false;
+  const optionalString = (v: unknown) => v == null || typeof v === 'string';
+  const optionalNumber = (v: unknown) => v == null || (typeof v === 'number' && Number.isFinite(v));
+  if (!optionalString(value.lastSaleDate) || !optionalNumber(value.lastSalePrice)) return false;
+  if (value.ownerOccupied != null && typeof value.ownerOccupied !== 'boolean') return false;
+  if (value.owner != null) {
+    if (!isObject(value.owner) || !optionalString(value.owner.type)) return false;
+    if (value.owner.names != null && (
+      !Array.isArray(value.owner.names) || !value.owner.names.every(name => typeof name === 'string')
+    )) return false;
+    if (value.owner.mailingAddress != null) {
+      const mailing = value.owner.mailingAddress;
+      if (!isObject(mailing) || ![
+        mailing.formattedAddress, mailing.addressLine1, mailing.addressLine2,
+        mailing.city, mailing.state, mailing.zipCode,
+      ].every(optionalString)) return false;
+    }
+  }
+  if (value.history != null) {
+    if (!isObject(value.history) || !Object.values(value.history).every(sale =>
+      isObject(sale) && optionalString(sale.date) && optionalString(sale.event) && optionalNumber(sale.price)
+    )) return false;
+  }
+  return true;
+}
+
+/** Fetch only public-record fields, independently of saved/public analyses. */
+export async function getPropertyRecords(
+  property: PropertyData,
+  options: { refresh?: boolean } = {},
+): Promise<PropertyRecords> {
+  if (!isConfigured()) {
+    throw new PropertyRecordsUnavailableError('Property records are not configured. Please contact support.');
+  }
+  const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
+  const cacheKey = `rentcast:records:${address}`;
+  const cached = getCached<PropertyRecords>(cacheKey);
+  if (cached && !options.refresh) return cached;
+
+  const response = await fetch(`${BASE_URL}/properties?${new URLSearchParams({ address, limit: '1' })}`, {
+    headers: headers(),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok && response.status !== 404) {
+    console.warn(`[RentCast] Property records failed: ${response.status}`);
+    const messages: Record<number, string> = {
+      400: 'RentCast could not process this property lookup (400). Check the saved property address before trying again.',
+      401: 'RentCast rejected the property records API key (401). Please contact support to verify the server API key.',
+      403: 'RentCast denied access to property records (403). Please contact support to check API key restrictions, the active subscription, and billing.',
+      429: 'RentCast request rate limit reached (429). Wait a moment before loading property records again.',
+    };
+    throw new PropertyRecordsUnavailableError(
+      messages[response.status] ??
+      `RentCast property records are temporarily unavailable (${response.status}). Please try again later.`,
+    );
+  }
+  // RentCast returns 404, rather than an empty array, for some no-match queries.
+  const data: unknown = response.status === 404 ? [] : await response.json();
+  if (!Array.isArray(data)) {
+    throw new Error('Invalid property records response from RentCast.');
+  }
+  const first: unknown = data[0];
+  if (data.length > 0 && !isPropertyRecord(first)) {
+    throw new Error('Invalid property records response from RentCast.');
+  }
+  const record = isPropertyRecord(first) ? first : undefined;
+  const mailing = record?.owner?.mailingAddress;
+  const sales = Object.entries(record?.history ?? {}).map(([date, sale]) => ({
+    date: sale.date ?? date,
+    price: typeof sale.price === 'number' && Number.isFinite(sale.price) && sale.price > 0 ? sale.price : null,
+    event: sale.event ?? 'Sale',
+  }));
+  if (record?.lastSaleDate && !sales.some(sale => sale.date.slice(0, 10) === record.lastSaleDate?.slice(0, 10))) {
+    sales.push({
+      date: record.lastSaleDate,
+      price: typeof record.lastSalePrice === 'number' && Number.isFinite(record.lastSalePrice) && record.lastSalePrice > 0
+        ? record.lastSalePrice : null,
+      event: 'Sale',
+    });
+  }
+  sales.sort((a, b) => b.date.localeCompare(a.date));
+  const result: PropertyRecords = {
+    source: 'rentcast',
+    retrievedAt: new Date().toISOString(),
+    found: !!record,
+    ownerNames: record?.owner?.names ?? [],
+    ownerType: record?.owner?.type ?? null,
+    mailingAddress: mailing?.formattedAddress || (
+      mailing ? [mailing.addressLine1, mailing.addressLine2, mailing.city, mailing.state, mailing.zipCode]
+        .filter(Boolean).join(', ') || null : null
+    ),
+    ownerOccupied: typeof record?.ownerOccupied === 'boolean' ? record.ownerOccupied : null,
+    sales,
+  };
+  setCache(cacheKey, result);
+  return result;
+}
 
 /**
  * Check if the RentCast API key is configured.

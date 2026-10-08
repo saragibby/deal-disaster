@@ -897,6 +897,24 @@ function createMockApi(): AnalyzerApiClient {
     async getAnalysis(slug) {
       return findAnalysis(slug);
     },
+    async getPropertyRecords(slug) {
+      findAnalysis(slug);
+      throw new Error('Property records are unavailable in the local fixture harness.');
+    },
+    async refreshPropertyRecords(slug) {
+      findAnalysis(slug);
+      throw new Error('Property records are unavailable in the local fixture harness.');
+    },
+    async getScenarios(slug) {
+      findAnalysis(slug);
+      return [];
+    },
+    async saveScenario() {
+      throw new Error('Saving scenarios is unavailable in the local fixture harness.');
+    },
+    async deleteScenario() {
+      throw new Error('Deleting scenarios is unavailable in the local fixture harness.');
+    },
     async deleteAnalysis(slug) {
       analyses.delete(slug);
     },
@@ -1015,6 +1033,38 @@ function createInvestorLabApi(token: string): AnalyzerApiClient {
         token,
       );
       return response.analysis;
+    },
+    getPropertyRecords(slug) {
+      return investorLabFetch<import('@deal-platform/shared-types').PropertyRecords>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/property-records`,
+        token,
+      );
+    },
+    refreshPropertyRecords(slug) {
+      return investorLabFetch<import('@deal-platform/shared-types').PropertyRecords>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/property-records/refresh`,
+        token,
+        { method: 'POST' },
+      );
+    },
+    async getScenarios(slug) {
+      const response = await investorLabFetch<{ scenarios: import('@deal-platform/shared-types').AnalysisScenario[] }>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/scenarios`, token,
+      );
+      return response.scenarios;
+    },
+    async saveScenario(slug, input) {
+      const response = await investorLabFetch<{ scenario: import('@deal-platform/shared-types').AnalysisScenario }>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/scenarios`, token,
+        { method: 'POST', body: JSON.stringify(input) },
+      );
+      return response.scenario;
+    },
+    async deleteScenario(slug, id) {
+      await investorLabFetch<{ success: boolean }>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/scenarios/${id}`, token,
+        { method: 'DELETE' },
+      );
     },
     async deleteAnalysis(slug) {
       await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}`, token, {

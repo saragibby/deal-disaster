@@ -83,10 +83,21 @@ Decision: rank by **net cash flow**.
 ### Phase 3 — Deeper analysis
 1. **Goal-based framing** (cash flow / appreciation / tax) reorders sections + reweights verdict.
 2. **Sensitivity view** ("at what rent/price/rate does this turn cash-flow positive?").
-3. **Saved/named scenarios** with side-by-side compare.
+3. **Saved/named scenarios** with side-by-side compare. Implementation exists but is **unreleased
+   and default-off** pending fuller decision-support development. Private database-backed snapshots,
+   current-vs-saved comparison, restore assumptions, and delete with confirmation are available for opt-in testing.
 
 ### Phase 4 — Workflow
 Portfolio tracking · shareable public-view polish · price/market watch alerts · mobile/responsive pass.
+
+- [x] Private ownership/sale records persisted across reloads and backend restarts, with
+  retrieval timestamps, a 24-hour freshness notice, and explicit refresh. Failed refreshes
+  retain the last successful records. Public shared views never include the saved records.
+- [ ] Owner phone/email enrichment (deferred; requires a licensed provider).
+- [x] Separate recorded-sale and listing/price-event timelines, source labels, newest-first
+  ordering, explicit missing data, and independent listing-history availability during provider errors.
+- [x] Latest recorded sale summary (date, disclosed price, elapsed time) and saved listing-price
+  comparison in dollars/percent, with explicit missing-price handling and no profit/equity inference.
 
 ### Phase 5 — Future verticals (roadmap only)
 Fix-and-flip · BRRRR · house-hack · auction→analyzer integration · commercial/multifamily ·
@@ -286,14 +297,20 @@ Accuracy work landed so far (single-property results view):
 1. **Sensitivity / "Stress Test" view.** New `SensitivityCard.tsx` mounted as a full-width section
    between the Cash Flow grid and Wealth Projection. For each of the three biggest drivers — **rent,
    purchase price, interest rate** — it solves the break-even value (where monthly cash flow crosses
-   $0) by bisection over the *same* client calculators used for the live recompute
-   (`calculateMortgage` + `calculateCashFlow`), so it always agrees with the Cash Flow section and
+   $0) by bisection from the selected strategy's cash flow, variable operating-cost rate, and
+   mortgage calculation, so it agrees with the Cash Flow section and
    updates live as assumptions are edited. Each driver renders a two-zone (safe/​risk) track with a
    marker at today's value and a line at break-even, plus a plain-language cushion sentence
    (e.g. "$250/mo cushion — rent could drop to $2,150 before you're underwater"). No API or schema
-   changes; fully client-side. Edge cases (cash-flow positive or negative across the whole tested
+   changes; fully client-side. Long-Term Outlook now identifies the selected LTR/MTR/STR strategy
+   with its matching icon and label; both stress tests and wealth projection use that strategy's
+   income, cash flow, and cash invested. Edge cases (cash-flow positive or negative across the whole tested
    range) fall back to a full-color track + explanatory caption.
+   - **Saved/named scenarios:** capture strategy, loan/rent/expense assumptions, revenue and setup
+     overrides, depreciation method, and financial snapshots. Compare live current metrics alongside
+     saved columns; restore assumptions against current estimates or delete a scenario. Stored in a
+     private owner-scoped table, with no public sharing. Saving does not overwrite the model baseline.
    - *Still open in Phase 3:* goal-based framing (cash flow / appreciation / tax) that reorders
-     sections + reweights `computeDealVerdict()`; saved/named scenarios with side-by-side compare.
+     sections + reweights `computeDealVerdict()`.
 
 **Files touched:** `SensitivityCard.tsx` *(new)*, `AnalysisResults.tsx`, `analyzer.css`.

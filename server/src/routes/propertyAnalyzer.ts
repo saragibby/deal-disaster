@@ -7,6 +7,8 @@
  * POST   /api/analyzer/run              – lookup + analyze + save
  * GET    /api/analyzer/history           – list saved analyses
  * GET    /api/analyzer/history/:slug     – single saved analysis
+ * GET    /api/analyzer/history/:slug/property-records – private owner and sale records
+ * POST   /api/analyzer/history/:slug/property-records/refresh – fetch and persist fresh records
  * DELETE /api/analyzer/history/:slug     – delete saved analysis
  * POST   /api/analyzer/re-analyze/:slug  – re-run with updated params
  * PATCH  /api/analyzer/history/:slug/share – toggle sharing on/off
@@ -27,6 +29,7 @@ import * as airDnaService from '../services/airDnaService.js';
 import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
+import * as scenarioService from '../services/analysisScenarioService.js';
 import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
@@ -40,6 +43,7 @@ import {
   getSharedAnalysisByPublicIdentifier,
   listAnalyses,
   saveAnalysis,
+  savePropertyRecords,
   setAnalysisShared,
   updateAnalysisAfterReanalysis,
   updateAnalysisOverrides,
@@ -405,6 +409,85 @@ router.get('/history/:slug', requireAuth, async (req: AuthRequest, res: Response
   } catch (err: any) {
     console.error('[analyzer/history/:id]', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+async function propertyRecordsHandler(req: AuthRequest, res: Response, refresh: boolean) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  try {
+    const ownerContext = await buildOwnerContext(req);
+    const analysis = await getAnalysisForReanalysis(ownerContext, req.params.slug);
+    if (!analysis) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    if (!refresh && analysis.property_records) {
+      return res.json(analysis.property_records);
+    }
+    const records = await rentCastService.getPropertyRecords(analysis.property_data, { refresh });
+    const saved = await savePropertyRecords(ownerContext, req.params.slug, records);
+    if (!saved) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    return res.json(saved);
+  } catch (err: unknown) {
+    console.error('[analyzer/property-records]', err instanceof Error ? err.message : 'Unknown error');
+    const unavailable = err instanceof rentCastService.PropertyRecordsUnavailableError ||
+      (err instanceof Error && err.name === 'TimeoutError');
+    return res.status(unavailable ? 503 : 502).json({
+      error: err instanceof rentCastService.PropertyRecordsUnavailableError
+        ? err.message : 'Unable to retrieve property records. Please try again later.',
+    });
+  }
+}
+
+router.get('/history/:slug/property-records', requireAuth, (req: AuthRequest, res: Response) =>
+  propertyRecordsHandler(req, res, false));
+router.post('/history/:slug/property-records/refresh', requireAuth, (req: AuthRequest, res: Response) =>
+  propertyRecordsHandler(req, res, true));
+
+router.get('/history/:slug/scenarios', requireAuth, async (req: AuthRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  try {
+    const owner = await buildOwnerContext(req);
+    if (!await getAnalysisBySlug(owner, req.params.slug)) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    return res.json({ scenarios: await scenarioService.listScenarios(owner, req.params.slug) });
+  } catch (err: unknown) {
+    console.error('[analyzer/scenarios GET]', err);
+    return res.status(500).json({ error: 'Unable to load saved scenarios.' });
+  }
+});
+
+router.post('/history/:slug/scenarios', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!scenarioService.isScenarioInput(req.body)) {
+      return res.status(400).json({ error: 'Provide a name (1-100 characters), valid strategy assumptions, and finite scenario metrics.' });
+    }
+    const owner = await buildOwnerContext(req);
+    const scenario = await scenarioService.saveScenario(owner, req.params.slug, req.body);
+    if (!scenario) return res.status(404).json({ error: 'Analysis not found.' });
+    return res.status(201).json({ scenario });
+  } catch (err: unknown) {
+    console.error('[analyzer/scenarios POST]', err);
+    return res.status(500).json({ error: 'Unable to save scenario.' });
+  }
+});
+
+router.delete('/history/:slug/scenarios/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid scenario id.' });
+    }
+    const owner = await buildOwnerContext(req);
+    if (!await scenarioService.deleteScenario(owner, req.params.slug, id)) {
+      return res.status(404).json({ error: 'Scenario not found.' });
+    }
+    return res.json({ success: true });
+  } catch (err: unknown) {
+    console.error('[analyzer/scenarios DELETE]', err);
+    return res.status(500).json({ error: 'Unable to delete scenario.' });
   }
 });
 

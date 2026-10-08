@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import type { OwnerContext, PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
+import type { OwnerContext, PropertyAnalysis, PropertyRecords, SavedComparison } from '@deal-platform/shared-types';
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import { getOwnerUserId } from '../middleware/ownerContext.js';
@@ -37,7 +37,7 @@ interface AnalysisUpdateInput {
 
 const ANALYSIS_HISTORY_COLUMNS = `
   slug, zillow_url, zpid, property_data, analysis_params,
-  analysis_results, rental_comps, user_overrides, is_shared, public_share_id, created_at
+  analysis_results, rental_comps, user_overrides, property_records, is_shared, public_share_id, created_at
 `;
 
 const SHARED_ANALYSIS_COLUMNS = `
@@ -307,6 +307,21 @@ export async function getAnalysisForReanalysis(
   );
 
   return result.rows[0] ?? null;
+}
+
+export async function savePropertyRecords(
+  ownerContext: OwnerContext,
+  slug: string,
+  records: PropertyRecords,
+): Promise<PropertyRecords | null> {
+  const result = await pool.query<{ property_records: PropertyRecords }>(
+    `UPDATE property_analyses
+     SET property_records = $4::jsonb
+     WHERE ${OWNER_PREDICATE} AND slug = $5
+     RETURNING property_records`,
+    [...ownerPredicateValues(ownerContext), JSON.stringify(records), slug],
+  );
+  return result.rows[0]?.property_records ?? null;
 }
 
 export async function deleteAnalysisBySlug(

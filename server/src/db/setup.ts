@@ -275,6 +275,7 @@ export async function setupDatabase() {
         analysis_results JSONB NOT NULL,
         rental_comps JSONB,
         user_overrides JSONB,
+        property_records JSONB,
         is_shared BOOLEAN DEFAULT FALSE,
         public_share_id VARCHAR(64),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -291,6 +292,9 @@ export async function setupDatabase() {
     `);
     await pool.query(`
       ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS public_share_id VARCHAR(64)
+    `);
+    await pool.query(`
+      ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS property_records JSONB
     `);
     await backfillAnalyzerOwnership('property_analyses');
     await backfillPropertyAnalysisPublicShareIds();
@@ -324,6 +328,20 @@ export async function setupDatabase() {
       WHERE public_share_id IS NOT NULL
     `);
     console.log('✅ Property analyses table created');
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS analysis_scenarios (
+        id SERIAL PRIMARY KEY,
+        analysis_id INTEGER NOT NULL REFERENCES property_analyses(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        overrides JSONB NOT NULL,
+        metrics JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_analysis_scenarios_analysis_id ON analysis_scenarios(analysis_id)
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS saved_comparison_members (

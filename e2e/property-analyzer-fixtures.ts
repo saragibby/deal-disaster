@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { readFile } from 'node:fs/promises';
 import {
   DEFAULT_ANALYSIS_PARAMS,
   type AnalysisParams,
@@ -114,6 +115,7 @@ export async function ensurePropertyAnalyzerFixtureSchema(pool: pg.Pool) {
       analysis_results JSONB NOT NULL,
       rental_comps JSONB,
       user_overrides JSONB,
+      property_records JSONB,
       is_shared BOOLEAN DEFAULT FALSE,
       public_share_id VARCHAR(64),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -126,6 +128,8 @@ export async function ensurePropertyAnalyzerFixtureSchema(pool: pg.Pool) {
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS source_url VARCHAR(1000)');
   await pool.query("ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) DEFAULT 'address'");
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS user_overrides JSONB');
+  await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS property_records JSONB');
+  await pool.query(await readFile(resolve(__dirname, '../server/src/db/migrations/add_analysis_scenarios.sql'), 'utf8'));
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS is_shared BOOLEAN DEFAULT FALSE');
   await pool.query('ALTER TABLE property_analyses ADD COLUMN IF NOT EXISTS public_share_id VARCHAR(64)');
   await pool.query(`

@@ -3,7 +3,7 @@ import type { PropertyAnalysis } from '@deal-platform/shared-types';
 import { computeStrategyComparison } from '@deal-platform/shared-types';
 import {
   Home, DollarSign, BarChart3, GitCompareArrows,
-  TrendingUp, LineChart, Gavel, Calculator,
+  TrendingUp, LineChart, Gavel, Calculator, FileText,
 } from 'lucide-react';
 
 export type SignalLevel = 'good' | 'fair' | 'caution' | null;
@@ -97,6 +97,7 @@ export function SectionNav({ signals }: SectionNavProps) {
           key={s.id}
           className={`section-nav__item${s.id === activeId ? ' section-nav__item--active' : ''}`}
           onClick={() => scrollTo(s.id)}
+          aria-label={s.label}
           title={s.tooltip}
           type="button"
         >
@@ -118,7 +119,10 @@ export function SectionNav({ signals }: SectionNavProps) {
 }
 
 /** Derives section nav signals from a PropertyAnalysis result. */
-export function deriveSignals(analysis: PropertyAnalysis): SectionSignal[] {
+export function deriveSignals(
+  analysis: PropertyAnalysis,
+  { includeOwnership = false }: { includeOwnership?: boolean } = {},
+): SectionSignal[] {
   const results = analysis.analysis_results;
   const property = analysis.property_data;
   const cashFlow = results.cashFlow;
@@ -235,6 +239,13 @@ export function deriveSignals(analysis: PropertyAnalysis): SectionSignal[] {
       signal: null,
       tooltip: 'Stress test & long-term wealth projection',
     },
+    ...(includeOwnership ? [{
+      id: 'ownership-history',
+      label: 'Ownership',
+      icon: <FileText size={14} />,
+      signal: null,
+      tooltip: 'Recorded owners, sale history, and listing price events',
+    }] : []),
     {
       id: 'bottom-tools',
       label: 'Foreclosures',

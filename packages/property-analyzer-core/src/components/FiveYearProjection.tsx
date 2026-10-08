@@ -13,6 +13,8 @@ interface Props {
   mortgage: MortgageBreakdown;
   roi: ROIMetrics;
   vacancyPct: number;
+  breakEvenIncome: number;
+  incomeLabel: string;
   annualAppreciation?: number;
 }
 
@@ -171,6 +173,8 @@ export default function WealthProjection({
   mortgage,
   roi,
   vacancyPct: _vacancyPct,
+  breakEvenIncome,
+  incomeLabel,
   annualAppreciation = 0.03,
 }: Props) {
   // Compute a generous chart range first, then find recoup from actual data
@@ -207,8 +211,6 @@ export default function WealthProjection({
   const trimmedData = data.slice(0, Math.min(chartYears + 1, data.length));
 
   const lastYear = trimmedData[trimmedData.length - 1];
-
-  const breakEvenRent = cashFlow.totalMonthlyExpenses - cashFlow.monthlyVacancy;
 
   // Show appreciation and remaining mortgage at recoup time (or chart end if no recoup)
   const recoupData = showRecoup ? data[recoupYearIndex] : lastYear;
@@ -324,9 +326,9 @@ export default function WealthProjection({
           </span>
         </div>
         <div className="wealth-projection__metric">
-          <span className="wealth-projection__metric-label">Break-Even Rent</span>
+          <span className="wealth-projection__metric-label">Break-Even {incomeLabel}</span>
           <span className="wealth-projection__metric-value">
-            {fmt(breakEvenRent)}/mo
+            {fmt(breakEvenIncome)}/mo
           </span>
         </div>
         <div className="wealth-projection__metric">

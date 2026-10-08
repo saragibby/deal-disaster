@@ -1,14 +1,22 @@
 import { useMemo } from 'react';
 import type { AnalysisParams } from '@deal-platform/shared-types';
 import { Activity, DollarSign, Tag, Percent } from 'lucide-react';
-import { calculateMortgage, calculateCashFlow } from '../utils/calculations';
+import { calculateMortgage } from '../utils/calculations';
 
 interface Props {
   params: AnalysisParams;
   /** Effective purchase price (offer price if set, otherwise list price). */
   price: number;
-  /** Effective monthly rent (rent override if set, otherwise estimate mid). */
-  rent: number;
+  /** Effective monthly income for the selected rental strategy. */
+  income: number;
+  /** Label for the selected strategy's monthly income. */
+  incomeLabel?: string;
+  /** Current monthly cash flow for the selected rental strategy. */
+  monthlyCashFlow: number;
+  /** Current mortgage payment used in the selected strategy's cash flow. */
+  monthlyMortgage: number;
+  /** Share of each additional income dollar retained after variable expenses. */
+  marginalIncomeRetention: number;
   /** Render as a compact 3-card block (e.g. embedded above the wealth chart). */
   embedded?: boolean;
 }
@@ -61,17 +69,28 @@ interface DriverRow {
   cushion: string;
 }
 
-export default function SensitivityCard({ params, price, rent, embedded = false }: Props) {
+export default function SensitivityCard({
+  params,
+  price,
+  income,
+  incomeLabel = 'Monthly rent',
+  monthlyCashFlow,
+  monthlyMortgage,
+  marginalIncomeRetention,
+  embedded = false,
+}: Props) {
   const drivers = useMemo<DriverRow[]>(() => {
     // Cash flow for a single overridden driver; everything else held constant.
-    // Price/rate flow through the mortgage; rent flows through income + the
-    // rent-scaled reserves — matching the live Cash Flow model exactly.
-    const cfAt = (o: { rent?: number; price?: number; rate?: number }) => {
+    // Income applies the selected strategy's variable-cost rate, while price
+    // and rate flow through the mortgage payment.
+    const cfAt = (o: { income?: number; price?: number; rate?: number }) => {
       const p = o.price ?? price;
       const r = o.rate ?? params.interestRate;
-      const rentVal = o.rent ?? rent;
+      const incomeVal = o.income ?? income;
       const m = calculateMortgage(p, params.downPaymentPct, r, params.loanTermYears);
-      return calculateCashFlow(rentVal, m, params).monthlyCashFlow;
+      const incomeDelta = (incomeVal - income) * marginalIncomeRetention;
+      const mortgageDelta = m.monthlyPayment - monthlyMortgage;
+      return monthlyCashFlow + incomeDelta - mortgageDelta;
     };
 
     const build = (
@@ -102,28 +121,28 @@ export default function SensitivityCard({ params, price, rent, embedded = false 
 
     const rows: DriverRow[] = [];
 
-    // ── Rent ── higher rent = safer
+    // ── Income ── higher income = safer
     rows.push(
       build(
-        'rent',
-        'Monthly rent',
+        'income',
+        incomeLabel,
         <DollarSign size={15} />,
         'high',
-        rent,
+        income,
         0,
-        Math.max(rent * 2.5, 8000),
-        (x) => cfAt({ rent: x }),
+        Math.max(income * 2.5, 8000),
+        (x) => cfAt({ income: x }),
         (n) => `${money(n)}/mo`,
         (be, alwaysSafe) => {
           if (be == null) {
             return alwaysSafe
-              ? { tone: 'safe', cushion: 'Cash-flow positive across the tested rent range.' }
-              : { tone: 'risk', cushion: 'Stays negative across the tested rent range.' };
+              ? { tone: 'safe', cushion: 'Cash-flow positive across the tested income range.' }
+              : { tone: 'risk', cushion: 'Stays negative across the tested income range.' };
           }
-          const c = rent - be;
+          const c = income - be;
           return c >= 0
-            ? { tone: 'safe', cushion: `${money(c)}/mo cushion — rent could drop to ${money(be)} before you're underwater.` }
-            : { tone: 'risk', cushion: `Rent must rise ${money(-c)}/mo (to ${money(be)}) just to break even.` };
+            ? { tone: 'safe', cushion: `${money(c)}/mo cushion — income could drop to ${money(be)} before you're underwater.` }
+            : { tone: 'risk', cushion: `Income must rise ${money(-c)}/mo (to ${money(be)}) just to break even.` };
         },
       ),
     );
@@ -181,7 +200,7 @@ export default function SensitivityCard({ params, price, rent, embedded = false 
     );
 
     return rows;
-  }, [params, price, rent]);
+  }, [params, price, income, incomeLabel, monthlyCashFlow, monthlyMortgage, marginalIncomeRetention]);
 
   const pos = (row: DriverRow, v: number) =>
     Math.max(0, Math.min(100, ((v - row.rangeMin) / (row.rangeMax - row.rangeMin)) * 100));

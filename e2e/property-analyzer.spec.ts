@@ -122,6 +122,76 @@ test.describe('Property Analyzer', () => {
 propertyAnalyzerTest.describe('Property Analyzer deterministic fixtures', () => {
   propertyAnalyzerTest.setTimeout(60000);
 
+  propertyAnalyzerTest('loads ownership and recorded sales only on request', async ({ page, propertyFixtures }) => {
+    await loginAsFixtureOwner(page, propertyFixtures);
+    const analysis = propertyFixtures.ownedAnalyses[0];
+    let recordRequests = 0;
+    await page.route('**/api/analyzer/history/*/property-records', async route => {
+      recordRequests++;
+      await route.fulfill({ json: {
+        source: 'rentcast', retrievedAt: '2026-10-08T12:00:00.000Z', found: true,
+        ownerNames: ['Fixture Holdings LLC'], ownerType: 'Organization',
+        mailingAddress: '100 Example St, Example City, MI 48000', ownerOccupied: false,
+        sales: [
+          { date: '2025-01-15T00:00:00.000Z', event: 'Sale', price: 180000 },
+          { date: '2020-06-01', event: 'Sale', price: null },
+        ],
+      } });
+    });
+    await page.goto(`/property-analyzer/analysis/${analysis.slug}`);
+    await expectFixtureAnalysisVisible(page, analysis);
+    const section = page.locator('#ownership-history');
+    await expect(section.getByRole('button', { name: 'Load property records' })).toBeVisible();
+    expect(recordRequests).toBe(0);
+    await section.getByRole('button', { name: 'Load property records' }).click();
+    await expect(section).toContainText('Fixture Holdings LLC');
+    await expect(section).toContainText('100 Example St');
+    await expect(section).toContainText('$180,000');
+    await expect(section).toContainText('Not disclosed');
+    await expect(section).toContainText('Source: RentCast');
+    expect(recordRequests).toBe(1);
+  });
+
+  propertyAnalyzerTest('shows property record errors, retries, and empty results', async ({ page, propertyFixtures }) => {
+    await loginAsFixtureOwner(page, propertyFixtures);
+    let recordRequests = 0;
+    await page.route('**/api/analyzer/history/*/property-records', async route => {
+      recordRequests++;
+      if (recordRequests === 1) {
+        await route.fulfill({ status: 503, json: { error: 'Property records are temporarily unavailable.' } });
+      } else {
+        await route.fulfill({ json: {
+          source: 'rentcast', retrievedAt: '2026-10-08T12:00:00.000Z', found: false,
+          ownerNames: [], ownerType: null, mailingAddress: null, ownerOccupied: null, sales: [],
+        } });
+      }
+    });
+    await page.goto(`/property-analyzer/analysis/${propertyFixtures.ownedAnalyses[0].slug}`);
+    const section = page.locator('#ownership-history');
+    await section.getByRole('button', { name: 'Load property records' }).click();
+    await expect(section.getByRole('alert')).toContainText('temporarily unavailable');
+    await section.getByRole('button', { name: 'Load property records' }).click();
+    await expect(section).toContainText('No property record was found');
+    await expect(section.getByRole('alert')).toHaveCount(0);
+  });
+
+  propertyAnalyzerTest('keeps property records private and owner-scoped', async ({ page, request, propertyFixtures }) => {
+    const { token } = await loginAsFixtureOwner(page, propertyFixtures);
+    const nonOwned = await request.get(
+      `${API_URL}/api/analyzer/history/${propertyFixtures.nonOwnedAnalyses[0].slug}/property-records`,
+      { headers: authHeaders(token) },
+    );
+    expect(nonOwned.status()).toBe(404);
+    const anonymous = await request.get(
+      `${API_URL}/api/analyzer/history/${propertyFixtures.ownedAnalyses[0].slug}/property-records`,
+    );
+    expect(anonymous.status()).toBe(401);
+    await clearAuth(page);
+    await page.goto(`/property-analyzer/shared/${propertyFixtures.publicAnalysis.public_share_id}`);
+    await expectFixtureAnalysisVisible(page, propertyFixtures.publicAnalysis);
+    await expect(page.locator('#ownership-history')).toHaveCount(0);
+  });
+
   for (const viewport of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'mobile', width: 390, height: 844 }]) {
   propertyAnalyzerTest(`paginates, filters, and sorts LTR and MTR deep-dive comparables consistently on ${viewport.name}`, async ({ page, propertyFixtures }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });

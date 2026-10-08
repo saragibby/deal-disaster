@@ -633,6 +633,46 @@ a:hover { color: var(--primary-dark); }
 }
 .results__card-title--white { color: white; }
 
+.ownership-history__details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+.ownership-history__details dt { font-weight: 600; }
+.ownership-history__details dd { margin: 0.3rem 0 0; overflow-wrap: anywhere; }
+.ownership-history__table-wrap { overflow-x: auto; }
+.ownership-history table { width: 100%; border-collapse: collapse; }
+.ownership-history th, .ownership-history td {
+  padding: 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.ownership-history__source { color: var(--text-muted); font-size: 0.8rem; }
+.ownership-history__error { color: #b91c1c; }
+.ownership-history__timelines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 1.5rem;
+  margin-top: 1.25rem;
+}
+.ownership-history__timeline { min-width: 0; }
+.ownership-history__sale-summary {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  margin: 1.25rem 0;
+}
+
+.saved-scenarios__form { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+.saved-scenarios__form input { padding: 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-sm); min-width: 0; max-width: 100%; }
+.saved-scenarios__table-wrap { overflow-x: auto; }
+.saved-scenarios table { border-collapse: collapse; width: 100%; }
+.saved-scenarios th, .saved-scenarios td { padding: 0.7rem; text-align: left; border-bottom: 1px solid var(--border); min-width: 160px; }
+.saved-scenarios small { display: block; color: var(--text-muted); font-weight: 400; }
+.saved-scenarios td button { margin: 0.2rem; }
+
 .results__card-subtitle {
   margin: -0.9rem 0 1rem;
   font-size: 0.8rem;
@@ -648,6 +688,7 @@ a:hover { color: var(--primary-dark); }
   right: 1.5rem;
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
   padding: 0.3rem 0.7rem;
   font-size: 0.72rem;
   font-weight: 700;
@@ -658,6 +699,7 @@ a:hover { color: var(--primary-dark); }
   background: color-mix(in srgb, currentColor 12%, white);
   white-space: nowrap;
 }
+.results__type-tag svg { flex-shrink: 0; }
 
 .results__type-tag--ltr { color: #3b82f6; }
 .results__type-tag--mtr { color: #10b981; }

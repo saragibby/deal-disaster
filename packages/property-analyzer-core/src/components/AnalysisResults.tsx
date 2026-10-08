@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { PropertyAnalysis, AnalysisParams } from '@deal-platform/shared-types';
+import type { PropertyAnalysis, AnalysisParams, AnalysisScenario } from '@deal-platform/shared-types';
 import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
 import {
-  Home, Building2, Calendar,
+  Home, Building2, Sparkles, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
   SlidersHorizontal, ChevronDown, ChevronUp,
   Coins, Share2, Download, Lock, Globe, Pencil, RefreshCw, Gauge, ExternalLink, Plus, X,
@@ -16,6 +16,8 @@ import RentalTabs, { RentalSummaryStrip, StrategyComparison, DemandIndicators, M
 import ROIScorecard from './ROIScorecard';
 import WealthProjection from './FiveYearProjection';
 import SensitivityCard from './SensitivityCard';
+import OwnershipHistory from './OwnershipHistory';
+import SavedScenarios from './SavedScenarios';
 import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
@@ -411,6 +413,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       const est = results.mtrEstimate;
       return {
         label: 'Mid-Term',
+        icon: <Building2 size={14} />,
         noun: 'Revenue',
         value: mtrRevenueOverride ?? Math.round(est.grossMonthlyRevenue),
         low: est.revenueRange?.low ?? est.grossMonthlyRevenue,
@@ -425,6 +428,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       const est = results.strEstimate;
       return {
         label: 'Short-Term',
+        icon: <Sparkles size={14} />,
         noun: 'Revenue',
         value: strRevenueOverride ?? Math.round(est.grossMonthlyRevenue),
         low: est.revenueRange?.low ?? est.grossMonthlyRevenue,
@@ -437,6 +441,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     }
     return {
       label: 'Long-Term',
+      icon: <Home size={14} />,
       noun: 'Rental',
       value: effectiveRent,
       low: rental.low,
@@ -472,6 +477,47 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     () => calculateROI(effectivePrice, displayCashFlow.breakdown, mortgage, displayCashFlow.totalOneTime),
     [effectivePrice, displayCashFlow, mortgage],
   );
+
+  const applyScenario = (scenario: AnalysisScenario) => {
+    const saved = scenario.overrides;
+    setParams({ ...saved.params });
+    setSelectedStrategy(saved.selectedStrategy);
+    setMtrRevenueOverride(saved.mtrRevenue ?? null);
+    setStrRevenueOverride(saved.strRevenue ?? null);
+    setOperatingOverrides(saved.operating ?? {});
+    setFurnitureOverride(saved.furniture ?? null);
+    setApplianceOverride(saved.appliances ?? null);
+    setDepreciationMethod(saved.depreciationMethod ?? 'full');
+  };
+
+  const marginalIncomeRetention = useMemo(() => {
+    if (selectedKey === 'ltr') {
+      return 1 - (
+        params.vacancyPct +
+        params.repairsPct +
+        params.capexPct +
+        (params.managementPct || 0)
+      ) / 100;
+    }
+    if (selectedKey === 'str') {
+      const variableCostRate =
+        (operatingOverrides['str:platform'] == null ? 0.03 : 0) +
+        (operatingOverrides['str:management'] == null ? 0.20 : 0);
+      return 1 - variableCostRate;
+    }
+    return 1;
+  }, [
+    selectedKey,
+    params.vacancyPct,
+    params.repairsPct,
+    params.capexPct,
+    params.managementPct,
+    operatingOverrides,
+  ]);
+
+  const breakEvenIncome = displayCashFlow.monthlyIncome -
+    (displayCashFlow.monthlyCashFlow / marginalIncomeRetention);
+  const outlookIncomeLabel = selectedKey === 'ltr' ? 'Rent' : 'Revenue';
 
   const displayTax = useMemo(
     () => {
@@ -950,7 +996,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
       {/* Section nav — sticky pills below the property card */}
       <div ref={navBarRef} className={`results__nav-bar no-print${navStuck ? ' results__nav-bar--stuck' : ''}`}>
-        <SectionNav signals={deriveSignals(analysis)} />
+        <SectionNav signals={deriveSignals(analysis, { includeOwnership: !readOnly && !!analysis.slug })} />
       </div>
 
       {/* Decision-first verdict */}
@@ -1050,6 +1096,7 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
         {/* Cash Flow Card */}
         <div id="cash-flow" className="results__card results__section">
           <span className={`results__type-tag results__type-tag--${selectedKey}`}>
+            {selectedMeta.icon}
             {selectedMeta.label}
           </span>
           <h3 className="results__card-title">
@@ -1245,6 +1292,33 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
         </div>
       </div>
 
+      {features.savedScenarios === true && !readOnly && analysis.slug && (
+        <SavedScenarios
+          key={`scenarios:${analysis.slug}`}
+          slug={analysis.slug}
+          onApply={applyScenario}
+          availableStrategies={[
+            'ltr',
+            ...(results.mtrEstimate ? ['mtr' as const] : []),
+            ...(results.strEstimate ? ['str' as const] : []),
+          ]}
+          current={{
+            overrides: {
+              params, selectedStrategy: displayCashFlow.key,
+              mtrRevenue: mtrRevenueOverride, strRevenue: strRevenueOverride,
+              operating: operatingOverrides, furniture: furnitureOverride,
+              appliances: applianceOverride, depreciationMethod,
+            },
+            metrics: {
+              purchasePrice: effectivePrice, monthlyIncome: displayCashFlow.monthlyIncome,
+              monthlyCashFlow: displayCashFlow.monthlyCashFlow,
+              totalCashInvested: displayRoi.totalCashInvested,
+              cashOnCashROI: displayRoi.cashOnCashROI, capRate: displayRoi.capRate,
+            },
+          }}
+        />
+      )}
+
       {/* Rental Strategy Tabs — full width */}
       <div id="strategy-tabs" className="results__section">
         <RentalTabs
@@ -1278,19 +1352,40 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
 
       {/* Stress Test + Wealth Projection — combined */}
       <div id="stress-test" className="results__card results__section">
+        <span className={`results__type-tag results__type-tag--${selectedKey}`}>
+          {selectedMeta.icon}
+          {selectedMeta.label}
+        </span>
         <h3 className="results__card-title">
           <span className="results__icon results__icon--blue">📈</span>
           Long-Term Outlook
         </h3>
-        <SensitivityCard embedded params={params} price={effectivePrice} rent={effectiveRent} />
+        <SensitivityCard
+          embedded
+          params={params}
+          price={effectivePrice}
+          income={displayCashFlow.monthlyIncome}
+          incomeLabel={`Monthly ${outlookIncomeLabel.toLowerCase()}`}
+          monthlyCashFlow={displayCashFlow.monthlyCashFlow}
+          monthlyMortgage={mortgage.monthlyPayment}
+          marginalIncomeRetention={marginalIncomeRetention}
+        />
         <WealthProjection
           purchasePrice={effectivePrice}
-          cashFlow={cashFlow}
+          cashFlow={displayCashFlow.breakdown}
           mortgage={mortgage}
-          roi={roi}
+          roi={displayRoi}
           vacancyPct={params.vacancyPct}
+          breakEvenIncome={breakEvenIncome}
+          incomeLabel={outlookIncomeLabel}
         />
       </div>
+
+      {!readOnly && analysis.slug && (
+        <OwnershipHistory key={`records:${analysis.slug}`} slug={analysis.slug}
+          initialRecords={analysis.property_records} listingPrice={property.price}
+          priceHistory={property.priceHistory} />
+      )}
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}
       <div id="bottom-tools" className={`results__bottom-grid results__section${readOnly ? ' results__bottom-grid--full' : ''}`}>

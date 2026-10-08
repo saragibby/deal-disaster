@@ -278,6 +278,17 @@ export interface PropertyData {
   zillowUrl?: string;
 }
 
+export interface PropertyRecords {
+  source: 'rentcast';
+  retrievedAt: string;
+  found: boolean;
+  ownerNames: string[];
+  ownerType: string | null;
+  mailingAddress: string | null;
+  ownerOccupied: boolean | null;
+  sales: Array<{ date: string; price: number | null; event: string }>;
+}
+
 export interface PropertySummary {
   zpid: string;
   address: string;
@@ -352,6 +363,25 @@ export interface AnalysisUserOverrides {
   params?: Partial<AnalysisParams>;
   /** How furniture/appliance upfront costs are depreciated in year 1. */
   depreciationMethod?: 'full' | 'straight';
+}
+
+export interface AnalysisScenarioInput {
+  name: string;
+  overrides: AnalysisUserOverrides & { params: AnalysisParams; selectedStrategy: RentalStrategy };
+  /** Client-calculated snapshot, not a refreshed valuation. */
+  metrics: {
+    purchasePrice: number;
+    monthlyIncome: number;
+    monthlyCashFlow: number;
+    totalCashInvested: number;
+    cashOnCashROI: number;
+    capRate: number;
+  };
+}
+
+export interface AnalysisScenario extends AnalysisScenarioInput {
+  id: number;
+  createdAt: string;
 }
 
 export const DEFAULT_ANALYSIS_PARAMS: AnalysisParams = {
@@ -964,6 +994,8 @@ export interface PropertyAnalysis {
   analysis_params: AnalysisParams;
   analysis_results: FullAnalysisResult;
   rental_comps?: RentalComp[];
+  /** Private persisted provider records; excluded from public shared analyses. */
+  property_records?: PropertyRecords | null;
   user_overrides?: AnalysisUserOverrides;
   is_shared?: boolean;
   created_at: string;
@@ -1091,6 +1123,11 @@ export interface AnalyzerApiAdapter {
   runAnalysis(input: RunAnalysisInput): Promise<PropertyAnalysis>;
   getHistory(input: PageInput): Promise<PagedResult<PropertyAnalysis>>;
   getAnalysis(slug: string): Promise<PropertyAnalysis>;
+  getPropertyRecords(slug: string): Promise<PropertyRecords>;
+  refreshPropertyRecords(slug: string): Promise<PropertyRecords>;
+  getScenarios(slug: string): Promise<AnalysisScenario[]>;
+  saveScenario(slug: string, input: AnalysisScenarioInput): Promise<AnalysisScenario>;
+  deleteScenario(slug: string, id: number): Promise<void>;
   deleteAnalysis(slug: string): Promise<void>;
   reAnalyze(slug: string, params: Partial<AnalysisParams>): Promise<PropertyAnalysis>;
   saveAdjustments(slug: string, payload: SaveAdjustmentsPayload): Promise<void>;
@@ -1183,6 +1220,7 @@ export interface AnalyzerStorageAdapter {
 }
 
 export interface PropertyAnalyzerFeatureFlags {
+  savedScenarios?: boolean;
   askWill: boolean;
   comparisons: boolean;
   savedComparisons: boolean;

@@ -6,10 +6,13 @@ import type {
   PageInput,
   PagedResult,
   PropertyAnalysis,
+  PropertyRecords,
   RunAnalysisInput,
   SavedComparison,
   SaveAdjustmentsPayload,
   AnalysisParams,
+  AnalysisScenario,
+  AnalysisScenarioInput,
 } from '@deal-platform/shared-types';
 import { api } from './ApiService';
 import type { ApiService } from './ApiService';
@@ -68,6 +71,39 @@ export function createAnalyzerApiClient(apiService: ApiService): AnalyzerApiClie
         { auth: true },
       );
       return response.analysis;
+    },
+
+    getPropertyRecords(slug: string) {
+      return apiService.fetchJson<PropertyRecords>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/property-records`,
+        { auth: true },
+      );
+    },
+
+    refreshPropertyRecords(slug: string) {
+      return apiService.fetchJson<PropertyRecords>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/property-records/refresh`,
+        { method: 'POST', auth: true },
+      );
+    },
+
+    async getScenarios(slug: string) {
+      const response = await apiService.fetchJson<{ scenarios: AnalysisScenario[] }>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/scenarios`, { auth: true },
+      );
+      return response.scenarios;
+    },
+    async saveScenario(slug: string, input: AnalysisScenarioInput) {
+      const response = await apiService.fetchJson<{ scenario: AnalysisScenario }>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/scenarios`,
+        { auth: true, method: 'POST', body: JSON.stringify(input) },
+      );
+      return response.scenario;
+    },
+    async deleteScenario(slug: string, id: number) {
+      await apiService.fetchJson<{ success: boolean }>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/scenarios/${id}`, { auth: true, method: 'DELETE' },
+      );
     },
 
     async deleteAnalysis(slug: string) {
