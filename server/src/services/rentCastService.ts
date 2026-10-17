@@ -16,6 +16,9 @@
 
 import type { RentalComp, PropertyData, PropertyRecords, MarketStatistics } from '@deal-platform/shared-types';
 import { hasValidCoordinates } from './geocodingService.js';
+import { pool } from '../db/pool.js';
+import { Pool } from 'pg';
+import { createPostgresMarketCacheStore, createRentCastMarketCache } from './rentCastMarketCache.js';
 export type { MarketStatistics } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
@@ -39,7 +42,6 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<any>>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — rental data changes infrequently
-const MARKET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days for market stats
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
@@ -319,25 +321,44 @@ export async function getRentalComps(
 
 /**
  * Fetch market-level rental statistics for a ZIP code from RentCast.
- * Cached for 7 days (market-level data is slow-moving).
+ * Seven-day cache; PostgreSQL sharing is opt-in after deploying the cache schema.
  */
 export async function getMarketStatistics(
   zip: string,
 ): Promise<MarketStatistics | null> {
   if (!isConfigured() || !zip) return null;
+  return marketCache.get(zip);
+}
 
-  const cacheKey = `rentcast:market:v2:${zip}`;
-  const cached = getCached<MarketStatistics>(cacheKey);
-  if (cached) return cached;
+const marketCachePool = new Pool({
+  ...pool.options,
+  max: 2,
+  connectionTimeoutMillis: 2000,
+  statement_timeout: 2000,
+  query_timeout: 2000,
+  allowExitOnIdle: true,
+});
+marketCachePool.on('error', () => {
+  console.warn('[RentCast:market-cache] Idle database connection failed');
+});
 
+const marketCache = createRentCastMarketCache({
+  store: createPostgresMarketCacheStore(marketCachePool),
+  enabled: () => process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED === 'true',
+  load: fetchMarketStatistics,
+});
+
+async function fetchMarketStatistics(zip: string): Promise<MarketStatistics | null> {
   try {
     const params = new URLSearchParams({
       zipCode: zip,
       historyRange: '13',
+      dataType: 'All',
     });
 
     const res = await fetch(`${BASE_URL}/markets?${params}`, {
       headers: headers(),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
@@ -352,8 +373,6 @@ export async function getMarketStatistics(
       return null;
     }
 
-    // Cache with longer TTL for market stats
-    cache.set(cacheKey, { data: result, expiresAt: Date.now() + MARKET_CACHE_TTL_MS });
     return result;
   } catch {
     console.warn('[RentCast] Market stats request failed');

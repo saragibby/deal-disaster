@@ -164,14 +164,19 @@ test('renders average-only market data without a fabricated median, stable trend
 test.describe('RentCast HTTP queries and cache behavior', () => {
   const originalFetch = globalThis.fetch;
   let originalKey: string | undefined;
+  let originalSharedCache: string | undefined;
   test.beforeEach(() => {
     originalKey = process.env.RENTCAST_API_KEY;
+    originalSharedCache = process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
     process.env.RENTCAST_API_KEY = 'fixture-key-not-a-real-credential';
+    process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = 'false';
   });
   test.afterEach(() => {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.RENTCAST_API_KEY;
     else process.env.RENTCAST_API_KEY = originalKey;
+    if (originalSharedCache === undefined) delete process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
+    else process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = originalSharedCache;
   });
 
   test('one ZIP request fetches thirteen history months and caches the corrected metrics', async () => {

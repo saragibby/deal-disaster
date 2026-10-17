@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** Coordinate reuse committed; RentCast quick wins implemented and locally validated; shared-cache phases pending
+**Status:** Coordinate reuse and RentCast quick wins committed; shared RentCast ZIP cache implemented locally, opt-in pending deployment
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -32,7 +32,7 @@ below remain open where they exceed this slice.
 
 ## Implementation update - RentCast quick wins
 
-The next slice is implemented locally, separately from the coordinate-reuse commit:
+The next slice is committed as `b25291c`, separately from the coordinate-reuse commit:
 
 - New analyses skip the RentCast rent AVM request whenever plausible rental comps exist. A single usable comp qualifies, matching the existing blending policy. With none, the existing AVM blend, Zillow market anchor, and algorithmic fallback remain.
 - Apply the existing plausibility filter before deciding whether to fall back from RentCast listings to Realtor listings. Previously, nonempty but entirely implausible RentCast results suppressed that fallback.
@@ -56,11 +56,52 @@ provider traffic. All package, backend, and app builds pass, including analyzer
 boundary checks. The market-display rendering test uses the built core component;
 rebuild packages after UI edits before rerunning it.
 
-**Still pending:** shared PostgreSQL ZIP caching and cross-process deduplication;
-AVM-first bundle mode; expanded sale/bedroom/property-type projections; production
+**At completion of that slice, still pending:** shared PostgreSQL ZIP caching and
+cross-process deduplication (now implemented below); AVM-first bundle mode; expanded sale/bedroom/property-type projections; production
 usage measurement; and provider retention/display approval. Existing saved analysis
 snapshots are not rewritten. Re-analysis retains its existing stored-comps/market
 refresh policy; it does not acquire a new AVM call from this change.
+
+## Implementation update - shared RentCast ZIP-market cache
+
+Implemented locally, **disabled by default until schema deployment**:
+
+- `getMarketStatistics()` now uses the dedicated [market cache](server/src/services/rentCastMarketCache.ts). With `RENTCAST_SHARED_MARKET_CACHE_ENABLED=true`, independent server processes and both platform wrappers share validated non-personal ZIP rental metrics in PostgreSQL. No owner data, user assumptions, API keys, raw provider payloads, or property records enter this table.
+- Freshness remains seven days from fetch. A bounded 500-entry process hot cache lasts at most five minutes in shared mode and cannot outlive the persisted expiry. With sharing disabled, seven-day process-only caching remains, with in-process single-flight and a bounded memory cache.
+- Identity includes provider/endpoint, ZIP, explicit `dataType=All`, thirteen-month history coverage, projection version, and a dated seven-day policy version. This increment retains the existing rental projection only; it does not persist or expose sale data simply because `All` was requested.
+- Atomic PostgreSQL leases coordinate paid refreshes. A winner rechecks the cache after acquiring; followers wait at most eighteen seconds of polling instead of bypassing coordination. Sixty-second leases expire after a crashed worker; ownership tokens prevent an old worker from saving over or releasing a newer lease. No transaction stays open during HTTP requests.
+- Provider timeout is fifteen seconds. The optional cache uses a separate lazy pool against the same database, capped at two connections per process, with two-second connection, statement, and client-operation deadlines. This avoids changing timeouts for unrelated application queries. A client timeout can race an operation's completion; ownership/expiry guards protect late work. Contention and release add their own bounded operations, so eighteen seconds is a polling budget, not a strict total HTTP-response deadline.
+- Provider failures and missing/malformed data never become empty-success snapshots. Failed fills impose a thirty-second shared retry cooldown. On a cache/database failure, optional market stats are unavailable with a sanitized warning rather than triggering an uncoordinated paid request. A successful fetch survives a cache-write failure and is reused by that process's hot cache.
+- Expired metrics are never served. On shared-cache activity, bounded cleanup runs at most once per hour per process, removing up to 100 expired/inactive rows while preserving live leases and cooldowns. Cleanup is opportunistic, not a deletion guarantee while the application is idle. No stale-data fallback or indefinite historical archive was introduced.
+
+**Rights basis checked October 16, 2026:** RentCast's [API introduction](https://developers.rentcast.io/reference/introduction) explicitly includes internal storage and application distribution among permitted uses. Section 1 of the [API license](https://www.rentcast.io/terms-api) permits internal storage, analytics, and application display/distribution, subject to the remaining license and third-party restrictions. This supports the scoped internal aggregate cache; account-specific agreements and any required revocation/deletion remain operational responsibilities. This finding does not authorize broader Google retention.
+
+### Deploy and enable
+
+1. Deploy the schema before enabling the flag. Run the existing `npm run db:setup` in `server/`, or apply only [add_rentcast_market_cache.sql](server/src/db/migrations/add_rentcast_market_cache.sql) through the deployment's migration process. Both paths are idempotent.
+2. Confirm the account's applicable license permits the intended internal cross-user reuse.
+3. Set `RENTCAST_SHARED_MARKET_CACHE_ENABLED=true` on every participating server process, then restart/redeploy them. The flag template is in [server/.env.example](server/.env.example). No credentials or production settings were changed during implementation.
+4. Verify repeated analyses of the same ZIP across processes perform one initial `/markets` fill and then reuse it for seven days. Monitor `[RentCast:market-cache]` warnings and account usage; full per-analysis/provider accounting is still a separate next item.
+5. Roll back by setting the flag to `false` on all processes and restarting. The table can remain; rollback does not alter saved analyses or other provider behavior.
+
+**Cost effect:** a genuinely cold ZIP still requires one `/markets` call. Once filled,
+other analyses in that ZIP reuse it across users, processes, and restarts during the
+freshness window. For N otherwise cold process-level lookups of the same ZIP within
+seven days, the target is one market request instead of N, saving N-1 requests.
+This is not one additional saved request on every analysis: the old process-memory
+cache already eliminated repeats within the same running process.
+
+### Verification
+
+- `npm run build:server` passes.
+- `npx playwright test --config=playwright.providers.config.ts`: 43 existing provider regressions pass with mocked HTTP and no database.
+- `npx playwright test --config=playwright.cache.config.ts`: 13 cache tests pass, including two independent Node processes calling the actual RentCast service against an isolated PostgreSQL cluster and making exactly one mocked provider request.
+- Cache tests cover restart reuse, atomic ownership/expiry, changed identities, SQL lock deadlines, memory limits/expiry, database/write outages, failed-fill cooldowns, malformed projections, and bounded cleanup.
+- The cache suite requires `initdb` and `pg_ctl` on PATH. It creates a temporary Unix-socket-only PostgreSQL cluster, uses no configured application/production database, and stops/removes its own cluster afterward. It is intentionally excluded from the ordinary browser-E2E config; use the dedicated cache config explicitly.
+
+**Remaining:** production enablement/measurement, all-provider accounting, other
+provider cache adapters, broader sale/rental bundle projections, and scheduled
+retention/deletion workflows if future licenses require strict purge deadlines.
 
 ## 1. Goals and boundaries
 

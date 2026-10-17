@@ -25,6 +25,16 @@ keys/studio filters. These correctness fixes can change estimates; the original
 counts and dollar examples below remain a historical baseline. This slice is
 locally tested, not deployed or measured in production.
 
+**Shared ZIP-market cache update:** an opt-in PostgreSQL cache now reuses validated
+RentCast rental-market metrics across processes and server restarts for seven days.
+Atomic refresh leases avoid duplicate concurrent fills. Two independent Node
+processes calling the actual service were tested against a disposable local
+PostgreSQL cluster: exactly one mocked `/markets` request was made. Enable only
+after deploying the schema and setting `RENTCAST_SHARED_MARKET_CACHE_ENABLED=true`;
+it defaults off. One cold ZIP fill is still required; savings apply to otherwise
+duplicated process-level fills, not repeats already covered by the old memory
+cache. See the [rollout and validation details](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---shared-rentcast-zip-market-cache).
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:
