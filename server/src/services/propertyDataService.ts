@@ -22,6 +22,8 @@
 import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
 import { hasValidCoordinates } from './geocodingService.js';
+import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+const fetch = createProviderFetch('zillow');
 
 // ---------- configuration ----------
 
@@ -88,11 +90,17 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — property data rarely c
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cache.delete(key);
+  const operation = key.startsWith('similar:') ? 'similar' : 'property-cache';
+  if (!entry) {
+    recordProviderCache('zillow', operation, 'memory', 'miss');
     return null;
   }
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    recordProviderCache('zillow', operation, 'memory', 'stale');
+    return null;
+  }
+  recordProviderCache('zillow', operation, 'memory', 'hit');
   return entry.data as T;
 }
 

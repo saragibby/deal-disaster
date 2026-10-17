@@ -12,6 +12,7 @@ import {
   MARKET_FRESH_MS, isMarketStatistics, type MarketCacheStore,
 } from '../server/src/services/rentCastMarketCache';
 import { RENTCAST_MARKET_CACHE_SCHEMA } from '../server/src/db/rentCastMarketCacheSchema';
+import { withProviderUsage, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
 
 function fakeStore(): MarketCacheStore {
   return {
@@ -234,7 +235,12 @@ test.describe('isolated real PostgreSQL market cache', () => {
         store: createPostgresMarketCacheStore(db), enabled: () => true,
         load: async () => { throw new Error('Unexpected provider request after restart'); },
       });
-      expect(await restarted.get('27500')).toEqual({ medianRent: 2200 });
+      const reports: ProviderUsageSummary[] = [];
+      await withProviderUsage('analysis', async () => {
+        expect(await restarted.get('27500')).toEqual({ medianRent: 2200 });
+      }, report => reports.push(report));
+      expect(reports[0]).toMatchObject({ attempts: 0, estimatedCostUsd: 0 });
+      expect(reports[0].endpoints[0].cache).toEqual({ 'memory:miss': 1, 'postgres:hit': 1 });
     } finally {
       for (const child of children) if (child.exitCode === null) child.kill();
     }

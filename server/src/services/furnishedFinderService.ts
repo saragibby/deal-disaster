@@ -30,6 +30,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PropertyData, MTRComp } from '@deal-platform/shared-types';
+import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
+const fetch = createProviderFetch('furnished-finder');
 
 // ---------- configuration ----------
 
@@ -69,7 +71,11 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — furnished inventory mo
 
 function getCached(key: string): { hit: boolean; value: MTRMarketData | null } {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return { hit: true, value: entry.data };
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('furnished-finder', 'search', 'memory', 'hit');
+    return { hit: true, value: entry.data };
+  }
+  recordProviderCache('furnished-finder', 'search', 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return { hit: false, value: null };
 }
@@ -267,6 +273,7 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
 
   // Thin market? Widen the box once (~15mi).
   if (!market) {
+    recordProviderFallback('furnished-finder', 'search', 'widen-search');
     listings = await fetchListings(viewportFromRadius(latitude, longitude, WIDE_RADIUS_MILES));
     market = listings ? reduceToMarketData(listings, beds, WIDE_RADIUS_MILES) : null;
   }

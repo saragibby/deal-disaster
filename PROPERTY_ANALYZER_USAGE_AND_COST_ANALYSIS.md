@@ -35,6 +35,20 @@ it defaults off. One cold ZIP fill is still required; savings apply to otherwise
 duplicated process-level fills, not repeats already covered by the old memory
 cache. See the [rollout and validation details](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---shared-rentcast-zip-market-cache).
 
+**Request-accounting update:** a subsequent local slice now emits sanitized
+`[provider:usage]` summaries for analyzer data-provider HTTP calls in both platform
+wrappers. Summaries include workflow/request IDs, provider/endpoint attempts, HTTP
+statuses, transport failures, cache/fallback observations, header latency, modeled
+cost, unknown charges, and pending attempts. RentCast HTTP 200 body streams are
+billable candidates, not invoice evidence; an optional configured account rate
+can price that scenario. The historical baseline below is unchanged. Tests verify
+ledger arithmetic and real mocked-service cold/warm behavior, not production
+totals or a full 37-call route replay. Widget requests are separate summaries
+unless a caller explicitly supplies the supported correlation header; the current
+UI does not do so automatically. AI SDK usage, photos/map tiles, durable reporting,
+and invoice/quota reconciliation remain outside this slice. See
+[accounting fields, pricing assumptions, limitations, and deployment](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---expanded-data-provider-request-accounting).
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:

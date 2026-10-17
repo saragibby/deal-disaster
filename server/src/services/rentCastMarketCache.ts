@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Pool, QueryResultRow } from 'pg';
 import type { MarketStatistics } from '@deal-platform/shared-types';
+import { recordProviderCache } from './providerUsageService.js';
 
 export const MARKET_FRESH_MS = 7 * 24 * 60 * 60 * 1000;
 const HOT_TTL_MS = 5 * 60 * 1000;
@@ -168,6 +169,7 @@ export function createRentCastMarketCache(deps: Dependencies) {
     }
     const owner = randomUUID();
     let acquired = false;
+    let waited = false;
     let persisted = false;
     let data: MarketStatistics | null = null;
     try {
@@ -180,22 +182,28 @@ export function createRentCastMarketCache(deps: Dependencies) {
       do {
         const cached = await deps.store.read(key);
         if (cached) {
+          recordProviderCache('rentcast', 'markets', 'postgres', 'hit');
           remember(key, cached.data, Math.min(cached.expiresAt, now() + HOT_TTL_MS));
           return cached.data;
         }
         acquired = await deps.store.acquire(key, owner);
         if (acquired) break;
+        if (!waited) recordProviderCache('rentcast', 'markets', 'in-flight', 'wait');
+        waited = true;
         await sleep(200);
       } while (now() < deadline);
       if (!acquired) {
+        recordProviderCache('rentcast', 'markets', 'in-flight', 'wait-timeout');
         console.warn('[RentCast:market-cache] Refresh wait timed out; no duplicate provider call');
         return null;
       }
       const cached = await deps.store.read(key);
       if (cached) {
+        recordProviderCache('rentcast', 'markets', 'postgres', 'hit');
         remember(key, cached.data, Math.min(cached.expiresAt, now() + HOT_TTL_MS));
         return cached.data;
       }
+      recordProviderCache('rentcast', 'markets', 'postgres', 'miss');
       data = await deps.load(zip);
       if (!data) return null;
       if (!isMarketStatistics(data)) {
@@ -210,6 +218,7 @@ export function createRentCastMarketCache(deps: Dependencies) {
       }
       return data;
     } catch {
+      recordProviderCache('rentcast', 'markets', 'postgres', 'error');
       console.warn('[RentCast:market-cache] Cache operation failed; no uncoordinated provider retry');
       return data;
     } finally {
@@ -217,6 +226,7 @@ export function createRentCastMarketCache(deps: Dependencies) {
         try {
           await deps.store.release(key, owner, !persisted);
         } catch {
+          recordProviderCache('rentcast', 'markets', 'postgres', 'error');
           console.warn('[RentCast:market-cache] Lease release failed; bounded lease will expire');
         }
       }
@@ -234,9 +244,14 @@ export function createRentCastMarketCache(deps: Dependencies) {
       // Switching modes cannot serve a process-only result as shared data.
       const key = `${shared ? 'shared' : 'local'}:${marketCacheKey(zip)}`;
       const cached = hot.get(key);
-      if (cached && cached.expiresAt > now()) return structuredClone(cached.data);
+      if (cached && cached.expiresAt > now()) {
+        recordProviderCache('rentcast', 'markets', 'memory', 'hit');
+        return structuredClone(cached.data);
+      }
+      recordProviderCache('rentcast', 'markets', 'memory', cached ? 'stale' : 'miss');
       hot.delete(key);
       let pending = inFlight.get(key);
+      if (pending) recordProviderCache('rentcast', 'markets', 'in-flight', 'hit');
       if (!pending) {
         pending = fill(zip, key, shared).finally(() => inFlight.delete(key));
         inFlight.set(key, pending);

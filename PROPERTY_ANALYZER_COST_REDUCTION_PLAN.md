@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** Coordinate reuse and RentCast quick wins committed; shared RentCast ZIP cache implemented locally, opt-in pending deployment
+**Status:** Coordinate reuse, RentCast quick wins, and shared ZIP caching committed; expanded data-provider request accounting implemented locally, pending deployment
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -64,7 +64,7 @@ refresh policy; it does not acquire a new AVM call from this change.
 
 ## Implementation update - shared RentCast ZIP-market cache
 
-Implemented locally, **disabled by default until schema deployment**:
+Committed as `791f16c`, **disabled by default until schema deployment**:
 
 - `getMarketStatistics()` now uses the dedicated [market cache](server/src/services/rentCastMarketCache.ts). With `RENTCAST_SHARED_MARKET_CACHE_ENABLED=true`, independent server processes and both platform wrappers share validated non-personal ZIP rental metrics in PostgreSQL. No owner data, user assumptions, API keys, raw provider payloads, or property records enter this table.
 - Freshness remains seven days from fetch. A bounded 500-entry process hot cache lasts at most five minutes in shared mode and cannot outlive the persisted expiry. With sharing disabled, seven-day process-only caching remains, with in-process single-flight and a bounded memory cache.
@@ -81,7 +81,7 @@ Implemented locally, **disabled by default until schema deployment**:
 1. Deploy the schema before enabling the flag. Run the existing `npm run db:setup` in `server/`, or apply only [add_rentcast_market_cache.sql](server/src/db/migrations/add_rentcast_market_cache.sql) through the deployment's migration process. Both paths are idempotent.
 2. Confirm the account's applicable license permits the intended internal cross-user reuse.
 3. Set `RENTCAST_SHARED_MARKET_CACHE_ENABLED=true` on every participating server process, then restart/redeploy them. The flag template is in [server/.env.example](server/.env.example). No credentials or production settings were changed during implementation.
-4. Verify repeated analyses of the same ZIP across processes perform one initial `/markets` fill and then reuse it for seven days. Monitor `[RentCast:market-cache]` warnings and account usage; full per-analysis/provider accounting is still a separate next item.
+4. Verify repeated analyses of the same ZIP across processes perform one initial `/markets` fill and then reuse it for seven days. Monitor `[RentCast:market-cache]` warnings, `[provider:usage]` summaries described below, and account usage.
 5. Roll back by setting the flag to `false` on all processes and restarting. The table can remain; rollback does not alter saved analyses or other provider behavior.
 
 **Cost effect:** a genuinely cold ZIP still requires one `/markets` call. Once filled,
@@ -99,9 +99,111 @@ cache already eliminated repeats within the same running process.
 - Cache tests cover restart reuse, atomic ownership/expiry, changed identities, SQL lock deadlines, memory limits/expiry, database/write outages, failed-fill cooldowns, malformed projections, and bounded cleanup.
 - The cache suite requires `initdb` and `pg_ctl` on PATH. It creates a temporary Unix-socket-only PostgreSQL cluster, uses no configured application/production database, and stops/removes its own cluster afterward. It is intentionally excluded from the ordinary browser-E2E config; use the dedicated cache config explicitly.
 
-**Remaining:** production enablement/measurement, all-provider accounting, other
+**Remaining:** production enablement/measurement, full-page correlation and billing reconciliation, other
 provider cache adapters, broader sale/rental bundle projections, and scheduled
 retention/deletion workflows if future licenses require strict purge deadlines.
+
+## Implementation update - expanded data-provider request accounting
+
+The next local slice adds [providerUsageService](server/src/services/providerUsageService.ts)
+and installs its middleware in both analyzer backend wrappers. Async-local contexts
+keep overlapping requests isolated without modifying global fetch or provider
+response bodies. It instruments the existing data HTTP calls to Zillow, AirDNA,
+RentCast, Google Geocoding/Legacy Places, Realty-in-US, Furnished Finder, Xome,
+Census, and Nominatim. Provider payload parsing, timeouts, fallback order, and
+cache freshness are unchanged.
+
+### Structured summaries and correlation
+
+One `[provider:usage]` JSON summary is emitted when the HTTP response finishes or
+closes, with `schemaVersion: 1` and `pricingVersion: "2026-10-16-scenario-v1"`.
+
+| Field | Meaning |
+| --- | --- |
+| `requestId`, `workflow`, `outcome`, `durationMs` | Generated UUID, classified workflow, application response outcome, and elapsed request time. A successful application response can still contain provider failures handled by fallbacks. |
+| `attempts`, `endpoints[].attempts` | Calls made to fetch, grouped by allowlisted provider/operation. Includes failed attempts; excludes cache-only reuse, browser preflights, and transport-internal redirects. |
+| `httpResponses`, `networkErrors`, `headerLatencyMs` | HTTP status counts, thrown transport errors, and cumulative time to fetch resolution/rejection. This is not payload-parse time or proof of a semantically successful response. |
+| `cache` | Observations keyed by layer and outcome: memory, PostgreSQL, in-flight, supplied coordinates, session reuse, or saved property-record snapshot. Includes miss, stale, error, and wait/timeout where instrumented. |
+| `fallbacks` | Static decision reasons at instrumented fallback branches, attributed to the destination provider/operation. They are not additional requests; an unconfigured fallback may make none. |
+| `rentCastBillableCandidates` | HTTP 200 responses with a non-null body stream, not proof of a nonempty or useful payload. No response clone or body consumption is added for billing measurement. |
+| `estimatedCostUsd`, `unknownCostAttempts` | Scenario subtotal and attempts whose charge remains unknown. A zero subtotal with unknown attempts does **not** mean a free analysis. |
+| `pendingAttempts` | Calls still awaiting headers when the summary is emitted. Their cost remains unknown in that snapshot. |
+
+Workflows distinguish new analysis, re-analysis, saved views, ownership lookup,
+explicit ownership refresh, Xome widgets, Xome import-time prewarm, property lookup,
+and comparison requests. Unscoped instrumented fetches receive independent
+`background` summaries rather than being silently dropped.
+
+The response exposes `X-Provider-Request-Id`. An optional UUID-only
+`X-Analysis-Request-Id` request header becomes `parentRequestId`; it is untrusted
+correlation metadata, never authorization or ownership. The current frontend does
+**not** automatically propagate this to widget loads. Those requests are measured
+separately; do not claim automatic full-page totals or join by time alone. Explicit
+client-side correlation and saved-analysis attribution remain follow-up work.
+
+Only fixed labels, counters, timing, and generated/validated UUIDs enter this
+ledger. URLs, address/ZIP inputs, owner data, payloads, credential values, headers,
+and upstream exception messages are excluded. Unknown endpoint paths become
+`other`. This guarantee applies to the new ledger, not every pre-existing log.
+
+### Cost assumptions and configuration
+
+- Google known geocoding/Legacy Places HTTP-success responses use the historical
+  first-paid-tier assumptions of $0.005/$0.032. HTTP 200 semantic errors can still
+  be counted by this model; this is not SKU-level billing evidence.
+- Zillow and AirDNA HTTP responses use the documented $0.01/request **overage
+  scenario**. Included subscription requests, fixed fees, billing resets, and
+  error-specific vendor rules are not reconciled here.
+- RentCast candidates remain unknown unless
+  `RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST` is supplied with the account's
+  applicable nonnegative marginal rate. An invalid configured rate warns without
+  logging the value and leaves the charge unknown. Non-200/no-body responses are
+  modeled as nonbillable under its documented rule; 200 streams remain candidates.
+- Census, Nominatim, and Xome have zero direct provider fees in this model.
+  Realty-in-US and Furnished Finder have unknown charges. Transport failures
+  remain unknown, even when a vendor might eventually report no charge.
+- Infrastructure, bandwidth, free Google allowances, volume/geographic tiers,
+  subscription amortization, photos/map tiles, and AI SDK/model charges are not
+  included. A comparison workflow summary does not imply AI token accounting.
+
+The optional rate is documented in [server/.env.example](server/.env.example).
+No actual environment file, credential, production setting, or account usage was
+read or changed.
+
+### Deployment, reporting, and remaining measurement work
+
+Deploy/restart the backend to enable the summaries; no accounting database
+migration is required. Configure an appropriate log drain/retention policy before
+relying on historical reporting: these are structured application logs, **not**
+a new durable analytics table, billing dashboard, or guaranteed delivery system.
+Group summaries by workflow and provider/operation; sum attempts, HTTP error
+classes, unknown charges, pending calls, and estimated subtotals separately.
+Compare new analysis with re-analysis/saved views and distinguish background
+prewarm from user-request work. Validate modeled counts against vendor dashboards
+before claiming invoice savings.
+
+Cache observations are not additive avoided-call or dollar counters. A shared
+area snapshot may be partial; a waiting request may reuse another request's
+provider work. The request actually making the fetch owns the attempt. An aborted
+response produces a one-time snapshot; late provider completions do not emit a
+second delta. Exclude or separately label pending/aborted summaries when estimating
+completed-analysis cost. Body parse/semantic errors must still be interpreted
+with the existing service diagnostics.
+
+**Verification:** `npm run build:server` passes. The isolated provider suite has
+56 tests (43 prior regressions plus 13 accounting tests), covering concurrent
+isolation, provider/status/cost attribution, unchanged responses/errors, actual
+RentCast cold/warm service behavior, fallback markers, both backend mounts,
+workflow classification, correlation validation/redaction, and aborted pending
+requests. A synthetic ledger verifies the historical 37-call/$0.315 known-subtotal
+arithmetic; it is not a full route replay or production measurement. All 13
+isolated PostgreSQL cache tests pass, including zero-attempt persisted-cache reuse
+and the existing independent-process single-fill test. No paid network traffic
+or application database is used.
+
+The broader Phase 0 remains open for automatic widget linkage, end-to-end cold
+route replay, provider-policy matrix completion, persistent reporting, account
+quota/invoice reconciliation, and SDK/browser traffic measurement.
 
 ## 1. Goals and boundaries
 

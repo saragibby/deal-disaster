@@ -15,6 +15,8 @@
  */
 
 import type { PropertyData, STREstimate } from '@deal-platform/shared-types';
+import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
+const fetch = createProviderFetch('airdna');
 
 // ---------- configuration ----------
 
@@ -40,7 +42,11 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — STR metrics change inf
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('airdna', 'estimate-cache', 'memory', 'hit');
+    return entry.data;
+  }
+  recordProviderCache('airdna', 'estimate-cache', 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return null;
 }
@@ -155,6 +161,7 @@ export async function getSTREstimate(
   }
 
   // Fall back to market-level stats by zip
+  recordProviderFallback('airdna', 'market-statistics', 'no-usable-data');
   const marketEstimate = await fetchMarketStats(property);
   if (marketEstimate) {
     setCache(cacheKey, marketEstimate);

@@ -1,6 +1,7 @@
 import type { PropertyData } from '@deal-platform/shared-types';
 import * as rentCastService from './rentCastService.js';
 import * as realtyInUsService from './realtyInUsService.js';
+import { recordProviderFallback } from './providerUsageService.js';
 import {
   applyZillowMarketRent, combineEstimates, estimateRent, filterPlausibleRentalComps,
 } from './rentalEstimationService.js';
@@ -18,12 +19,14 @@ export async function getLongTermRentalEstimate(
   let comps = filterPlausibleRentalComps(await providers.rentCastComps(property), property);
   let compSource: 'rentcast' | 'realtor' | null = comps.length > 0 ? 'rentcast' : null;
   if (comps.length === 0) {
+    recordProviderFallback('realtor', 'listings', 'no-usable-data');
     comps = filterPlausibleRentalComps(await providers.realtorComps(property), property);
     if (comps.length > 0) compSource = 'realtor';
   }
   let rentalEstimate = combineEstimates(comps, estimateRent(property), property);
   let usedAvm = false;
   if (comps.length === 0) {
+    recordProviderFallback('rentcast', 'rent-avm', 'no-usable-data');
     const avm = await providers.rentCastEstimate(property);
     if (avm) {
       usedAvm = true;

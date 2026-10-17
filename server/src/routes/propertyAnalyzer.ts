@@ -21,6 +21,7 @@ import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
 import { getLongTermRentalEstimate } from '../services/longTermRentalService.js';
+import { recordProviderCache } from '../services/providerUsageService.js';
 import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
@@ -368,6 +369,7 @@ async function propertyRecordsHandler(req: AuthRequest, res: Response, refresh: 
       return res.status(404).json({ error: 'Analysis not found.' });
     }
     if (!refresh && analysis.property_records) {
+      recordProviderCache('rentcast', 'property-records', 'saved-analysis', 'hit');
       return res.json(analysis.property_records);
     }
     const records = await rentCastService.getPropertyRecords(analysis.property_data, { refresh });

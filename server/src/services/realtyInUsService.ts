@@ -17,6 +17,8 @@
 
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import { filterPlausibleRentalComps } from './rentalEstimationService.js';
+import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+const fetch = createProviderFetch('realtor');
 
 const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
 const HOST = 'realty-in-us.p.rapidapi.com';
@@ -169,7 +171,11 @@ export async function getRentalComps(
 
   const cacheKey = `realty:rent:${property.zip}:${property.bedrooms || ''}`;
   const cached = cache.get(cacheKey);
-  if (cached && Date.now() < cached.expiresAt) return cached.data;
+  if (cached && Date.now() < cached.expiresAt) {
+    recordProviderCache('realtor', 'listings', 'memory', 'hit');
+    return cached.data;
+  }
+  recordProviderCache('realtor', 'listings', 'memory', cached ? 'stale' : 'miss');
 
   try {
     const body = {

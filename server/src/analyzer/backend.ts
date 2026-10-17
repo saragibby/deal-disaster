@@ -3,6 +3,7 @@ import type { OwnerContext } from '@deal-platform/shared-types';
 import type { AuthRequest } from '../middleware/auth.js';
 import { authenticateOptional, authenticateToken } from '../middleware/auth.js';
 import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
+import { providerUsageMiddleware } from '../services/providerUsageService.js';
 
 type RouterModule = { default: Router };
 type RouterFactoryModule = { createPropertyAnalyzerRouter: (runtime: AnalyzerBackendRuntime) => Router };
@@ -109,6 +110,7 @@ export function createAnalyzerBackendRouter(options: AnalyzerBackendOptions = {}
     ...options.routes,
   };
 
+  router.use(providerUsageMiddleware());
   mountLazyRouter(router, '/property', runtime, routeLoaders.property);
   mountLazyRouter(router, '/analyzer', runtime, routeLoaders.analyzer);
   mountLazyRouter(router, '/ai', runtime, routeLoaders.ai);

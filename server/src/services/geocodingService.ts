@@ -1,4 +1,10 @@
 import { pool } from '../db/pool.js';
+import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
+const geocodingFetch = {
+  google: createProviderFetch('google'),
+  census: createProviderFetch('census'),
+  nominatim: createProviderFetch('nominatim'),
+};
 
 export interface Geocoordinates {
   lat: number;
@@ -200,18 +206,22 @@ export function createGeocodingService(deps: Dependencies) {
           cached = await deps.lookup(owned.map(entry => entry.key));
         } catch {
           warn('cache-lookup-failure');
+          recordProviderCache('geocoding', 'coordinates', 'postgres', 'error');
         }
       }
       for (let i = 0; i < owned.length; i += 5) {
         await Promise.all(owned.slice(i, i + 5).map(async ({ key, item }) => {
           const hit = cached.get(key);
           if (hit && parseCoordinates(hit.lat, hit.lng)) {
+            recordProviderCache('geocoding', 'coordinates', 'postgres', 'hit');
             accounting.cacheHits++;
             outcomes.set(key, hit);
             return;
           }
+          recordProviderCache('geocoding', 'coordinates', 'postgres', 'miss');
           const address = `${item.address}, ${item.city}, ${item.state} ${item.zip}`;
           for (const provider of ['google', 'census', 'nominatim'] as const) {
+            if (provider !== 'google') recordProviderFallback(provider, 'geocoding', 'no-usable-data');
             const coords = await request(provider, address, accounting);
             if (coords) {
               outcomes.set(key, coords);
@@ -228,6 +238,7 @@ export function createGeocodingService(deps: Dependencies) {
           await deps.store(writes);
         } catch {
           warn('cache-store-failure');
+          recordProviderCache('geocoding', 'coordinates', 'postgres', 'error');
         }
       }
     } finally {
@@ -241,6 +252,8 @@ export function createGeocodingService(deps: Dependencies) {
       if (coords) result.set(key, coords);
     }));
     accounting.resolved = result.size;
+    recordProviderCache('geocoding', 'coordinates', 'coordinates', 'hit', accounting.reusedCoordinates);
+    recordProviderCache('geocoding', 'coordinates', 'in-flight', 'hit', accounting.inFlightHits);
     accounting.unresolved = new Set(items
       .map(item => normalizeAddressKey(item.address, item.city, item.state, item.zip))
       .filter(key => !result.has(key))).size;
@@ -263,6 +276,7 @@ export function createGeocodingService(deps: Dependencies) {
         const unresolved = items.filter(item => !hasValidCoordinates(item));
         const missing = unresolved.filter(item =>
           !completed.has(normalizeAddressKey(item.address, item.city, item.state, item.zip)));
+        recordProviderCache('geocoding', 'coordinates', 'session', 'hit', unresolved.length - missing.length);
         const results = await geocodeMultiple([...located, ...missing]);
         for (const item of missing) {
           const key = normalizeAddressKey(item.address, item.city, item.state, item.zip);
@@ -290,7 +304,11 @@ export function createGeocodingService(deps: Dependencies) {
 }
 
 const service = createGeocodingService({
-  fetch: (...args) => fetch(...args),
+  fetch: (input, init) => {
+    const host = new URL(String(input)).hostname;
+    return geocodingFetch[host === 'maps.googleapis.com' ? 'google'
+      : host === 'geocoding.geo.census.gov' ? 'census' : 'nominatim'](input, init);
+  },
   googleApiKey: () => process.env.GOOGLE_GEOCODING_API_KEY || '',
   report: accounting => console.info('[geocoding:usage]', accounting),
   async lookup(keys) {

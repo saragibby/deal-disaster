@@ -19,6 +19,8 @@ import { hasValidCoordinates } from './geocodingService.js';
 import { pool } from '../db/pool.js';
 import { Pool } from 'pg';
 import { createPostgresMarketCacheStore, createRentCastMarketCache } from './rentCastMarketCache.js';
+import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+const fetch = createProviderFetch('rentcast');
 export type { MarketStatistics } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
@@ -45,7 +47,13 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — rental data changes in
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  const operation = key.startsWith('rentcast:records:') ? 'property-records'
+    : key.startsWith('rentcast:estimate:') ? 'rent-avm' : 'rental-listings';
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('rentcast', operation, 'memory', 'hit');
+    return entry.data;
+  }
+  recordProviderCache('rentcast', operation, 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return null;
 }
@@ -142,8 +150,8 @@ export async function getPropertyRecords(
   }
   const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
   const cacheKey = `rentcast:records:${address}`;
-  const cached = getCached<PropertyRecords>(cacheKey);
-  if (cached && !options.refresh) return cached;
+  const cached = options.refresh ? null : getCached<PropertyRecords>(cacheKey);
+  if (cached) return cached;
 
   const response = await fetch(`${BASE_URL}/properties?${new URLSearchParams({ address, limit: '1' })}`, {
     headers: headers(),
