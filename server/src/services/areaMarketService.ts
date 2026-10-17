@@ -252,73 +252,63 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
   recordProviderCache('zillow', 'housing_market', 'memory', 'miss');
   recordProviderCache('zillow', 'rental_market', 'memory', 'miss');
 
-  // 2. DB lookup
+  // Cache read/write failures must never restart a completed provider fetch.
+  let row: AreaRow | null = null;
   try {
-    const row = await getLatestRow(areaKey);
-
-    if (row && !isStale(row.fetched_at)) {
-      recordProviderCache('zillow', 'housing_market', 'postgres', 'hit');
-      recordProviderCache('zillow', 'rental_market', 'postgres', 'hit');
-      const result: AreaMarketData = {
-        housingMarket: row.housing_market ?? undefined,
-        rentalMarket: row.rental_market ?? undefined,
-      };
-      memSet(`area:${areaKey}`, result);
-      return result;
-    }
-
-    // 3. Stale or missing — fetch fresh from API (both in parallel)
-    recordProviderCache('zillow', 'housing_market', 'postgres', row ? 'stale' : 'miss');
-    recordProviderCache('zillow', 'rental_market', 'postgres', row ? 'stale' : 'miss');
-    let [housing, rental] = await Promise.all([
-      fetchHousingMarketFromApi(searchQuery),
-      fetchRentalMarketFromApi(searchQuery),
-    ]);
-
-    // 3b. If city+state failed and we have a ZIP, retry with ZIP as search query
-    if (!housing && !rental && zip) {
-      recordProviderFallback('zillow', 'housing_market', 'no-usable-data');
-      recordProviderFallback('zillow', 'rental_market', 'no-usable-data');
-      [housing, rental] = await Promise.all([
-        fetchHousingMarketFromApi(zip),
-        fetchRentalMarketFromApi(zip),
-      ]);
-    }
-
-    // Persist as new snapshot row
-    const areaName = housing?.areaName || rental?.areaName || searchQuery;
-    if (housing || rental) {
-      await insertRow(areaKey, areaName, housing, rental);
-    }
-
-    const result: AreaMarketData = {
-      housingMarket: housing ?? row?.housing_market ?? undefined,
-      rentalMarket: rental ?? row?.rental_market ?? undefined,
-    };
-    memSet(`area:${areaKey}`, result);
-    return result;
+    row = await getLatestRow(areaKey);
   } catch (err) {
     recordProviderFallback('zillow', 'housing_market', 'cache-unavailable');
     recordProviderFallback('zillow', 'rental_market', 'cache-unavailable');
     recordProviderCache('zillow', 'housing_market', 'postgres', 'error');
     recordProviderCache('zillow', 'rental_market', 'postgres', 'error');
-    // DB unavailable — fall through to direct API call
-    console.warn(`[areaMarketService] DB error, falling back to API:`, (err as Error).message);
-    let [housing, rental] = await Promise.all([
-      fetchHousingMarketFromApi(searchQuery),
-      fetchRentalMarketFromApi(searchQuery),
-    ]);
-    if (!housing && !rental && zip) {
-      recordProviderFallback('zillow', 'housing_market', 'no-usable-data');
-      recordProviderFallback('zillow', 'rental_market', 'no-usable-data');
-      [housing, rental] = await Promise.all([
-        fetchHousingMarketFromApi(zip),
-        fetchRentalMarketFromApi(zip),
-      ]);
-    }
-    return {
-      housingMarket: housing ?? undefined,
-      rentalMarket: rental ?? undefined,
-    };
+    console.warn('[areaMarketService] Cache read failed; fetching once:', (err as Error).message);
   }
+
+  if (row && !isStale(row.fetched_at)) {
+    recordProviderCache('zillow', 'housing_market', 'postgres', 'hit');
+    recordProviderCache('zillow', 'rental_market', 'postgres', 'hit');
+    const result: AreaMarketData = {
+      housingMarket: row.housing_market ?? undefined,
+      rentalMarket: row.rental_market ?? undefined,
+    };
+    memSet(`area:${areaKey}`, result);
+    return result;
+  }
+
+  // 3. Stale or missing — fetch fresh from API (both in parallel)
+  recordProviderCache('zillow', 'housing_market', 'postgres', row ? 'stale' : 'miss');
+  recordProviderCache('zillow', 'rental_market', 'postgres', row ? 'stale' : 'miss');
+  let [housing, rental] = await Promise.all([
+    fetchHousingMarketFromApi(searchQuery),
+    fetchRentalMarketFromApi(searchQuery),
+  ]);
+
+  // 3b. If city+state failed and we have a ZIP, retry with ZIP as search query
+  if (!housing && !rental && zip) {
+    recordProviderFallback('zillow', 'housing_market', 'no-usable-data');
+    recordProviderFallback('zillow', 'rental_market', 'no-usable-data');
+    [housing, rental] = await Promise.all([
+      fetchHousingMarketFromApi(zip),
+      fetchRentalMarketFromApi(zip),
+    ]);
+  }
+
+  // Persist as new snapshot row
+  const areaName = housing?.areaName || rental?.areaName || searchQuery;
+  if (housing || rental) {
+    try {
+      await insertRow(areaKey, areaName, housing, rental);
+    } catch (err) {
+      recordProviderCache('zillow', 'housing_market', 'postgres', 'error');
+      recordProviderCache('zillow', 'rental_market', 'postgres', 'error');
+      console.warn('[areaMarketService] Cache write failed; keeping fetched data:', (err as Error).message);
+    }
+  }
+
+  const result: AreaMarketData = {
+    housingMarket: housing ?? row?.housing_market ?? undefined,
+    rentalMarket: rental ?? row?.rental_market ?? undefined,
+  };
+  memSet(`area:${areaKey}`, result);
+  return result;
 }

@@ -2,8 +2,7 @@
  * Realty-in-US Service (realtor.com data via RapidAPI)
  *
  * Provides REAL rental comps sourced from active for-rent listings on
- * realtor.com. This is our primary source of property-level rent comps
- * (we don't use RentCast).
+ * realtor.com. This is a fallback when RentCast has no usable rental comps.
  *
  * Endpoint: POST /properties/v3/list
  *   body: { limit, offset, postal_code, status: ['for_rent'], sort }
@@ -169,23 +168,22 @@ export async function getRentalComps(
 ): Promise<RentalComp[]> {
   if (!isConfigured() || !property.zip) return [];
 
-  const cacheKey = `realty:rent:${property.zip}:${property.bedrooms || ''}`;
+  const body = {
+    limit,
+    offset: 0,
+    postal_code: property.zip,
+    status: ['for_rent'],
+    sort: { direction: 'desc', field: 'list_date' },
+  };
+  const cacheKey = `realty:rent:v2:${JSON.stringify(body)}`;
   const cached = cache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     recordProviderCache('realtor', 'listings', 'memory', 'hit');
-    return cached.data;
+    return selectRentalComps(cached.data, property);
   }
   recordProviderCache('realtor', 'listings', 'memory', cached ? 'stale' : 'miss');
 
   try {
-    const body = {
-      limit,
-      offset: 0,
-      postal_code: property.zip,
-      status: ['for_rent'],
-      sort: { direction: 'desc', field: 'list_date' },
-    };
-
     const res = await fetch(`https://${HOST}/properties/v3/list`, {
       method: 'POST',
       headers: headers(),
@@ -198,8 +196,11 @@ export async function getRentalComps(
     }
 
     const data = await res.json() as any;
-    const results: any[] = data?.data?.home_search?.results || [];
-    if (!Array.isArray(results)) return [];
+    const results: any[] = data?.data?.home_search?.results;
+    if (!Array.isArray(results)) {
+      console.warn('[Realty-in-US] Invalid rental results; not caching failure');
+      return [];
+    }
 
     const comps: RentalComp[] = results
       .filter((r) => r?.list_price && r.list_price > 0)
@@ -215,23 +216,20 @@ export async function getRentalComps(
           source: 'api' as const,
         };
       });
-    const plausibleComps = filterPlausibleRentalComps(comps, property);
-
-    // Keep comps comparable: prefer those within ±1 bedroom of the subject,
-    // but never filter down to zero in sparse markets.
-    let relevant = plausibleComps;
-    if (property.bedrooms) {
-      const filtered = plausibleComps.filter(
-        (c) => c.bedrooms == null || Math.abs((c.bedrooms || 0) - property.bedrooms) <= 1,
-      );
-      if (filtered.length >= 1) relevant = filtered;
-    }
-
-    cache.set(cacheKey, { data: relevant, expiresAt: Date.now() + CACHE_TTL_MS });
+    const relevant = selectRentalComps(comps, property);
+    cache.set(cacheKey, { data: comps, expiresAt: Date.now() + CACHE_TTL_MS });
     console.log(`[Realty-in-US] Found ${relevant.length} rental comps for ${property.zip}`);
     return relevant;
   } catch (err: any) {
     console.warn('[Realty-in-US] Rental comps error:', err.message);
     return [];
+  }
+
+  function selectRentalComps(comps: RentalComp[], property: PropertyData): RentalComp[] {
+    const plausible = filterPlausibleRentalComps(comps, property);
+    if (!Number.isFinite(property.bedrooms)) return plausible;
+    const matched = plausible.filter(comp =>
+      comp.bedrooms == null || Math.abs(comp.bedrooms - property.bedrooms) <= 1);
+    return matched.length > 0 ? matched : plausible;
   }
 }

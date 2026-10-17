@@ -182,7 +182,19 @@ async function fetchListings(location: { viewport: unknown }): Promise<FFListing
       return null;
     }
 
-    return json.data?.search?.results ?? [];
+    const results = json.data?.search?.results;
+    if (!Array.isArray(results) || results.some(listing =>
+      !listing || typeof listing !== 'object' ||
+      !(listing.bedroomCount === null || Number.isFinite(listing.bedroomCount)) ||
+      !(listing.bathroomCount === null || Number.isFinite(listing.bathroomCount)) ||
+      !(listing.propertyType === null || typeof listing.propertyType === 'string') ||
+      !(listing.rentAmount === null || (typeof listing.rentAmount === 'object' &&
+        listing.rentAmount !== undefined &&
+        (listing.rentAmount.amount === null || typeof listing.rentAmount.amount === 'string'))))) {
+      console.warn('[FurnishedFinder] Invalid search results; not caching failure');
+      return null;
+    }
+    return results;
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       console.warn('[FurnishedFinder] Search timed out');
@@ -269,13 +281,15 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
 
   // Primary (~6mi) box.
   let listings = await fetchListings(viewportFromRadius(latitude, longitude, PRIMARY_RADIUS_MILES));
-  let market = listings ? reduceToMarketData(listings, beds, PRIMARY_RADIUS_MILES) : null;
+  if (listings === null) return null;
+  let market = reduceToMarketData(listings, beds, PRIMARY_RADIUS_MILES);
 
   // Thin market? Widen the box once (~15mi).
   if (!market) {
     recordProviderFallback('furnished-finder', 'search', 'widen-search');
     listings = await fetchListings(viewportFromRadius(latitude, longitude, WIDE_RADIUS_MILES));
-    market = listings ? reduceToMarketData(listings, beds, WIDE_RADIUS_MILES) : null;
+    if (listings === null) return null;
+    market = reduceToMarketData(listings, beds, WIDE_RADIUS_MILES);
   }
 
   setCache(cacheKey, market);

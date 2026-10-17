@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** Coordinate reuse, RentCast quick wins, and shared ZIP caching committed; expanded data-provider request accounting implemented locally, pending deployment
+**Status:** Coordinate reuse, RentCast quick wins, shared ZIP caching, and request accounting committed; provider retry/cache-correctness fixes implemented locally, pending deployment
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -105,7 +105,7 @@ retention/deletion workflows if future licenses require strict purge deadlines.
 
 ## Implementation update - expanded data-provider request accounting
 
-The next local slice adds [providerUsageService](server/src/services/providerUsageService.ts)
+Committed as `0a502e3`, this slice adds [providerUsageService](server/src/services/providerUsageService.ts)
 and installs its middleware in both analyzer backend wrappers. Async-local contexts
 keep overlapping requests isolated without modifying global fetch or provider
 response bodies. It instruments the existing data HTTP calls to Zillow, AirDNA,
@@ -205,6 +205,51 @@ The broader Phase 0 remains open for automatic widget linkage, end-to-end cold
 route replay, provider-policy matrix completion, persistent reporting, account
 quota/invoice reconciliation, and SDK/browser traffic measurement.
 
+## Implementation update - provider retry and cache correctness
+
+The next local slice addresses request amplification and incorrect cache reuse:
+
+- **Zillow area market:** isolate database reads and writes from provider fetching.
+  A failed write no longer repeats the two successful city requests or the
+  conditional two-request ZIP fallback. Fresh results remain in the existing
+  one-hour hot cache even during database outages. Existing seven-day database
+  freshness and partial/stale-field fallback behavior are preserved.
+- **AirDNA:** replace the ZPID-only estimate key with a versioned identity built
+  from the exact effective property request, ZIP fallback input, and bedroom
+  input used by local cleaning-cost calculations. Distinct addresses/units or
+  changed bedrooms/bathrooms no longer collide when ZPID is missing or unchanged.
+  A changed ZPID alias alone does not force another request for identical inputs.
+  Provider query semantics, financial formulas, fallback order, and 24-hour
+  freshness remain unchanged; this does not add a shared ZIP fallback cache.
+- **Furnished Finder:** only widen a successful but thin primary search. HTTP,
+  transport, GraphQL, and malformed-results failures return unavailable without
+  storing a 24-hour empty-market entry. A failed wider search is likewise not
+  cached. Two valid thin/empty searches can still cache an unavailable market
+  signal for 24 hours. No retries, failure cooldown, or cross-process caching
+  are added in this slice.
+- **Realty-in-US:** the user confirmed an enabled RapidAPI subscription on
+  October 16, 2026. Both sale-lookup and rental-comp fallbacks remain enabled
+  under the existing shared-key configuration; no new opt-in is required.
+  Rental caching now stores unfiltered normalized query observations keyed by
+  the full effective body, including limit. Plausibility and bedroom selection
+  run separately for each property, including studios, preventing one
+  property's price/bedroom filters from poisoning another's result. Missing or
+  malformed result containers are not cached as successful empty lists.
+
+**Verification:** the isolated provider suite now has 72 tests: 56 previous tests
+plus 16 new retry/cache-correctness regressions in
+[provider-cache-correctness.spec.ts](e2e/provider-cache-correctness.spec.ts).
+They verify exact two/four-call Zillow outage paths, hot reuse, stale partial
+preservation, AirDNA input separation and fallback estimates, Furnished Finder
+failure recovery versus genuine thin markets, Realty-in-US per-property filtering,
+changed limits, and continued entitled fallback access. HTTP and database calls
+are mocked; no credentials, paid endpoints, or application database are used.
+
+These are local correctness changes, not production savings measurements. Realty-
+in-US pricing/quotas remain unconfirmed, so accounting still reports its charge
+as unknown. Provider-wide rate limits/cooldowns, durable caches, and Google
+retention/display review remain separate follow-ups.
+
 ## 1. Goals and boundaries
 
 Reduce external requests, duplicate work, and provider cost without silently changing investment assumptions, reducing data completeness, or exposing private data.
@@ -279,7 +324,7 @@ Do not implement both modes simultaneously or remove the AVM in bundle mode. Bun
 
 - Preserve current data panels by default; optional/lazy demand enrichment requires approved UI behavior, including pending/unavailable states.
 - Confirm cache, storage, and cross-app display rights for each property provider.
-- Confirm RentCast configuration and separate Realty-in-US entitlement without reading or logging credential values.
+- Confirm RentCast configuration without reading or logging credential values. Realty-in-US entitlement was confirmed by the user on October 16, 2026; pricing and quotas remain unconfirmed.
 - Treat Furnished Finder's undocumented endpoint as best-effort, not a guaranteed entitled API.
 
 ### Include migration to Places API (New)
@@ -432,7 +477,7 @@ Other work:
 - Reuse address/ZPID aliases without conflating unmatched properties.
 - Fix AirDNA cache identity for empty ZPIDs and changed attributes.
 - Prevent Furnished Finder failures from being cached as genuine empty markets for 24 hours; distinguish valid thin-market results from outages.
-- Disable unentitled Realty-in-US attempts explicitly, with operational configuration visibility.
+- Preserve entitled Realty-in-US fallbacks (user-confirmed enabled subscription); require operational review if that entitlement changes.
 - Avoid retry amplification: set timeouts, concurrency limits, bounded retries, and shared provider cooldowns. Do not retry rejected billing/auth requests automatically.
 
 ### Phase 4 - RentCast bundle consolidation and useful-data projections

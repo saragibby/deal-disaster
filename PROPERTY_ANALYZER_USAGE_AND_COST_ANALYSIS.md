@@ -49,6 +49,16 @@ UI does not do so automatically. AI SDK usage, photos/map tiles, durable reporti
 and invoice/quota reconciliation remain outside this slice. See
 [accounting fields, pricing assumptions, limitations, and deployment](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---expanded-data-provider-request-accounting).
 
+**Provider-correctness update:** the next local slice prevents Zillow cache-write
+failures from repeating completed market fetches, makes AirDNA cache identities
+query-specific instead of ZPID-only, separates Furnished Finder outages from
+cacheable thin markets, and applies Realty-in-US rental filters per subject over
+query-keyed observations. The user also confirmed Realty-in-US is enabled in
+RapidAPI; its pricing/quotas remain unconfirmed. Both fallback paths stay enabled.
+See [implementation and tests](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---provider-retry-and-cache-correctness).
+Historical cold-path counts below are unchanged; outage and repeat-request
+behavior is improved, not measured production usage.
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:
@@ -170,7 +180,7 @@ Duplicate uncached comparable addresses can also create duplicate geocoding requ
 
 Its three functions return without outbound provider requests. The route then attempts Realty-in-US rental comps when a ZIP and RapidAPI key exist.
 
-Realty-in-US is not shown in the supplied subscription screenshot. Sharing a RapidAPI key does not establish entitlement to that separate API.
+Realty-in-US was not shown in the supplied subscription screenshot, but the user subsequently confirmed an enabled subscription on October 16, 2026. Its pricing/quotas remain unconfirmed.
 
 Removing three RentCast requests and adding one Realty-in-US attempt gives **35-36 full-page requests**, assuming all other primary providers succeed. This is a conditional scenario, not a confirmed description of production.
 
@@ -352,7 +362,7 @@ No implementation changes were made as part of this analysis.
 3. **Consolidate RentCast valuation and comps.** The AVM response already includes rental comparables, which the current mapper discards. Prefer evaluating an AVM-first bundle, with the listings endpoint retained when active-only listings are required. Simply skipping unused AVM calls is a lower-change alternative. See the detailed RentCast review below.
 4. **Share expensive process-only caches across instances.** Proximity, RentCast ZIP data, and AirDNA are candidates, with appropriate freshness policies.
 5. **Separate optional Xome data from analysis completion.** Prewarming shifts request attribution but does not eliminate traffic; open-endpoint access still has bandwidth and operational cost.
-6. **Validate provider entitlements.** An attempted but unsubscribed Realty-in-US fallback adds latency and potentially failed usage without improving results.
+6. **Validate provider entitlements.** Realty-in-US is user-confirmed enabled; retain its fallbacks and confirm account pricing/quotas before assigning costs.
 
 ## 10. RentCast consolidation, data enrichment, and reuse
 
