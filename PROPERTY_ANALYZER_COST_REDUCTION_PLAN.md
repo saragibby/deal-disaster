@@ -1,12 +1,12 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** First implementation slice complete and locally validated; remaining phases proposed  
+**Status:** Coordinate reuse committed; RentCast quick wins implemented and locally validated; shared-cache phases pending
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
 
-The first recommended slice is implemented in the working tree:
+The first recommended slice is committed as `8cfef67` on `saragibby-analyzer-cost-reduction`:
 
 - Preserve valid numeric `latitude`/`longitude` pairs when present on the property-details record or individual similar-property records. No undocumented alternative field names, string coercion, or extra provider requests are introduced. Actual production field availability still needs confirmation from a sanitized response; mocked fixtures validate preservation, not provider coverage.
 - New analyses share one request-scoped geocoding session across the early subject and later comparable stages. Valid pairs are not overwritten; successes and failures are remembered for that analysis.
@@ -16,7 +16,7 @@ The first recommended slice is implemented in the working tree:
 - Emit `[geocoding:usage]` per batch with input count, existing-coordinate reuse, persistent-cache/in-flight hits, provider attempts, and resolved/unresolved unique-key counts. These are local counters, not billing records or a complete all-provider/per-analysis telemetry system. Session-memoized rows are excluded from subsequent lookup batches.
 
 **Verification:** `npm run build:server` passes. The isolated mocked-provider suite,
-`npx playwright test --config=playwright.providers.config.ts`, covers 17 tests:
+`npx playwright test --config=playwright.providers.config.ts`, includes 17 geocoding tests:
 21 valid locations -> zero provider/cache calls; exactly three unique missing locations ->
 three primary requests; overlapping requests -> one lookup/fill; unit separation;
 partial re-analysis; early subject success/failure reuse; cache read/write failures;
@@ -29,6 +29,38 @@ additional provider coordinate adapters, provenance/retention migrations, or the
 production policy audit. Existing persistent geocoding retention is unchanged, not
 certified compliant by this implementation. The broader Phase 0 and Phase 1A items
 below remain open where they exceed this slice.
+
+## Implementation update - RentCast quick wins
+
+The next slice is implemented locally, separately from the coordinate-reuse commit:
+
+- New analyses skip the RentCast rent AVM request whenever plausible rental comps exist. A single usable comp qualifies, matching the existing blending policy. With none, the existing AVM blend, Zillow market anchor, and algorithmic fallback remain.
+- Apply the existing plausibility filter before deciding whether to fall back from RentCast listings to Realtor listings. Previously, nonempty but entirely implausible RentCast results suppressed that fallback.
+- Read `/markets` statistics from `rentalData`, not top-level or `saleData` fields. Read month-keyed history, request 13 months, and compare matching statistics exactly twelve months apart. Missing years/gaps do not become zero growth or a stable trend.
+- Preserve absent metrics as optional fields across the shared type and both market displays. An available average is labeled as an average, never relabeled a median. Missing trend is displayed as unavailable.
+- Version market projections as `rentcast:market:v2`. Listings/AVM cache keys also use a new version and include the actual effective query, preventing reuse across changed limits, coordinates, or property filters.
+- Preserve studio bedrooms (`0`), omit unavailable bathroom/square-footage/type defaults, and omit whole-building bedroom/bathroom/size filters for multi-family rentals. This intentionally corrects query semantics; it may change returned comps and subsequent estimates.
+
+**Expected cost effect:** in the baseline successful-comps case, RentCast drops from
+three calls (listings + unused AVM + markets) to two (listings + markets), a 33%
+request reduction. Savings are one RentCast request at the account's applicable
+rate, not an assumed dollar amount. No-comp cases retain the AVM request and may
+also require Realtor fallback. The market mapping itself improves data correctness,
+not request count; corrected nonzero medians can change comparable calibration.
+
+**Verification:** after `npm run build:packages`, run
+`npx playwright test --config=playwright.providers.config.ts`. The suite now contains
+43 tests: 17 geocoding, 15 RentCast usage/mapping/rendering tests, and 11 existing
+property-record regressions. Tests use mocked providers with no database or live
+provider traffic. All package, backend, and app builds pass, including analyzer
+boundary checks. The market-display rendering test uses the built core component;
+rebuild packages after UI edits before rerunning it.
+
+**Still pending:** shared PostgreSQL ZIP caching and cross-process deduplication;
+AVM-first bundle mode; expanded sale/bedroom/property-type projections; production
+usage measurement; and provider retention/display approval. Existing saved analysis
+snapshots are not rewritten. Re-analysis retains its existing stored-comps/market
+refresh policy; it does not acquire a new AVM call from this change.
 
 ## 1. Goals and boundaries
 

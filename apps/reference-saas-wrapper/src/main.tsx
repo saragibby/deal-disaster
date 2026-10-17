@@ -559,7 +559,7 @@ function buildComparables(property: PropertyData, index: number): ComparableProp
   ];
 }
 
-function buildMarketStatistics(index: number): MarketStatistics {
+function buildMarketStatistics(index: number) {
   return {
     medianRent: 2525 + index * 110,
     averageRent: 2580 + index * 115,
@@ -567,7 +567,7 @@ function buildMarketStatistics(index: number): MarketStatistics {
     totalListings: 34 + index * 4,
     avgDaysOnMarket: Math.max(16, 29 - index),
     rentTrend: 'rising',
-  };
+  } satisfies MarketStatistics;
 }
 
 function buildMarketTrendRows(postalCode: string) {

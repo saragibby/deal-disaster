@@ -738,7 +738,8 @@ function MarketStatsSection({ stats }: { stats: MarketStatistics }) {
     : stats.rentTrend === 'declining'
       ? <TrendingDown size={13} style={{ color: '#ef4444' }} />
       : <CircleMinus size={13} style={{ color: '#94a3b8' }} />;
-  const trendLabel = stats.rentTrend === 'rising' ? 'Rising' : stats.rentTrend === 'declining' ? 'Declining' : 'Stable';
+  const trendLabel = stats.rentTrend === 'rising' ? 'Rising' : stats.rentTrend === 'declining' ? 'Declining'
+    : stats.rentTrend === 'stable' ? 'Stable' : 'Unavailable';
 
   return (
     <div className="rental-insights__deep-section" style={{ marginTop: '1rem' }}>
@@ -751,6 +752,9 @@ function MarketStatsSection({ stats }: { stats: MarketStatistics }) {
         </span>
         {stats.medianRent != null && (
           <span className="rental-insights__pill">Median rent: {fmt(stats.medianRent)}</span>
+        )}
+        {stats.averageRent != null && (
+          <span className="rental-insights__pill">Average rent: {fmt(stats.averageRent)}</span>
         )}
         {stats.rentGrowthPct != null && (
           <span className="rental-insights__pill">

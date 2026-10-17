@@ -17,6 +17,14 @@ requires confirmation. Up to 21 avoided Google geocodes saves $0.105 at the mode
 first paid tier; a genuinely cold analysis with no supplied coordinates still needs
 one initial geocode per unique required address. Places usage is unchanged.
 
+**RentCast implementation update:** the subsequent local slice gates the unused AVM
+request when usable rental comps exist, reducing the modeled three RentCast calls
+to two in that scenario. It also corrects nested rental-market statistics and
+same-month YoY mapping, preserves missing values, and fixes query-specific cache
+keys/studio filters. These correctness fixes can change estimates; the original
+counts and dollar examples below remain a historical baseline. This slice is
+locally tested, not deployed or measured in production.
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:

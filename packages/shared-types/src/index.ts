@@ -616,12 +616,12 @@ export interface MTREstimate {
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface MarketStatistics {
-  medianRent: number;
-  averageRent: number;
-  rentGrowthPct: number;        // YoY percentage e.g. 3.5 = 3.5%
-  totalListings: number;
-  avgDaysOnMarket: number;
-  rentTrend: 'rising' | 'stable' | 'declining';
+  medianRent?: number;
+  averageRent?: number;
+  rentGrowthPct?: number;        // YoY; absent when same-month prior-year data is unavailable
+  totalListings?: number;
+  avgDaysOnMarket?: number;
+  rentTrend?: 'rising' | 'stable' | 'declining';
 }
 
 // ── Strategy Comparison (single source of truth) ──────────────────────────

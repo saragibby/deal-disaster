@@ -20,6 +20,7 @@ import { authenticateOptional, authenticateToken, AuthRequest } from '../middlew
 import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
+import { getLongTermRentalEstimate } from '../services/longTermRentalService.js';
 import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
@@ -200,32 +201,8 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     // Rental estimation — real for-rent comps first (RentCast → Realtor.com),
     // then Zillow area-median anchor, then the bare algorithm.
-    let apiComps = await rentCastService.getRentalComps(property);
-    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
-    if (apiComps.length === 0) {
-      apiComps = await realtyInUsService.getRentalComps(property);
-      if (apiComps.length > 0) compSource = 'realtor';
-    }
-    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
-    const algorithmic = rentalEstimationService.estimateRent(property);
-    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
-
-    // Also try RentCast's AVM rent estimate as a cross-check
-    const rentCastEstimate = await rentCastService.getRentEstimate(property);
-    if (rentCastEstimate && apiComps.length === 0) {
-      // If we got an AVM estimate but no comps, blend it in
-      rentalEstimate.mid = Math.round((rentalEstimate.mid + rentCastEstimate.mid) / 2);
-      rentalEstimate.low = Math.round((rentalEstimate.low + rentCastEstimate.low) / 2);
-      rentalEstimate.high = Math.round((rentalEstimate.high + rentCastEstimate.high) / 2);
-      if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
-    }
-
-    // No rental comps? Anchor to Zillow's area rental-market median (real data,
-    // high confidence) instead of falling back to the bare algorithm.
-    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
-    if (usedZillowRent) {
-      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
-    }
+    const { rentalEstimate, compSource, usedZillowRent, usedAvm } = await getLongTermRentalEstimate(property);
+    const apiComps = rentalEstimate.comps || [];
 
     // Short-term rental — prefer AirDNA real data, fall back to algorithmic
     let strEstimate = await airDnaService.getSTREstimate(property);
@@ -277,7 +254,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
         ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
         : usedZillowRent
           ? 'zillow'
-          : (rentCastEstimate ? 'blended' : 'algorithm'),
+          : (usedAvm ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: mtrEstimate.source,
       hoa: hoaSource,

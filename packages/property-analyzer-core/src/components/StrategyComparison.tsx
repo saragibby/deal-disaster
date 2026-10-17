@@ -180,15 +180,20 @@ function MarketTrendBadge({ stats }: { stats?: MarketStatistics }) {
   const color = stats.rentTrend === 'rising' ? '#22c55e'
     : stats.rentTrend === 'declining' ? '#ef4444'
     : '#eab308';
-  const sign = stats.rentGrowthPct > 0 ? '+' : '';
+  const sign = stats.rentGrowthPct != null && stats.rentGrowthPct > 0 ? '+' : '';
   return (
     <div className="strategy-comparison__market-trend">
       <span className="strategy-comparison__market-trend-badge" style={{ color, borderColor: color }}>
-        {icon} {stats.rentTrend} ({sign}{stats.rentGrowthPct.toFixed(1)}% YoY)
+        {icon} {stats.rentTrend ?? 'Trend unavailable'}
+        {stats.rentGrowthPct != null && ` (${sign}${stats.rentGrowthPct.toFixed(1)}% YoY)`}
       </span>
       <span className="strategy-comparison__market-trend-detail">
-        Median: {fmt(stats.medianRent)}/mo · {stats.totalListings} listings
-        {stats.avgDaysOnMarket > 0 && ` · ${stats.avgDaysOnMarket} avg DOM`}
+        {[
+          stats.medianRent != null ? `Median: ${fmt(stats.medianRent)}/mo` : null,
+          stats.averageRent != null ? `Average: ${fmt(stats.averageRent)}/mo` : null,
+          stats.totalListings != null ? `${stats.totalListings} listings` : null,
+          stats.avgDaysOnMarket != null ? `${stats.avgDaysOnMarket} avg DOM` : null,
+        ].filter(Boolean).join(' · ')}
       </span>
     </div>
   );
