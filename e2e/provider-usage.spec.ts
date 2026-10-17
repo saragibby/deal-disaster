@@ -14,13 +14,16 @@ const { Router } = express;
 const originalFetch = globalThis.fetch;
 let originalKey: string | undefined;
 let originalSharedCache: string | undefined;
+let originalSharedPropertyCache: string | undefined;
 let originalRentCastRate: string | undefined;
 test.beforeEach(() => {
   originalKey = process.env.RENTCAST_API_KEY;
   originalSharedCache = process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
+  originalSharedPropertyCache = process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED;
   originalRentCastRate = process.env.RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST;
   process.env.RENTCAST_API_KEY = 'fixture-not-a-credential';
   process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = 'false';
+  process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED = 'false';
   delete process.env.RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST;
 });
 test.afterEach(() => {
@@ -29,6 +32,8 @@ test.afterEach(() => {
   else process.env.RENTCAST_API_KEY = originalKey;
   if (originalSharedCache === undefined) delete process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
   else process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = originalSharedCache;
+  if (originalSharedPropertyCache === undefined) delete process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED;
+  else process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED = originalSharedPropertyCache;
   if (originalRentCastRate === undefined) delete process.env.RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST;
   else process.env.RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST = originalRentCastRate;
 });

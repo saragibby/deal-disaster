@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** Coordinate reuse, RentCast quick wins, shared ZIP caching, and request accounting committed; provider retry/cache-correctness fixes implemented locally, pending deployment
+**Status:** Provider retry/cache-correctness fixes committed; shared caching expanded locally to RentCast rental listings and AVM, opt-in pending deployment. Zillow/AirDNA/Xome durable adapters remain pending rights review.
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -207,7 +207,7 @@ quota/invoice reconciliation, and SDK/browser traffic measurement.
 
 ## Implementation update - provider retry and cache correctness
 
-The next local slice addresses request amplification and incorrect cache reuse:
+Committed as `9c3b519`, this slice addresses request amplification and incorrect cache reuse:
 
 - **Zillow area market:** isolate database reads and writes from provider fetching.
   A failed write no longer repeats the two successful city requests or the
@@ -249,6 +249,99 @@ These are local correctness changes, not production savings measurements. Realty
 in-US pricing/quotas remain unconfirmed, so accounting still reports its charge
 as unknown. Provider-wide rate limits/cooldowns, durable caches, and Google
 retention/display review remain separate follow-ups.
+
+## Implementation update - expanded shared caching, RentCast property datasets
+
+This local slice adds opt-in shared **rental listings and rent AVM projections**,
+using the same reviewed RentCast storage rights as the ZIP-market cache. It does
+not change the listings-first strategy or revive the unused AVM call: usable
+rental comps still mean zero AVM requests.
+
+- Extract the existing tested lease/store machinery into
+  [sharedProviderCache](server/src/services/sharedProviderCache.ts), with typed
+  validation, dataset-specific expiry/identity, and a fixed SQL-table allowlist.
+  The original market adapter, seven-day expiry, flag, and keys are preserved.
+- Add [provider_data_cache](server/src/db/migrations/add_provider_data_cache.sql)
+  and a [RentCast property adapter](server/src/services/rentCastPropertyCache.ts).
+  The additive schema is also included in the normal database setup.
+- Preserve **24-hour freshness** for listings/AVM. Each adapter has a maximum of
+  500 process hot entries; shared-mode hot reuse is at most five minutes and
+  never outlives the persisted expiry. Returned values are cloned.
+- Identity includes endpoint, projection version, dated 24-hour policy, and a
+  SHA-256 digest of the full effective query with sorted parameter names. Studios,
+  coordinates, radius, limits, address/unit, type/size filters, and fallback
+  city/state/ZIP inputs remain distinct whenever they affect the actual request.
+  This is exact-query reuse, not fuzzy property matching or alias discovery.
+  The digest avoids plaintext address/query keys; it is not encryption or access control.
+- Store only reduced fields already used by the analyzer: AVM `mid/low/high`,
+  or listing address/rent/beds/baths/size/source. Listing addresses are provider
+  listing facts; treat the cache as internal application data, not anonymous data.
+  Owner names, mailing/contact information, raw responses, and credentials are
+  never projected into this table. Private ownership-record caching/saved
+  snapshots are unchanged and excluded from this flag.
+- Validate provider and persisted projections with explicit allowlists, a
+  256-KiB per-payload cap, and at most 500 projected comps. Missing/nonnumeric AVM
+  rent, invalid supplied ranges, malformed listing containers/rows, HTTP/network
+  failures, and oversized projections are not cached as empty success. Existing
+  missing-range defaults remain. A valid empty listings array is cached.
+- The new shared paths retain sixty-second leases, ownership-checked saves,
+  bounded eighteen-second polling, a thirty-second failed-fill cooldown, and
+  two-second database operation deadlines. Both provider endpoints now have
+  fifteen-second request timeouts. They share the existing dedicated two-connection
+  cache pool, not the application's ordinary query pool.
+- An unavailable shared cache fails closed: no uncoordinated provider call.
+  Listings become unavailable and existing Realtor/AVM/algorithmic fallbacks may
+  run; AVM remains optional. A successful provider result survives persistence
+  failure in the hot cache, without an immediate repeated paid fetch. Expired data
+  is not served; bounded cleanup remains opportunistic, not a strict idle-time
+  deletion schedule. See the earlier lease/deadline caveats.
+- With the flag off, no database access is added for these endpoints; 24-hour
+  process reuse remains, now bounded and with in-process single-flight.
+
+### Deployment and rollback
+
+1. Deploy the backend and run `npm run db:setup` from `server/`, or apply only
+   [add_provider_data_cache.sql](server/src/db/migrations/add_provider_data_cache.sql).
+   Both schema paths are idempotent. No production migration was run here.
+2. Confirm applicable RentCast account terms and operational capacity, then set
+   `RENTCAST_SHARED_PROPERTY_CACHE_ENABLED=true` on all participating processes
+   and restart. It defaults to `false` in [server/.env.example](server/.env.example).
+   This flag is independent of `RENTCAST_SHARED_MARKET_CACHE_ENABLED`.
+3. Verify `[provider:usage]` lists PostgreSQL hits for `rental-listings`/`rent-avm`
+   and no outbound attempts on reused datasets. Cache coordination warnings now
+   use `[provider:cache]`; the ZIP-input/connection warnings retain their existing
+   labels. Monitor fallback traffic and data availability during database outages.
+4. Roll back by setting the property flag to `false` everywhere and restarting.
+   Leave the additive table intact. No saved analyses need rewriting or purging.
+
+**Expected savings:** N otherwise cold-process calls for the identical eligible
+query within 24 hours target one provider fill, saving N-1 requests. A genuinely
+cold query still needs its first fill. Changed effective queries do not share.
+Do not count this as a saving on requests the old memory cache already avoided,
+or as an AVM saving in analyses that already skipped AVM.
+
+**Verification:** backend build passes; 75 isolated provider tests and 23 cache
+tests pass. New cache cases cover hashed/query-complete identity, projection
+allowlists and size limits, 24-hour expiry/mode separation, default-off behavior,
+database outage suppression, persisted-hit accounting, ownership/cooldown/expiry,
+and invalid persisted data. For each endpoint, two independent Node processes
+calling the actual RentCast service produce **one mocked provider request**; a
+third restarted process reuses the snapshot without another request. A separate
+three-process case verifies valid empty listings also persist and deduplicate. SQL checks
+confirm 24-hour expiry and absence of raw/private fields. The existing market
+suite still passes after extraction. Provider tests additionally cover concurrent
+listing requests, authoritative empty arrays, malformed/failure recovery, and
+the existing missing-range AVM behavior. All database integration uses a disposable
+Unix-socket-only PostgreSQL cluster; no live paid providers or application DB.
+
+**Still pending in the broader shared-caching item:** Zillow property/similar
+adapters and aliases, AirDNA estimates/market observations, and Xome
+listings/market-trends adapters. Their storage, redistribution, and retention
+rights have not been established by the supplied subscription pricing or
+open-endpoint access alone; do not automatically enable cross-user durable
+storage on that basis. The reusable infrastructure is ready for those adapters
+after their provider-specific rights review. RentCast private-record reuse and
+broader sale/rental bundle projections are also separate work.
 
 ## 1. Goals and boundaries
 
@@ -452,7 +545,7 @@ Acceptance:
 | Zillow property | Share address and ZPID aliases for the same verified property | Start with existing 24-hour freshness; complete identity and schema keys |
 | Zillow similar properties | Persist query result and reuse coordinates | 24 hours; ZPID/query version |
 | Zillow area market | Preserve existing shared weekly snapshots; fix duplicate-fetch error path | Existing 7-day policy; geography and response coverage |
-| RentCast AVM/comps | Persist full safe bundle or compatibility-mode results | 24 hours; address/unit, type/beds/baths/sqft, radius/age/count/lookup settings |
+| RentCast AVM/comps | Implemented opt-in: reduced compatibility-mode AVM/listing projections; full bundle remains future work | 24 hours; full effective query plus projection/policy versions |
 | RentCast ZIP market | One shared sale+rental snapshot, reuse across analyses/apps | 1-7 days; ZIP/data type/history coverage/version |
 | RentCast property records | Separate private owner fields and reusable permitted property facts | Proposed 7-30 days; explicit refresh, private access, saved-snapshot semantics |
 | AirDNA property | Persist validated estimate/bundle; eliminate ZPID-only collisions | Start at 24 hours; canonical property/unit and requested beds/baths |

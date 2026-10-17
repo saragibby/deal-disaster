@@ -59,6 +59,19 @@ See [implementation and tests](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implemen
 Historical cold-path counts below are unchanged; outage and repeat-request
 behavior is improved, not measured production usage.
 
+**Shared property-data cache update:** the next local slice adds independently
+opt-in 24-hour PostgreSQL reuse of reduced RentCast rental-listings and AVM results.
+It retains the unused-AVM gate and existing request filters. Cross-process leases,
+query-specific hashed identities, validated field allowlists, bounded memory and
+timeouts, and failure cooldowns avoid duplicate fills without storing raw or
+ownership-record responses. For each endpoint, two actual service processes
+made one mocked provider request and a restarted third reused the result.
+The first genuinely cold query still incurs a request. Enable only after deploying
+the new schema and setting `RENTCAST_SHARED_PROPERTY_CACHE_ENABLED=true`; this does
+not enable the separate ZIP-market flag. Zillow/AirDNA/Xome shared adapters remain
+pending provider-specific storage-rights review. See
+[scope, validation, rollout, and deferred providers](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---expanded-shared-caching-rentcast-property-datasets).
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:

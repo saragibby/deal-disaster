@@ -165,11 +165,14 @@ test.describe('RentCast HTTP queries and cache behavior', () => {
   const originalFetch = globalThis.fetch;
   let originalKey: string | undefined;
   let originalSharedCache: string | undefined;
+  let originalSharedPropertyCache: string | undefined;
   test.beforeEach(() => {
     originalKey = process.env.RENTCAST_API_KEY;
     originalSharedCache = process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
+    originalSharedPropertyCache = process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED;
     process.env.RENTCAST_API_KEY = 'fixture-key-not-a-real-credential';
     process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = 'false';
+    process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED = 'false';
   });
   test.afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -177,6 +180,8 @@ test.describe('RentCast HTTP queries and cache behavior', () => {
     else process.env.RENTCAST_API_KEY = originalKey;
     if (originalSharedCache === undefined) delete process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED;
     else process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED = originalSharedCache;
+    if (originalSharedPropertyCache === undefined) delete process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED;
+    else process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED = originalSharedPropertyCache;
   });
 
   test('one ZIP request fetches thirteen history months and caches the corrected metrics', async () => {
@@ -263,5 +268,54 @@ test.describe('RentCast HTTP queries and cache behavior', () => {
     for (const key of ['bedrooms', 'bathrooms', 'squareFootage']) {
       expect(urls[2].searchParams.has(key)).toBe(false);
     }
+  });
+
+  test('concurrent identical listings calls fill once and valid empty results stay cached', async () => {
+    const subject = { ...property, zip: '27401' };
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return Response.json([]);
+    };
+    expect(await Promise.all(Array.from({ length: 5 }, () => getRentalComps(subject)))).toEqual([[], [], [], [], []]);
+    await getRentalComps(subject);
+    expect(calls).toBe(1);
+  });
+
+  test('listings failures and malformed rows do not become cached successful empty arrays', async () => {
+    const subject = { ...property, zip: '27402' };
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) return new Response('', { status: 429 });
+      if (calls === 2) return Response.json([null]);
+      if (calls === 3) return Response.json([{ price: '1800' }]);
+      if (calls === 4) return Response.json([{}]);
+      return Response.json([{ price: 1800, bedrooms: null, ownerNames: ['discarded'] }]);
+    };
+    for (let index = 0; index < 4; index++) expect(await getRentalComps(subject)).toEqual([]);
+    const result = await getRentalComps(subject);
+    expect(result).toEqual([{
+      address: undefined, rent: 1800, bedrooms: undefined, bathrooms: undefined, sqft: undefined, source: 'api',
+    }]);
+    expect(await getRentalComps(subject)).toEqual(result);
+    expect(calls).toBe(5);
+  });
+
+  test('AVM malformed values are not cached and missing ranges retain existing estimates', async () => {
+    const subject = { ...property, address: '24 AVM Fixture St' };
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) return Response.json({ rent: '2000' });
+      if (calls === 2) return Response.json({ rent: 2000, rentRangeLow: -1 });
+      return Response.json({ rent: 2000, ownerNames: ['discarded'] });
+    };
+    expect(await getRentEstimate(subject)).toBeNull();
+    expect(await getRentEstimate(subject)).toBeNull();
+    expect(await getRentEstimate(subject)).toEqual({ mid: 2000, low: 1800, high: 2200 });
+    await getRentEstimate(subject);
+    expect(calls).toBe(3);
   });
 });
