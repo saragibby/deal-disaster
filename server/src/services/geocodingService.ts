@@ -1,337 +1,322 @@
-/**
- * Geocoding Service
- *
- * Converts street addresses to lat/lng coordinates with a PostgreSQL-backed
- * cache so each unique address is geocoded at most once.
- *
- * Provider priority:
- *   1. DB cache (instant, free)
- *   2. Google Geocoding API (if GOOGLE_GEOCODING_API_KEY is set and working)
- *   3. OpenStreetMap Nominatim fallback (free, no key, 1 req/sec rate limit)
- *
- * Cache table: geocoding_cache  (see migrations/add_geocoding_cache.sql)
- */
-
 import { pool } from '../db/pool.js';
-
-// ---------- configuration ----------
-
-function getApiKey(): string {
-  return process.env.GOOGLE_GEOCODING_API_KEY || '';
-}
-
-const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
-const CENSUS_GEOCODE_URL = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
-
-// ---------- address normalization ----------
-
-/**
- * Build a deterministic cache key from address components.
- * Uppercased, trimmed, single-spaced, comma-separated.
- *
- *   "123 Main St", "Springfield", "IL", "62704"
- *   → "123 MAIN ST, SPRINGFIELD, IL 62704"
- */
-export function normalizeAddressKey(
-  address: string,
-  city: string,
-  state: string,
-  zip: string,
-): string {
-  const parts = [address, city, `${state} ${zip}`]
-    .map(p => p.trim().replace(/\s+/g, ' ').toUpperCase())
-    .filter(Boolean);
-  return parts.join(', ');
-}
-
-// ---------- types ----------
 
 export interface Geocoordinates {
   lat: number;
   lng: number;
 }
 
-interface AddressInput {
+export interface AddressInput {
   address: string;
   city: string;
   state: string;
   zip: string;
+  latitude?: number;
+  longitude?: number;
 }
 
-// ---------- single geocode ----------
+type Provider = 'google' | 'census' | 'nominatim';
+interface CacheWrite {
+  key: string;
+  coords: Geocoordinates;
+  address: string;
+  provider: Provider;
+}
 
-/**
- * Geocode a single address. Returns cached result if available,
- * otherwise calls Google Geocoding API and caches the result.
- */
-export async function geocodeAddress(
-  address: string,
-  city: string,
-  state: string,
-  zip: string,
-): Promise<Geocoordinates | null> {
-  const key = normalizeAddressKey(address, city, state, zip);
-  if (!key) return null;
+export interface GeocodingAccounting {
+  inputCount: number;
+  reusedCoordinates: number;
+  cacheHits: number;
+  inFlightHits: number;
+  providerAttempts: Record<Provider, number>;
+  resolved: number;
+  unresolved: number;
+}
 
-  // 1. Check DB cache
-  try {
-    const cached = await pool.query(
-      'SELECT latitude, longitude FROM geocoding_cache WHERE address_key = $1',
-      [key],
-    );
-    if (cached.rows.length > 0) {
-      return { lat: cached.rows[0].latitude, lng: cached.rows[0].longitude };
+interface Dependencies {
+  lookup(keys: string[]): Promise<Map<string, Geocoordinates>>;
+  store(entries: CacheWrite[]): Promise<void>;
+  fetch: typeof fetch;
+  googleApiKey(): string;
+  report(accounting: GeocodingAccounting): void;
+}
+
+export function hasValidCoordinates(
+  value: { latitude?: unknown; longitude?: unknown },
+): value is { latitude: number; longitude: number } {
+  return typeof value.latitude === 'number' && Number.isFinite(value.latitude) &&
+    value.latitude >= -90 && value.latitude <= 90 &&
+    typeof value.longitude === 'number' && Number.isFinite(value.longitude) &&
+    value.longitude >= -180 && value.longitude <= 180;
+}
+
+export function normalizeAddressKey(address: string, city: string, state: string, zip: string): string {
+  return [address, city, `${state} ${zip}`]
+    .map(part => part.trim().replace(/\s+/g, ' ').toUpperCase())
+    .filter(Boolean)
+    .join(', ');
+}
+
+function parseCoordinates(lat: unknown, lng: unknown): Geocoordinates | null {
+  const value = { latitude: lat, longitude: lng };
+  return hasValidCoordinates(value)
+    ? { lat: value.latitude, lng: value.longitude }
+    : null;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+  return Array.isArray(value) ? record(value[0]) : undefined;
+}
+
+// No addresses, URLs, provider messages, or exception messages enter these logs.
+function warn(operation: string, provider?: Provider, status?: number): void {
+  console.warn('[geocoding]', { operation, provider, status });
+}
+
+export function createGeocodingService(deps: Dependencies) {
+  const inFlight = new Map<string, Promise<Geocoordinates | null>>();
+  let nextNominatimStart = 0;
+
+  async function request(
+    provider: Provider,
+    address: string,
+    accounting: GeocodingAccounting,
+  ): Promise<Geocoordinates | null> {
+    const apiKey = provider === 'google' ? deps.googleApiKey() : '';
+    if (provider === 'google' && !apiKey) return null;
+    if (provider === 'nominatim') {
+      const start = Math.max(Date.now(), nextNominatimStart);
+      nextNominatimStart = start + 1000;
+      const wait = start - Date.now();
+      if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
     }
-  } catch (err: any) {
-    // Cache table might not exist yet — log and continue to API
-    console.warn('[geocoding] Cache lookup failed:', err.message);
+
+    const url = provider === 'google'
+      ? `https://maps.googleapis.com/maps/api/geocode/json?${new URLSearchParams({ address, key: apiKey })}`
+      : provider === 'census'
+        ? `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?${new URLSearchParams({
+          address, benchmark: 'Public_AR_Current', format: 'json',
+        })}`
+        : `https://nominatim.openstreetmap.org/search?${new URLSearchParams({
+          q: address, format: 'json', limit: '1', countrycodes: 'us',
+        })}`;
+
+    accounting.providerAttempts[provider]++;
+    try {
+      const response = await deps.fetch(url, {
+        signal: AbortSignal.timeout(15000),
+        ...(provider === 'nominatim'
+          ? { headers: { 'User-Agent': 'DealPlatform-PropertyAnalyzer/1.0' } }
+          : {}),
+      });
+      if (!response.ok) {
+        warn('http-failure', provider, response.status);
+        return null;
+      }
+      const data: unknown = await response.json();
+      if (provider === 'google') {
+        const payload = record(data);
+        if (payload?.status !== 'OK') {
+          warn('no-valid-result', provider);
+          return null;
+        }
+        const first = firstRecord(payload.results);
+        const location = record(record(first?.geometry)?.location);
+        const coords = parseCoordinates(location?.lat, location?.lng);
+        if (!coords) warn('no-valid-result', provider);
+        return coords;
+      }
+      if (provider === 'census') {
+        const first = firstRecord(record(record(data)?.result)?.addressMatches);
+        const location = record(first?.coordinates);
+        const coords = parseCoordinates(location?.y, location?.x);
+        if (!coords) warn('no-valid-result', provider);
+        return coords;
+      }
+      const first = firstRecord(data);
+      const coords = typeof first?.lat === 'string' && first.lat.trim() &&
+        typeof first.lon === 'string' && first.lon.trim()
+        ? parseCoordinates(Number(first.lat), Number(first.lon))
+        : null;
+      if (!coords) warn('no-valid-result', provider);
+      return coords;
+    } catch {
+      warn('request-failure', provider);
+      return null;
+    }
   }
 
-  // 2. Try providers in order: Google → Census → Nominatim
-  const fullAddress = `${address}, ${city}, ${state} ${zip}`;
-  let coords: Geocoordinates | null = null;
-  let provider = '';
+  async function geocodeMultiple(items: AddressInput[]): Promise<Map<string, Geocoordinates>> {
+    const result = new Map<string, Geocoordinates>();
+    const accounting: GeocodingAccounting = {
+      inputCount: items.length, reusedCoordinates: 0, cacheHits: 0, inFlightHits: 0,
+      providerAttempts: { google: 0, census: 0, nominatim: 0 },
+      resolved: 0, unresolved: 0,
+    };
+    const unique = new Map<string, AddressInput>();
+    for (const item of items) {
+      const key = normalizeAddressKey(item.address, item.city, item.state, item.zip);
+      if (hasValidCoordinates(item)) {
+        result.set(key, { lat: item.latitude, lng: item.longitude });
+        accounting.reusedCoordinates++;
+      }
+      if (!item.address.trim()) {
+        if (!hasValidCoordinates(item)) warn('missing-street-address');
+        continue;
+      }
+      unique.set(key, item);
+    }
 
-  // 2a. Google (fastest, best quality — requires working API key)
-  coords = await geocodeViaGoogle(fullAddress);
-  if (coords) provider = 'google';
+    const waiting = new Map<string, Promise<Geocoordinates | null>>();
+    const owned: Array<{
+      key: string;
+      item: AddressInput;
+      resolve(coords: Geocoordinates | null): void;
+    }> = [];
+    for (const [key, item] of unique) {
+      if (result.has(key)) continue;
+      let pending = inFlight.get(key);
+      if (pending) {
+        accounting.inFlightHits++;
+      } else {
+        // Reserve before the first await so overlapping batches share cache reads and requests.
+        pending = new Promise(resolve => owned.push({ key, item, resolve }));
+        inFlight.set(key, pending);
+      }
+      waiting.set(key, pending);
+    }
 
-  // 2b. US Census Geocoder (free, no key, great US coverage, no rate limit)
-  if (!coords) {
-    coords = await geocodeViaCensus(fullAddress);
-    if (coords) provider = 'census';
+    const writes: CacheWrite[] = [];
+    const outcomes = new Map<string, Geocoordinates | null>();
+    try {
+      let cached = new Map<string, Geocoordinates>();
+      if (owned.length > 0) {
+        try {
+          cached = await deps.lookup(owned.map(entry => entry.key));
+        } catch {
+          warn('cache-lookup-failure');
+        }
+      }
+      for (let i = 0; i < owned.length; i += 5) {
+        await Promise.all(owned.slice(i, i + 5).map(async ({ key, item }) => {
+          const hit = cached.get(key);
+          if (hit && parseCoordinates(hit.lat, hit.lng)) {
+            accounting.cacheHits++;
+            outcomes.set(key, hit);
+            return;
+          }
+          const address = `${item.address}, ${item.city}, ${item.state} ${item.zip}`;
+          for (const provider of ['google', 'census', 'nominatim'] as const) {
+            const coords = await request(provider, address, accounting);
+            if (coords) {
+              outcomes.set(key, coords);
+              writes.push({ key, coords, address, provider });
+              return;
+            }
+          }
+          outcomes.set(key, null);
+          warn('all-providers-failed');
+        }));
+      }
+      if (writes.length > 0) {
+        try {
+          await deps.store(writes);
+        } catch {
+          warn('cache-store-failure');
+        }
+      }
+    } finally {
+      for (const entry of owned) {
+        entry.resolve(outcomes.get(entry.key) ?? null);
+        inFlight.delete(entry.key);
+      }
+    }
+    await Promise.all([...waiting].map(async ([key, pending]) => {
+      const coords = await pending;
+      if (coords) result.set(key, coords);
+    }));
+    accounting.resolved = result.size;
+    accounting.unresolved = new Set(items
+      .map(item => normalizeAddressKey(item.address, item.city, item.state, item.zip))
+      .filter(key => !result.has(key))).size;
+    deps.report(accounting);
+    return result;
   }
 
-  // 2c. Nominatim fallback (free, no key, 1 req/sec, incomplete US coverage)
-  if (!coords) {
-    coords = await geocodeViaNominatim(fullAddress);
-    if (coords) provider = 'nominatim';
+  function createSession() {
+    const completed = new Map<string, Geocoordinates | null>();
+    return {
+      async geocodeProperties(items: AddressInput[]): Promise<void> {
+        const located = items.filter((item): item is AddressInput & {
+          latitude: number; longitude: number;
+        } => hasValidCoordinates(item) && item.address.trim().length > 0);
+        for (const item of located) {
+          completed.set(normalizeAddressKey(item.address, item.city, item.state, item.zip), {
+            lat: item.latitude, lng: item.longitude,
+          });
+        }
+        const unresolved = items.filter(item => !hasValidCoordinates(item));
+        const missing = unresolved.filter(item =>
+          !completed.has(normalizeAddressKey(item.address, item.city, item.state, item.zip)));
+        const results = await geocodeMultiple([...located, ...missing]);
+        for (const item of missing) {
+          const key = normalizeAddressKey(item.address, item.city, item.state, item.zip);
+          completed.set(key, results.get(key) ?? null);
+        }
+        for (const item of unresolved) {
+          const coords = completed.get(normalizeAddressKey(item.address, item.city, item.state, item.zip));
+          if (coords) {
+            item.latitude = coords.lat;
+            item.longitude = coords.lng;
+          }
+        }
+      },
+    };
   }
 
-  if (!coords) {
-    console.warn(`[geocoding] All providers failed for "${fullAddress}"`);
-    return null;
-  }
+  return {
+    geocodeMultiple,
+    createSession,
+    async geocodeAddress(address: string, city: string, state: string, zip: string) {
+      const result = await geocodeMultiple([{ address, city, state, zip }]);
+      return result.get(normalizeAddressKey(address, city, state, zip)) ?? null;
+    },
+  };
+}
 
-  // 3. Store in cache
-  try {
+const service = createGeocodingService({
+  fetch: (...args) => fetch(...args),
+  googleApiKey: () => process.env.GOOGLE_GEOCODING_API_KEY || '',
+  report: accounting => console.info('[geocoding:usage]', accounting),
+  async lookup(keys) {
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const { rows } = await pool.query<{
+      address_key: string; latitude: number; longitude: number;
+    }>(
+      `SELECT address_key, latitude, longitude FROM geocoding_cache WHERE address_key IN (${placeholders})`,
+      keys,
+    );
+    return new Map(rows.map(row => [row.address_key, { lat: row.latitude, lng: row.longitude }]));
+  },
+  async store(entries) {
+    const values: Array<string | number> = [];
+    const placeholders = entries.map((entry, i) => {
+      values.push(entry.key, entry.coords.lat, entry.coords.lng, entry.address, entry.provider);
+      return `(${Array.from({ length: 5 }, (_, n) => `$${i * 5 + n + 1}`).join(', ')})`;
+    });
     await pool.query(
       `INSERT INTO geocoding_cache (address_key, latitude, longitude, formatted_address, provider)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (address_key) DO NOTHING`,
-      [key, coords.lat, coords.lng, fullAddress, provider],
+       VALUES ${placeholders.join(', ')} ON CONFLICT (address_key) DO NOTHING`,
+      values,
     );
-  } catch (err: any) {
-    console.warn('[geocoding] Failed to cache result:', err.message);
-  }
+  },
+});
 
-  return coords;
-}
-
-// ---------- provider: Google ----------
-
-async function geocodeViaGoogle(fullAddress: string): Promise<Geocoordinates | null> {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-
-  try {
-    const url = `${GOOGLE_GEOCODE_URL}?address=${encodeURIComponent(fullAddress)}&key=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const data = await res.json() as any;
-    if (data.status !== 'OK' || !data.results?.length) {
-      if (data.status === 'REQUEST_DENIED') {
-        console.warn('[geocoding:google] REQUEST_DENIED — falling back to Nominatim.', data.error_message || '');
-      }
-      return null;
-    }
-
-    const location = data.results[0].geometry?.location;
-    if (!location?.lat || !location?.lng) return null;
-    return { lat: location.lat, lng: location.lng };
-  } catch {
-    return null;
-  }
-}
-
-// ---------- provider: Nominatim (OSM) ----------
-
-/** Rate limiter: 1 request per second for Nominatim's usage policy */
-let lastNominatimCall = 0;
-
-async function geocodeViaNominatim(fullAddress: string): Promise<Geocoordinates | null> {
-  try {
-    // Respect 1 req/sec rate limit
-    const now = Date.now();
-    const wait = Math.max(0, 1000 - (now - lastNominatimCall));
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-    lastNominatimCall = Date.now();
-
-    const url = `${NOMINATIM_URL}?q=${encodeURIComponent(fullAddress)}&format=json&limit=1&countrycodes=us`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'DealPlatform-PropertyAnalyzer/1.0' },
-    });
-
-    if (!res.ok) {
-      console.warn(`[geocoding:nominatim] HTTP ${res.status}`);
-      return null;
-    }
-
-    const data = await res.json() as any[];
-    if (!data?.length || !data[0].lat || !data[0].lon) {
-      console.warn(`[geocoding:nominatim] No results for "${fullAddress}"`);
-      return null;
-    }
-
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  } catch (err: any) {
-    console.warn('[geocoding:nominatim] Failed:', err.message);
-    return null;
-  }
-}
-
-// ---------- provider: US Census Geocoder ----------
-
-async function geocodeViaCensus(fullAddress: string): Promise<Geocoordinates | null> {
-  try {
-    const url = `${CENSUS_GEOCODE_URL}?address=${encodeURIComponent(fullAddress)}&benchmark=Public_AR_Current&format=json`;
-    const res = await fetch(url);
-
-    if (!res.ok) {
-      console.warn(`[geocoding:census] HTTP ${res.status}`);
-      return null;
-    }
-
-    const data = await res.json() as any;
-    const matches = data?.result?.addressMatches;
-
-    if (!matches?.length) {
-      console.warn(`[geocoding:census] No results for "${fullAddress}"`);
-      return null;
-    }
-
-    const coords = matches[0].coordinates;
-    if (!coords?.x || !coords?.y) return null;
-
-    // Census returns x=longitude, y=latitude
-    return { lat: coords.y, lng: coords.x };
-  } catch (err: any) {
-    console.warn('[geocoding:census] Failed:', err.message);
-    return null;
-  }
-}
-
-// ---------- batch geocode ----------
-
-/**
- * Geocode multiple addresses efficiently:
- *   1. Batch-query the DB for all address keys at once
- *   2. Only call the Google API for cache misses
- *   3. Bulk-insert new results
- *
- * Returns a Map keyed by normalized address key → coordinates.
- */
-export async function geocodeMultiple(
-  items: AddressInput[],
-): Promise<Map<string, Geocoordinates>> {
-  const result = new Map<string, Geocoordinates>();
-  if (items.length === 0) return result;
-
-  // Build normalized keys
-  const keyed = items.map(item => ({
-    ...item,
-    key: normalizeAddressKey(item.address, item.city, item.state, item.zip),
-  }));
-
-  // Deduplicate
-  const uniqueKeys = [...new Set(keyed.map(k => k.key).filter(Boolean))];
-  if (uniqueKeys.length === 0) return result;
-
-  // 1. Batch DB lookup
-  try {
-    const placeholders = uniqueKeys.map((_, i) => `$${i + 1}`).join(', ');
-    const cached = await pool.query(
-      `SELECT address_key, latitude, longitude FROM geocoding_cache WHERE address_key IN (${placeholders})`,
-      uniqueKeys,
-    );
-    for (const row of cached.rows) {
-      result.set(row.address_key, { lat: row.latitude, lng: row.longitude });
-    }
-  } catch (err: any) {
-    console.warn('[geocoding] Batch cache lookup failed:', err.message);
-  }
-
-  // 2. Identify misses
-  const misses = keyed.filter(k => k.key && !result.has(k.key));
-  if (misses.length === 0) return result;
-
-  console.log(`[geocoding] ${result.size} cache hits, ${misses.length} misses — geocoding...`);
-
-  // 3. Geocode misses with concurrency limit (Google → Census → Nominatim)
-  const CONCURRENCY = 5;
-  const toInsert: Array<{ key: string; lat: number; lng: number; formatted: string; provider: string }> = [];
-
-  for (let i = 0; i < misses.length; i += CONCURRENCY) {
-    const batch = misses.slice(i, i + CONCURRENCY);
-    const promises = batch.map(async (item) => {
-      try {
-        const fullAddress = `${item.address}, ${item.city}, ${item.state} ${item.zip}`;
-
-        // Try Google → Census → Nominatim
-        let coords = await geocodeViaGoogle(fullAddress);
-        let provider = 'google';
-        if (!coords) {
-          coords = await geocodeViaCensus(fullAddress);
-          provider = 'census';
-        }
-        if (!coords) {
-          coords = await geocodeViaNominatim(fullAddress);
-          provider = 'nominatim';
-        }
-
-        if (!coords) return;
-
-        result.set(item.key, coords);
-        toInsert.push({
-          key: item.key,
-          lat: coords.lat,
-          lng: coords.lng,
-          formatted: fullAddress,
-          provider,
-        });
-      } catch (err: any) {
-        console.warn(`[geocoding] Failed for "${item.address}":`, err.message);
-      }
-    });
-
-    await Promise.all(promises);
-  }
-
-  console.log(`[geocoding] Resolved ${toInsert.length}/${misses.length} addresses`);
-
-  // 4. Bulk insert new cache entries
-  if (toInsert.length > 0) {
-    try {
-      // Build a multi-row INSERT
-      const values: any[] = [];
-      const placeholders = toInsert.map((entry, i) => {
-        const base = i * 5;
-        values.push(entry.key, entry.lat, entry.lng, entry.formatted, entry.provider);
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
-      });
-
-      await pool.query(
-        `INSERT INTO geocoding_cache (address_key, latitude, longitude, formatted_address, provider)
-         VALUES ${placeholders.join(', ')}
-         ON CONFLICT (address_key) DO NOTHING`,
-        values,
-      );
-    } catch (err: any) {
-      console.warn('[geocoding] Bulk cache insert failed:', err.message);
-    }
-  }
-
-  return result;
-}
+export const geocodeAddress = service.geocodeAddress;
+export const geocodeMultiple = service.geocodeMultiple;
+export const createGeocodingSession = service.createSession;

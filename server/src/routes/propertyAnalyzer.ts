@@ -128,6 +128,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const { property, source, sourceUrl } = await resolvePropertyInput(url);
     const zpid = property.zpid || '';
+    const geocoder = geocodingService.createGeocodingSession();
 
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
@@ -170,16 +171,10 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     let hoaSource: 'zillow' | 'estimate' | 'none' = 'none';
 
     // Early geocode of subject property (cache-first, needed for proximity scoring)
-    if (!property.latitude || !property.longitude) {
-      try {
-        const coords = await geocodingService.geocodeAddress(
-          property.address, property.city, property.state, property.zip,
-        );
-        if (coords) {
-          property.latitude = coords.lat;
-          property.longitude = coords.lng;
-        }
-      } catch { /* non-fatal */ }
+    try {
+      await geocoder.geocodeProperties([property]);
+    } catch {
+      console.warn('[analyzer/run] Subject geocoding failed (non-fatal)');
     }
 
     if (userParams?.monthlyHoa == null) {
@@ -242,7 +237,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     // calibrated to real furnished comps (Furnished Finder) when available.
     let proximityBoost = 0;
     let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
-    if (property.latitude && property.longitude) {
+    if (geocodingService.hasValidCoordinates(property)) {
       try {
         const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
         proximityBoost = proximity.boost;
@@ -295,35 +290,10 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     try {
       const rawComps = zpid ? await propertyDataService.getSimilarProperties(zpid) : [];
 
-      // Geocode all addresses (subject + comps) before enrichment
-      // so lat/lng are available for per-comp estimation
-      const allAddresses = [
-        { address: property.address, city: property.city, state: property.state, zip: property.zip },
-        ...rawComps.map(c => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
-      ];
-
       try {
-        const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
-
-        // Attach to subject property
-        const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
-        const subjectCoords = coordsMap.get(subjectKey);
-        if (subjectCoords) {
-          property.latitude = subjectCoords.lat;
-          property.longitude = subjectCoords.lng;
-        }
-
-        // Attach to comparable properties before enrichment
-        for (const comp of rawComps) {
-          const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
-          const compCoords = coordsMap.get(compKey);
-          if (compCoords) {
-            comp.latitude = compCoords.lat;
-            comp.longitude = compCoords.lng;
-          }
-        }
-      } catch (err: any) {
-        console.warn('[analyzer/run] Geocoding failed (non-fatal):', err.message);
+        await geocoder.geocodeProperties([property, ...rawComps]);
+      } catch {
+        console.warn('[analyzer/run] Comparable geocoding failed (non-fatal)');
       }
 
       // Enrich comps with calibrated rent estimates using subject's market data
@@ -626,35 +596,11 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     results.comparables = row.analysis_results?.comparables || [];
 
     // Geocode if coordinates are missing (backfill for older analyses)
-    const needsGeocode = !property.latitude || !results.comparables?.some((c: ComparableProperty) => c.latitude);
-    if (needsGeocode) {
-      try {
-        const comparables = results.comparables || [];
-        const allAddresses = [
-          { address: property.address, city: property.city, state: property.state, zip: property.zip },
-          ...comparables.map((c: ComparableProperty) => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
-        ];
-
-        const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
-
-        const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
-        const subjectCoords = coordsMap.get(subjectKey);
-        if (subjectCoords) {
-          property.latitude = subjectCoords.lat;
-          property.longitude = subjectCoords.lng;
-        }
-
-        for (const comp of comparables) {
-          const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
-          const compCoords = coordsMap.get(compKey);
-          if (compCoords) {
-            comp.latitude = compCoords.lat;
-            comp.longitude = compCoords.lng;
-          }
-        }
-      } catch (err: any) {
-        console.warn('[analyzer/re-analyze] Geocoding failed (non-fatal):', err.message);
-      }
+    try {
+      await geocodingService.createGeocodingSession()
+        .geocodeProperties([property, ...results.comparables]);
+    } catch {
+      console.warn('[analyzer/re-analyze] Geocoding failed (non-fatal)');
     }
 
     // Finalize: recompute the single-source-of-truth strategy comparison.

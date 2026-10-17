@@ -21,6 +21,7 @@
 
 import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
+import { hasValidCoordinates } from './geocodingService.js';
 
 // ---------- configuration ----------
 
@@ -338,6 +339,7 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
           bedrooms: Number(d.bedrooms) || 0,
           bathrooms: Number(d.bathrooms) || 0,
           sqft,
+          ...(hasValidCoordinates(d) ? { latitude: d.latitude, longitude: d.longitude } : {}),
           lotSize: d.lotSize ? Number(d.lotSize) : undefined,
           yearBuilt: d.yearBuilt ? Number(d.yearBuilt) : undefined,
           homeStatus: d.homeStatus || undefined,
@@ -439,6 +441,7 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
     propertyType: raw.homeType || raw.propertyType || undefined,
     description: undefined,
     photos: uniquePhotos,
+    ...(hasValidCoordinates(raw) ? { latitude: raw.latitude, longitude: raw.longitude } : {}),
     taxHistory: normalizeTaxHistory(raw),
     priceHistory: normalizePriceHistory(raw),
     homeStatus: raw.daysOnZillow != null ? `${raw.daysOnZillow} days on Zillow` : undefined,
