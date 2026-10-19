@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
 
 export type DataProvider = 'zillow' | 'airdna' | 'rentcast' | 'google' | 'geocoding' | 'census' | 'nominatim' | 'realtor' | 'furnished-finder' | 'xome';
-export type UsageWorkflow = 'analysis' | 'reanalysis' | 'saved-view' | 'property-records' | 'property-records-refresh'
+export type UsageWorkflow = 'analysis' | 'reanalysis' | 'dataset-refresh' | 'saved-view' | 'property-records'
+  | 'property-records-refresh'
   | 'xome-widget' | 'xome-prewarm' | 'property-lookup' | 'comparison' | 'other-analyzer' | 'background';
 type CacheLayer = 'memory' | 'postgres' | 'in-flight' | 'coordinates' | 'session' | 'saved-analysis';
 type CacheOutcome = 'hit' | 'miss' | 'stale' | 'error' | 'wait' | 'wait-timeout';
@@ -149,6 +150,7 @@ function workflowFor(rawPath: string, method: string): UsageWorkflow {
   if (path === '/analyzer/run' && method === 'POST') return 'analysis';
   if (path.startsWith('/analyzer/re-analyze/')) return 'reanalysis';
   if (/\/property-records\/refresh$/.test(path)) return 'property-records-refresh';
+  if (/^\/analyzer\/history\/[^/]+\/refresh-missing$/.test(path) && method === 'POST') return 'dataset-refresh';
   if (/\/property-records$/.test(path)) return 'property-records';
   if (path.startsWith('/analyzer/history') || path.startsWith('/analyzer/shared/')) return 'saved-view';
   if (path.startsWith('/xome/')) return 'xome-widget';

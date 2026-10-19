@@ -921,6 +921,9 @@ function createMockApi(): AnalyzerApiClient {
     async reAnalyze(slug) {
       return findAnalysis(slug);
     },
+    async refreshMissingData(slug) {
+      return findAnalysis(slug);
+    },
     async saveAdjustments() {
       return undefined;
     },
@@ -1076,6 +1079,12 @@ function createInvestorLabApi(token: string): AnalyzerApiClient {
         method: 'POST',
         body: JSON.stringify({ params }),
       });
+    },
+    async refreshMissingData(slug) {
+      const response = await investorLabFetch<{ analysis: PropertyAnalysis }>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/refresh-missing`, token, { method: 'POST' },
+      );
+      return response.analysis;
     },
     async saveAdjustments(slug, payload) {
       await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/overrides`, token, {

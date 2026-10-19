@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** RentCast shared-property caching committed; coordinate-only Google avoidance implemented locally using Census. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
+**Status:** RentCast shared-property caching and Census coordinate-only Google avoidance committed; targeted recovery for missing comparables/market data (bounded `/similar` retry, re-analysis backfill, dataset status with a provider-unavailable notice and Refresh button, per-dataset ZIP retry, RentCast display-only rental fallback) implemented locally. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -553,6 +553,84 @@ filtering or a Census failure. The error body from the failing request was not
 retained; account throttling, upstream instability, and timing/concurrency are
 not individually proven causes. Safe error categories now make subsequent
 failures more informative. No automatic retries or wider searches were enabled.
+
+## Implementation update - targeted recovery for missing datasets
+
+Follows the Frankenmuth observation above. Scope is limited to recovering the
+datasets that were actually lost, never rerunning the paid pipeline.
+
+- **Bounded `/similar` retry.** One retry (two attempts maximum) after a
+  transient failure only: HTTP 5xx/408, a transport error, or an HTTP-200
+  provider error classified `upstream-unavailable` or `unspecified` (the
+  Frankenmuth class). Rate/quota, access/billing, invalid-input and not-found
+  errors, HTTP 4xx including 429, malformed/invalid JSON, explicit empty lists
+  and all-filtered rows are never retried. Default delay 1 s, overridable with
+  `SIMILAR_PROPERTIES_RETRY_DELAY_MS` (0-10,000 ms). Diagnostics add
+  `willRetry: true` on the first failure and `attempt: 2` on the retry; single
+  attempt log shapes are unchanged. Each retry is a separately counted
+  `[provider:usage]` attempt (about $0.01) and occurs only after a failure.
+- **Re-analysis backfill.** `POST /re-analyze/:slug` previously reused stored
+  comparables and market data unconditionally. It now refetches *only* missing
+  datasets: sale comparables when none were saved and a ZPID exists (enriched
+  with the stored RentCast market statistics for calibration), and Zillow
+  housing/rental market data when either is missing (shared weekly DB cache, so
+  usually no provider call). Saved comparables and present market data are
+  never refetched; the backfilled data is persisted with the re-analysis.
+  Because missing rental-market data can feed the no-comps rent fallback, a
+  backfill can change rent the same way a fresh analysis would.
+- **Empty area-market memory hold.** A Zillow area fetch that produced neither
+  housing nor rental data is now held in memory for 5 minutes instead of 1 hour,
+  so an outage does not blank every analysis in the area for an hour. Results
+  with data keep the 1-hour hold; DB snapshot behavior is unchanged.
+
+**Verification:** 134 mocked provider tests (retry/no-retry matrix, retry
+cap, cache recovery, usage attempts, re-analysis backfill route tests, empty
+area-market TTL) and 25 cache tests pass; backend builds. No live calls.
+
+### Provider-unavailable UI and rental-market coverage fallback
+
+Resolves the two items deferred above.
+
+- **Dataset status.** New analyses and re-analyses save
+  `analysis_results.datasetStatus` with `comparables`, `housingMarket` and
+  `rentalMarket` set to `ok`, `none-found`, `unavailable` or `not-applicable`.
+  `getSimilarPropertiesWithStatus` separates a provider failure (`unavailable`)
+  from a genuine empty or not-found result (`none-found`). A missing ZPID is
+  `not-applicable`. Analyses saved before this change have no status and keep the
+  old behavior (the empty section stays hidden).
+- **UI notices.** The analyzer shows a notice in the comparables section when
+  comparables were `unavailable` and another above the market section when
+  housing or rental data was `unavailable`. `none-found` comparables show an
+  informational message with no action. A single **Refresh missing data** button
+  appears only when the host adapter implements the optional
+  `refreshMissingData(slug)`, the view is editable and `onUpdate` exists, so the
+  analyzer core stays adapter-driven.
+- **Refresh endpoint.** `POST /analyzer/history/:slug/refresh-missing` (also
+  mounted under `/api/investor-lab`) backfills only the missing comparables and
+  area market data, geocodes new comps via Census, and updates only
+  `property_data` and `analysis_results`. Comparables are not refetched when the
+  saved status is `none-found`. Provider usage is labeled with the
+  `dataset-refresh` workflow. Re-analysis applies the same rule.
+- **Per-dataset ZIP retry.** After the city-level Zillow area query, each of
+  housing and rental data that is still missing is retried once by ZIP
+  (previously only when both were missing). No retry runs without a ZIP.
+- **RentCast rental fallback (display only).** When Zillow rental-market data is
+  still missing, the RentCast ZIP statistics already fetched for the analysis
+  fill the Rental Market card (`source: 'rentcast'`), with no extra provider
+  call. The card shows median rent, year-over-year change as a percent, listings
+  when available, and a source line. The fallback never feeds rent estimates:
+  rent-anchor checks exclude `source: 'rentcast'`, and the summary still counts
+  as missing for a later Zillow backfill.
+- **Shared snapshot caveat.** Zillow housing and rental data are one shared area
+  snapshot, so refreshing missing housing data also requests rental data (about
+  $0.01 per area query). Data already saved on the property is kept.
+
+**Verification:** 144 mocked provider tests (status mapping, per-dataset ZIP
+retry, no-ZIP no-retry, RentCast display-only fallback, refresh-missing route,
+`dataset-refresh` usage workflow) and 25 cache tests pass. Packages, apps and
+server build, and the analyzer-core guardrails pass. The notices, button and
+RentCast card were checked visually in the reference SaaS harness with fixture
+data. No live calls.
 
 ## 1. Goals and boundaries
 

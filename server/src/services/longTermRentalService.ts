@@ -36,7 +36,8 @@ export async function getLongTermRentalEstimate(
       if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
     }
   }
-  const usedZillowRent = comps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+  const usedZillowRent = comps.length === 0 && !!property.rentalMarketTrends?.medianRent
+    && property.rentalMarketTrends.source !== 'rentcast';
   if (usedZillowRent) {
     rentalEstimate = applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
   }

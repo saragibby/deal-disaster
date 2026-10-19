@@ -18,6 +18,9 @@ const fetch = createProviderFetch('zillow');
 
 const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MEM_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour — avoid repeated DB reads
+// Fetches that produced no market data are only held briefly so an upstream
+// outage does not blank every analysis in the area for an hour.
+const EMPTY_MEM_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
 const RAPIDAPI_HOST = () => process.env.RAPIDAPI_HOST || 'private-zillow.p.rapidapi.com';
@@ -40,8 +43,8 @@ function memGet<T>(key: string): T | null {
   if (Date.now() > e.expiresAt) { memCache.delete(key); return null; }
   return e.data as T;
 }
-function memSet<T>(key: string, data: T): void {
-  memCache.set(key, { data, expiresAt: Date.now() + MEM_CACHE_TTL_MS });
+function memSet<T>(key: string, data: T, ttlMs = MEM_CACHE_TTL_MS): void {
+  memCache.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
 
 // ── helpers ────────────────────────────────────────────────────────────
@@ -231,7 +234,7 @@ export interface AreaMarketData {
  * Get housing + rental market data for an area.
  *
  * Resolution order:
- *   1. In-memory hot cache (1 hour TTL)
+ *   1. In-memory hot cache (1 hour TTL; 5 minutes when no data was found)
  *   2. PostgreSQL (latest row for this area_key)
  *   3. RapidAPI — only if no row exists or row is >7 days old
  *
@@ -283,14 +286,18 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
     fetchRentalMarketFromApi(searchQuery),
   ]);
 
-  // 3b. If city+state failed and we have a ZIP, retry with ZIP as search query
-  if (!housing && !rental && zip) {
-    recordProviderFallback('zillow', 'housing_market', 'no-usable-data');
-    recordProviderFallback('zillow', 'rental_market', 'no-usable-data');
-    [housing, rental] = await Promise.all([
-      fetchHousingMarketFromApi(zip),
-      fetchRentalMarketFromApi(zip),
+  // 3b. Retry each dataset the city+state query could not resolve (e.g. rental
+  // "Region Not Found") once by ZIP.
+  const zipQuery = zip?.trim();
+  if (zipQuery && (!housing || !rental)) {
+    if (!housing) recordProviderFallback('zillow', 'housing_market', 'no-usable-data');
+    if (!rental) recordProviderFallback('zillow', 'rental_market', 'no-usable-data');
+    const [zipHousing, zipRental] = await Promise.all([
+      housing ? housing : fetchHousingMarketFromApi(zipQuery),
+      rental ? rental : fetchRentalMarketFromApi(zipQuery),
     ]);
+    housing = zipHousing;
+    rental = zipRental;
   }
 
   // Persist as new snapshot row
@@ -309,6 +316,7 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
     housingMarket: housing ?? row?.housing_market ?? undefined,
     rentalMarket: rental ?? row?.rental_market ?? undefined,
   };
-  memSet(`area:${areaKey}`, result);
+  memSet(`area:${areaKey}`, result,
+    result.housingMarket || result.rentalMarket ? MEM_CACHE_TTL_MS : EMPTY_MEM_CACHE_TTL_MS);
   return result;
 }

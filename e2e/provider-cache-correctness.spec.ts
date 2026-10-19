@@ -79,6 +79,43 @@ test('Zillow keeps stale partial data if a fresh snapshot cannot be written', as
   const result = await getAreaMarketData(`Partial ${++sequence}`, 'NC', '27500');
   expect(result.housingMarket?.typicalHomeValue).toBe(190000);
   expect(result.rentalMarket?.medianRent).toBe(1800);
+  // City pair plus one ZIP retry for the missing housing dataset only.
+  expect(calls).toBe(3);
+});
+
+test('Zillow rental "Region Not Found" for the city retries only rental by ZIP', async () => {
+  Object.defineProperty(pool, 'query', {
+    configurable: true, writable: true, value: async () => ({ rows: [] }),
+  });
+  const calls: string[] = [];
+  globalThis.fetch = async input => {
+    const url = new URL(String(input));
+    calls.push(`${url.pathname}:${url.searchParams.get('search_query')}`);
+    if (url.pathname === '/rental_market' && url.searchParams.get('search_query') !== '27500') {
+      return Response.json({ message: 'Error: Region Not Found' });
+    }
+    return areaResponse(input);
+  };
+  const city = `Rental Gap ${++sequence}`;
+  const result = await getAreaMarketData(city, 'NC', '27500');
+  expect(result.housingMarket?.typicalHomeValue).toBe(250000);
+  expect(result.rentalMarket?.medianRent).toBe(1800);
+  expect(calls).toEqual([
+    `/housing_market:${city} NC`, `/rental_market:${city} NC`, '/rental_market:27500',
+  ]);
+});
+
+test('Zillow area lookup without a ZIP does not retry', async () => {
+  Object.defineProperty(pool, 'query', {
+    configurable: true, writable: true, value: async () => ({ rows: [] }),
+  });
+  let calls = 0;
+  globalThis.fetch = async input => {
+    calls++;
+    return String(input).includes('rental_market') ? Response.json({ message: 'Error: Region Not Found' }) : areaResponse(input);
+  };
+  const result = await getAreaMarketData(`No Zip ${++sequence}`, 'NC');
+  expect(result.rentalMarket).toBeUndefined();
   expect(calls).toBe(2);
 });
 
@@ -99,6 +136,36 @@ test('Zillow city miss permits one ZIP fallback without repeating it on write fa
   const result = await getAreaMarketData(`Zip ${++sequence}`, 'NC', '27500');
   expect(result.rentalMarket?.medianRent).toBe(1800);
   expect(calls).toHaveLength(4);
+});
+
+test('Zillow empty area result is held for minutes, not an hour, while real data stays hot', async () => {
+  Object.defineProperty(pool, 'query', {
+    configurable: true, writable: true, value: async () => ({ rows: [] }),
+  });
+  const originalNow = Date.now;
+  let now = originalNow();
+  Date.now = () => now;
+  try {
+    let outage = true;
+    let calls = 0;
+    globalThis.fetch = async input => { calls++; return outage ? Response.json({}) : areaResponse(input); };
+    const city = `Outage ${++sequence}`;
+    expect(await getAreaMarketData(city, 'NC', '27500')).toEqual({ housingMarket: undefined, rentalMarket: undefined });
+    expect(calls).toBe(4);
+    await getAreaMarketData(city, 'NC', '27500');
+    expect(calls).toBe(4);
+
+    outage = false;
+    now += 6 * 60 * 1000;
+    const recovered = await getAreaMarketData(city, 'NC', '27500');
+    expect(recovered.rentalMarket?.medianRent).toBe(1800);
+    expect(calls).toBe(6);
+    now += 30 * 60 * 1000;
+    expect(await getAreaMarketData(city, 'NC', '27500')).toEqual(recovered);
+    expect(calls).toBe(6);
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test('AirDNA keys follow effective address/unit, beds and baths rather than missing or stale ZPIDs', async () => {

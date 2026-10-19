@@ -19,7 +19,9 @@
  * only supplies property details, similar/nearby sales, and market trends.
  */
 
-import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
+import type {
+  AnalysisDatasetStatus, PropertyData, PropertySummary, ComparableProperty,
+} from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
 import { hasValidCoordinates } from './geocodingService.js';
 import { createProviderFetch, getProviderUsageRequestId, recordProviderCache } from './providerUsageService.js';
@@ -302,35 +304,88 @@ export async function searchProperties(query: string): Promise<PropertySummary[]
  * Uses: GET /similar?byzpid=<zpid>
  *
  * Returns up to ~20 similar properties with price, beds, baths, sqft, etc.
- * Successful nonempty results are cached for 24 hours.
+ * Successful nonempty results are cached for 24 hours. A transient upstream
+ * failure (5xx/408, transport error, or an unclassified/unavailable provider
+ * error returned with HTTP 200) is retried exactly once; rate-limit, billing,
+ * invalid-input and not-found failures are never retried.
  */
 export async function getSimilarProperties(zpid: string): Promise<ComparableProperty[]> {
-  const diagnose = (
-    outcome: 'cache-hit' | 'missing-zpid' | 'http-error' | 'provider-error' | 'invalid-envelope'
-      | 'empty-response' | 'all-filtered' | 'success' | 'request-failed' | 'invalid-json' | 'normalization-failed',
-    counts: Record<string, number> = {},
-    providerError?: { field: string; category: string },
-  ) => {
-    const report = {
-      requestId: getProviderUsageRequestId(), outcome, ...counts,
-      ...(providerError ? { providerError } : {}),
-    };
-    if (outcome === 'success' || outcome === 'cache-hit' || outcome === 'empty-response') {
-      console.info('[similar:diagnostic]', JSON.stringify(report));
-    } else {
-      console.warn('[similar:diagnostic]', JSON.stringify(report));
-    }
-  };
+  return (await getSimilarPropertiesWithStatus(zpid)).comps;
+}
+
+/** Same as getSimilarProperties, also reporting why the result may be empty. */
+export async function getSimilarPropertiesWithStatus(
+  zpid: string,
+): Promise<{ comps: ComparableProperty[]; status: AnalysisDatasetStatus }> {
   if (!zpid.trim()) {
-    diagnose('missing-zpid');
-    return [];
+    diagnoseSimilar('missing-zpid');
+    return { comps: [], status: 'not-applicable' };
   }
   const cacheKey = `similar:${zpid}`;
   const cached = getCached<ComparableProperty[]>(cacheKey);
   if (cached) {
-    diagnose('cache-hit', { returnedCount: cached.length });
-    return structuredClone(cached);
+    diagnoseSimilar('cache-hit', { returnedCount: cached.length });
+    return { comps: structuredClone(cached), status: 'ok' };
   }
+
+  for (let attempt = 1; ; attempt++) {
+    const canRetry = attempt < SIMILAR_MAX_ATTEMPTS;
+    const { comps, retryable, status } = await fetchSimilarOnce(zpid, attempt, canRetry);
+    if (comps.length > 0) setCache(cacheKey, structuredClone(comps));
+    if (!retryable || !canRetry) return { comps, status };
+    const delayMs = similarRetryDelayMs();
+    if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
+}
+
+const SIMILAR_MAX_ATTEMPTS = 2;
+const RETRYABLE_SIMILAR_ERROR_CATEGORIES = new Set(['upstream-unavailable', 'unspecified']);
+
+function similarRetryDelayMs(): number {
+  const configured = Number(process.env.SIMILAR_PROPERTIES_RETRY_DELAY_MS);
+  return Number.isFinite(configured) && configured >= 0 ? Math.min(configured, 10_000) : 1_000;
+}
+
+type SimilarOutcome = 'cache-hit' | 'missing-zpid' | 'http-error' | 'provider-error' | 'invalid-envelope'
+  | 'empty-response' | 'all-filtered' | 'success' | 'request-failed' | 'invalid-json' | 'normalization-failed';
+
+function diagnoseSimilar(
+  outcome: SimilarOutcome,
+  counts: Record<string, number | boolean> = {},
+  providerError?: { field: string; category: string },
+): void {
+  const report = {
+    requestId: getProviderUsageRequestId(), outcome, ...counts,
+    ...(providerError ? { providerError } : {}),
+  };
+  if (outcome === 'success' || outcome === 'cache-hit' || outcome === 'empty-response') {
+    console.info('[similar:diagnostic]', JSON.stringify(report));
+  } else {
+    console.warn('[similar:diagnostic]', JSON.stringify(report));
+  }
+}
+
+async function fetchSimilarOnce(
+  zpid: string,
+  attempt: number,
+  canRetry: boolean,
+): Promise<{ comps: ComparableProperty[]; retryable: boolean; status: AnalysisDatasetStatus }> {
+  // Only annotate when a retry is involved so single-attempt diagnostics keep their shape.
+  const fail = (
+    outcome: SimilarOutcome,
+    retryable: boolean,
+    counts: Record<string, number> = {},
+    providerError?: { field: string; category: string },
+  ) => {
+    diagnoseSimilar(outcome, {
+      ...counts,
+      ...(attempt > 1 ? { attempt } : {}),
+      ...(retryable && canRetry ? { willRetry: true } : {}),
+    }, providerError);
+    const status: AnalysisDatasetStatus = providerError?.category === 'not-found' ? 'none-found' : 'unavailable';
+    return { comps: [] as ComparableProperty[], retryable, status };
+  };
+  const retryMeta: Record<string, number> = attempt > 1 ? { attempt } : {};
 
   let phase: 'request' | 'json' | 'normalize' = 'request';
   try {
@@ -339,18 +394,15 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
     const res = await fetch(url, { headers: rapidHeaders() });
 
     if (!res.ok) {
-      diagnose('http-error', { httpStatus: res.status });
-      return [];
+      await res.body?.cancel().catch(() => undefined);
+      return fail('http-error', res.status >= 500 || res.status === 408, { httpStatus: res.status });
     }
 
     phase = 'json';
     const raw: unknown = await res.json();
     phase = 'normalize';
     const envelope = asRecord(raw);
-    if (!envelope) {
-      diagnose('invalid-envelope');
-      return [];
-    }
+    if (!envelope) return fail('invalid-envelope', false);
     const errorField = envelope.ErrorMessage ? 'ErrorMessage' : envelope.error ? 'error'
       : envelope.success === false ? 'success'
         : typeof envelope.message === 'string' &&
@@ -365,20 +417,17 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
             : /not found|no similar|no propert|no result/i.test(text) ? 'not-found'
               : /timeout|timed out|temporar|try again|unavailable|internal server/i.test(text) ? 'upstream-unavailable'
                 : 'unspecified';
-      diagnose('provider-error', { httpStatus: res.status }, { field: errorField, category });
-      return [];
+      return fail('provider-error', RETRYABLE_SIMILAR_ERROR_CATEGORIES.has(category),
+        { httpStatus: res.status }, { field: errorField, category });
     }
 
     // Response shape: { similar_properties: { propertyDetails: [...] } }
     const details = asRecord(envelope.similar_properties)?.propertyDetails ??
       asRecord(envelope.similarProperties)?.propertyDetails;
-    if (!Array.isArray(details)) {
-      diagnose('invalid-envelope');
-      return [];
-    }
+    if (!Array.isArray(details)) return fail('invalid-envelope', false);
     if (details.length === 0) {
-      diagnose('empty-response', { rawCount: 0, returnedCount: 0 });
-      return [];
+      diagnoseSimilar('empty-response', { rawCount: 0, returnedCount: 0, ...retryMeta });
+      return { comps: [], retryable: false, status: 'none-found' };
     }
     const comps: ComparableProperty[] = [];
     const rejected = { invalidRecord: 0, invalidPrice: 0, invalidSqft: 0 };
@@ -420,16 +469,14 @@ export async function getSimilarProperties(zpid: string): Promise<ComparableProp
         zillowUrl: compZpid ? `https://www.zillow.com/homedetails/${compZpid}_zpid/` : undefined,
       });
     }
-    diagnose(comps.length ? 'success' : 'all-filtered', {
+    diagnoseSimilar(comps.length ? 'success' : 'all-filtered', {
       rawCount: details.length, returnedCount: comps.length, rejectedCount: details.length - comps.length,
-      ...rejected, withCoordinates: comps.filter(hasValidCoordinates).length,
+      ...rejected, withCoordinates: comps.filter(hasValidCoordinates).length, ...retryMeta,
     });
-    if (comps.length > 0) setCache(cacheKey, structuredClone(comps));
-    return comps;
+    return { comps, retryable: false, status: comps.length ? 'ok' : 'none-found' };
   } catch {
-    diagnose(phase === 'request' ? 'request-failed'
-      : phase === 'json' ? 'invalid-json' : 'normalization-failed');
-    return [];
+    return phase === 'request' ? fail('request-failed', true)
+      : fail(phase === 'json' ? 'invalid-json' : 'normalization-failed', false);
   }
 }
 

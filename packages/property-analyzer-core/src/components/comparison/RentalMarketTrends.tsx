@@ -103,6 +103,9 @@ export default function RentalMarketTrends({ properties }: Props) {
 
   const changeSign = trends.yearlyChange >= 0 ? '+' : '';
   const monthSign = trends.monthlyChange >= 0 ? '+' : '';
+  // RentCast ZIP fallback has no monthly change, temperature, histogram or history.
+  const isRentCast = trends.source === 'rentcast';
+  const yoyPct = trends.yearlyChangePct;
 
   return (
     <div className="results__card rental-market">
@@ -117,29 +120,45 @@ export default function RentalMarketTrends({ properties }: Props) {
           <span>Median Rent</span>
           <strong>{fmt(trends.medianRent)}/mo</strong>
         </div>
-        <div className="rental-market__stat">
-          <span>YoY Change</span>
-          <strong className={trends.yearlyChange >= 0 ? 'text--positive' : 'text--negative'}>
-            {trends.yearlyChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {changeSign}{fmt(trends.yearlyChange)}
-          </strong>
-        </div>
-        <div className="rental-market__stat">
-          <span>Monthly</span>
-          <strong className={trends.monthlyChange >= 0 ? 'text--positive' : 'text--negative'}>
-            {monthSign}{fmt(trends.monthlyChange)}
-          </strong>
-        </div>
-        <div className="rental-market__stat">
-          <span>Market</span>
-          <strong style={{ color: tempColor(trends.marketTemperature) }}>
-            <Thermometer size={12} /> {trends.marketTemperature}
-          </strong>
-        </div>
-        <div className="rental-market__stat">
-          <span>Listings</span>
-          <strong>{trends.availableRentals.toLocaleString()}</strong>
-        </div>
+        {isRentCast ? (
+          yoyPct !== undefined && (
+            <div className="rental-market__stat">
+              <span>YoY Change</span>
+              <strong className={yoyPct >= 0 ? 'text--positive' : 'text--negative'}>
+                {yoyPct >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {yoyPct >= 0 ? '+' : ''}{yoyPct.toFixed(1)}%
+              </strong>
+            </div>
+          )
+        ) : (
+          <>
+            <div className="rental-market__stat">
+              <span>YoY Change</span>
+              <strong className={trends.yearlyChange >= 0 ? 'text--positive' : 'text--negative'}>
+                {trends.yearlyChange >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {changeSign}{fmt(trends.yearlyChange)}
+              </strong>
+            </div>
+            <div className="rental-market__stat">
+              <span>Monthly</span>
+              <strong className={trends.monthlyChange >= 0 ? 'text--positive' : 'text--negative'}>
+                {monthSign}{fmt(trends.monthlyChange)}
+              </strong>
+            </div>
+            <div className="rental-market__stat">
+              <span>Market</span>
+              <strong style={{ color: tempColor(trends.marketTemperature) }}>
+                <Thermometer size={12} /> {trends.marketTemperature}
+              </strong>
+            </div>
+          </>
+        )}
+        {(!isRentCast || trends.availableRentals > 0) && (
+          <div className="rental-market__stat">
+            <span>Listings</span>
+            <strong>{trends.availableRentals.toLocaleString()}</strong>
+          </div>
+        )}
         {trends.nationalMedianRent && (
           <div className="rental-market__stat">
             <span>US Median</span>
@@ -147,6 +166,12 @@ export default function RentalMarketTrends({ properties }: Props) {
           </div>
         )}
       </div>
+
+      {isRentCast && (
+        <p className="rental-market__source">
+          Source: RentCast ZIP statistics. Zillow rental market data isn&apos;t available for this area.
+        </p>
+      )}
 
       {/* Median rent over time — line chart */}
       {rentTimeline.length > 0 && (

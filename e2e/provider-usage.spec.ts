@@ -255,6 +255,7 @@ test('workflow labels cover saved, refreshed, property and comparison requests',
     for (const [path, method, workflow] of [
       ['/ANALYZER/run/', 'POST', 'analysis'],
       ['/analyzer/re-analyze/fixture', 'POST', 'reanalysis'],
+      ['/analyzer/history/fixture/refresh-missing', 'POST', 'dataset-refresh'],
       ['/analyzer/history/fixture', 'GET', 'saved-view'],
       ['/analyzer/shared/fixture', 'GET', 'saved-view'],
       ['/analyzer/history/fixture/property-records', 'GET', 'property-records'],
@@ -267,7 +268,7 @@ test('workflow labels cover saved, refreshed, property and comparison requests',
       await response.text();
       expect(reports.at(-1)).toMatchObject({ workflow, attempts: 0 });
     }
-    expect(reports).toHaveLength(9);
+    expect(reports).toHaveLength(10);
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }

@@ -234,6 +234,12 @@ export interface RentalMarketTrends {
     prevYear: Array<{ month: string; year: string; price: number }>;
   };
   nationalMedianRent?: number;
+  /** Absent for Zillow data. 'rentcast' marks a ZIP-level fallback summary built
+   * from RentCast market statistics, without monthly change, temperature,
+   * histogram or monthly history. */
+  source?: 'zillow' | 'rentcast';
+  /** Year-over-year median rent change in percent (RentCast fallback only). */
+  yearlyChangePct?: number;
 }
 
 export interface HousingMarket {
@@ -620,6 +626,21 @@ export interface MTREstimate {
 
 // ─────────────────────────────────────────────────────────────────────────
 
+/**
+ * Outcome of fetching an optional analysis dataset.
+ * - ok: data present
+ * - unavailable: the provider failed or returned an error; refreshing may help
+ * - none-found: the provider answered but had no usable data for this property
+ * - not-applicable: the dataset could not be requested (e.g. no Zillow ID)
+ */
+export type AnalysisDatasetStatus = 'ok' | 'unavailable' | 'none-found' | 'not-applicable';
+
+export interface AnalysisDatasetStatuses {
+  comparables?: AnalysisDatasetStatus;
+  housingMarket?: AnalysisDatasetStatus;
+  rentalMarket?: AnalysisDatasetStatus;
+}
+
 export interface MarketStatistics {
   medianRent?: number;
   averageRent?: number;
@@ -688,6 +709,8 @@ export interface FullAnalysisResult {
   mtrEstimate?: MTREstimate;
   comparables?: ComparableProperty[];
   marketStatistics?: MarketStatistics;
+  /** Fetch outcome of optional provider datasets (absent on older analyses). */
+  datasetStatus?: AnalysisDatasetStatuses;
   /** Single source of truth for ranking LTR/MTR/STR by net cash flow. */
   strategyComparison?: StrategyComparison;
   /** Monthly rent at which LTR cash flow breaks even (cash flow = $0). */
@@ -1135,6 +1158,8 @@ export interface AnalyzerApiAdapter {
   deleteScenario(slug: string, id: number): Promise<void>;
   deleteAnalysis(slug: string): Promise<void>;
   reAnalyze(slug: string, params: Partial<AnalysisParams>): Promise<PropertyAnalysis>;
+  /** Optional: refetch only datasets that are missing from a saved analysis. */
+  refreshMissingData?(slug: string): Promise<PropertyAnalysis>;
   saveAdjustments(slug: string, payload: SaveAdjustmentsPayload): Promise<void>;
   setShared(slug: string, shared: boolean): Promise<AnalyzerShareState>;
   getSharedAnalysis(slug: string): Promise<PropertyAnalysis>;

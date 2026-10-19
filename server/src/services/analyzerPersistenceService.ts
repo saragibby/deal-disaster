@@ -364,6 +364,27 @@ export async function updateAnalysisAfterReanalysis(
   return result.rows[0] ?? null;
 }
 
+export async function updateAnalysisDatasets(
+  ownerContext: OwnerContext,
+  slug: string,
+  propertyData: unknown,
+  analysisResults: unknown,
+): Promise<boolean> {
+  // Backfills provider datasets only; params, overrides and created_at are untouched.
+  const result = await pool.query(
+    `UPDATE property_analyses
+     SET property_data = $4, analysis_results = $5
+     WHERE ${OWNER_PREDICATE} AND slug = $6`,
+    [
+      ...ownerPredicateValues(ownerContext),
+      JSON.stringify(propertyData),
+      JSON.stringify(analysisResults),
+      slug,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function setAnalysisShared(
   ownerContext: OwnerContext,
   slug: string,

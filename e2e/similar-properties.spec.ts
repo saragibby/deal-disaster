@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { getSimilarProperties } from '../server/src/services/propertyDataService';
+import { getSimilarProperties, getSimilarPropertiesWithStatus } from '../server/src/services/propertyDataService';
 import {
   getProviderUsageRequestId, withProviderUsage, type ProviderUsageSummary,
 } from '../server/src/services/providerUsageService';
@@ -7,6 +7,7 @@ import {
 const originalFetch = globalThis.fetch;
 const originalInfo = console.info;
 const originalWarn = console.warn;
+const originalRetryDelay = process.env.SIMILAR_PROPERTIES_RETRY_DELAY_MS;
 let logs: unknown[][];
 let sequence = 0;
 const listing = {
@@ -16,6 +17,7 @@ const listing = {
 };
 test.beforeEach(() => {
   logs = [];
+  process.env.SIMILAR_PROPERTIES_RETRY_DELAY_MS = '0';
   console.info = (...args) => { logs.push(args); };
   console.warn = (...args) => { logs.push(args); };
 });
@@ -23,6 +25,8 @@ test.afterEach(() => {
   globalThis.fetch = originalFetch;
   console.info = originalInfo;
   console.warn = originalWarn;
+  if (originalRetryDelay === undefined) delete process.env.SIMILAR_PROPERTIES_RETRY_DELAY_MS;
+  else process.env.SIMILAR_PROPERTIES_RETRY_DELAY_MS = originalRetryDelay;
 });
 function diagnostic() {
   const entries = logs.filter(entry => entry[0] === '[similar:diagnostic]');
@@ -65,12 +69,12 @@ test('correct byzpid request maps all 20 inventory results and correlates diagno
   expect(getProviderUsageRequestId()).toBeUndefined();
 });
 
-for (const payload of [
-  { ErrorMessage: 'fixture-secret-provider-error' },
-  { message: 'Error: Region Not Found' },
-  { error: 'fixture-secret-provider-error' },
-  { success: false },
-]) {
+for (const [payload, retried] of [
+  [{ ErrorMessage: 'fixture-secret-provider-error' }, true],
+  [{ message: 'Error: Region Not Found' }, false],
+  [{ error: 'fixture-secret-provider-error' }, true],
+  [{ success: false }, true],
+] as const) {
   test(`HTTP 200 provider failure ${Object.keys(payload)[0]} is explicit and not cached`, async () => {
     const id = key();
     let calls = 0;
@@ -78,10 +82,16 @@ for (const payload of [
       calls++;
       return Response.json(calls === 1 ? payload : { similar_properties: { propertyDetails: [listing] } });
     };
-    expect(await getSimilarProperties(id)).toEqual([]);
-    expect(await getSimilarProperties(id)).toHaveLength(1);
+    if (retried) {
+      expect(await getSimilarProperties(id)).toHaveLength(1);
+      expect(diagnostic()[1]).toMatchObject({ outcome: 'success', attempt: 2 });
+    } else {
+      expect(await getSimilarProperties(id)).toEqual([]);
+      expect(await getSimilarProperties(id)).toHaveLength(1);
+    }
     expect(calls).toBe(2);
     expect(diagnostic()[0]).toMatchObject({ outcome: 'provider-error', httpStatus: 200 });
+    expect(diagnostic()[0].willRetry).toBe(retried ? true : undefined);
     expect(diagnostic()[0].providerError.field).toBe(Object.keys(payload)[0]);
     expect(JSON.stringify(logs)).not.toMatch(/fixture-secret|Region Not Found/);
   });
@@ -96,9 +106,15 @@ for (const [message, category] of [
   ['fixture-private-unknown-error', 'unspecified'],
 ]) {
   test(`classifies ${category} without logging provider text`, async () => {
-    globalThis.fetch = async () => Response.json({ ErrorMessage: message });
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return Response.json({ ErrorMessage: message }); };
     expect(await getSimilarProperties(key())).toEqual([]);
+    const transient = category === 'upstream-unavailable' || category === 'unspecified';
+    expect(calls).toBe(transient ? 2 : 1);
+    expect(diagnostic()).toHaveLength(calls);
     expect(diagnostic()[0].providerError).toEqual({ field: 'ErrorMessage', category });
+    if (transient) expect(diagnostic()[1]).toMatchObject({ outcome: 'provider-error', attempt: 2 });
+    expect(diagnostic().at(-1).willRetry).toBeUndefined();
     expect(JSON.stringify(logs)).not.toContain(message);
   });
 }
@@ -160,7 +176,7 @@ test('documented camel-case envelope remains supported', async () => {
 });
 
 for (const mode of ['http', 'json', 'transport'] as const) {
-  test(`${mode} failure has a sanitized diagnostic and no retry`, async () => {
+  test(`${mode} failure has a sanitized diagnostic and bounded retry`, async () => {
     let calls = 0;
     globalThis.fetch = async () => {
       calls++;
@@ -169,7 +185,7 @@ for (const mode of ['http', 'json', 'transport'] as const) {
       return Response.json({ error: 'fixture-secret' }, { status: 429 });
     };
     expect(await getSimilarProperties(key())).toEqual([]);
-    expect(calls).toBe(1);
+    expect(calls).toBe(mode === 'transport' ? 2 : 1);
     expect(diagnostic()[0].outcome).toBe({
       http: 'http-error', json: 'invalid-json', transport: 'request-failed',
     }[mode]);
@@ -178,10 +194,85 @@ for (const mode of ['http', 'json', 'transport'] as const) {
   });
 }
 
+for (const status of [500, 503, 408]) {
+  test(`HTTP ${status} is retried once and a recovered result is cached`, async () => {
+    const id = key();
+    let calls = 0;
+    const reports: ProviderUsageSummary[] = [];
+    globalThis.fetch = async () => {
+      calls++;
+      return calls === 1 ? new Response('fixture-secret', { status })
+        : Response.json({ similar_properties: { propertyDetails: [listing] } });
+    };
+    const comps = await withProviderUsage('analysis', () => getSimilarProperties(id), r => reports.push(r));
+    expect(comps).toHaveLength(1);
+    expect(reports[0].attempts).toBe(2);
+    expect(await getSimilarProperties(id)).toHaveLength(1);
+    expect(calls).toBe(2);
+    expect(diagnostic().map(d => d.outcome)).toEqual(['http-error', 'success', 'cache-hit']);
+    expect(diagnostic()[0]).toMatchObject({ httpStatus: status, willRetry: true });
+  });
+}
+
+for (const status of [400, 401, 402, 403, 404, 429]) {
+  test(`HTTP ${status} is not retried`, async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response('', { status }); };
+    expect(await getSimilarProperties(key())).toEqual([]);
+    expect(calls).toBe(1);
+    expect(diagnostic()[0].willRetry).toBeUndefined();
+  });
+}
+
+test('persistent transient failure stops after two attempts and is not cached', async () => {
+  const id = key();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({ ErrorMessage: 'fixture-secret' }); };
+  expect(await getSimilarProperties(id)).toEqual([]);
+  expect(calls).toBe(2);
+  expect(await getSimilarProperties(id)).toEqual([]);
+  expect(calls).toBe(4);
+});
+
+test('explicit empty, all-filtered and malformed responses are never retried', async () => {
+  for (const payload of [
+    { similar_properties: { propertyDetails: [] } },
+    { similar_properties: { propertyDetails: [{ ...listing, price: 0 }] } },
+    { unexpected: true },
+  ]) {
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return Response.json(payload); };
+    expect(await getSimilarProperties(key())).toEqual([]);
+    expect(calls).toBe(1);
+  }
+});
+
 test('missing ZPID explicitly explains a skipped lookup without any paid request', async () => {
   let calls = 0;
   globalThis.fetch = async () => { calls++; return Response.json({}); };
   expect(await getSimilarProperties('')).toEqual([]);
   expect(calls).toBe(0);
   expect(diagnostic()).toEqual([{ outcome: 'missing-zpid' }]);
+});
+
+test('status distinguishes provider failures from genuinely empty results', async () => {
+  const cases: Array<[unknown, number, string]> = [
+    [{ similar_properties: { propertyDetails: [listing] } }, 200, 'ok'],
+    [{ similar_properties: { propertyDetails: [] } }, 200, 'none-found'],
+    [{ similar_properties: { propertyDetails: [{ ...listing, price: 0 }] } }, 200, 'none-found'],
+    [{ ErrorMessage: 'No similar properties found' }, 200, 'none-found'],
+    [{ ErrorMessage: 'Temporarily unavailable' }, 200, 'unavailable'],
+    [{ ErrorMessage: 'Too many requests' }, 200, 'unavailable'],
+    [{ unexpected: true }, 200, 'unavailable'],
+    [{}, 503, 'unavailable'],
+  ];
+  for (const [payload, status, expected] of cases) {
+    globalThis.fetch = async () => Response.json(payload, { status });
+    expect((await getSimilarPropertiesWithStatus(key())).status).toBe(expected);
+  }
+  expect((await getSimilarPropertiesWithStatus('')).status).toBe('not-applicable');
+  const id = key();
+  globalThis.fetch = async () => Response.json({ similar_properties: { propertyDetails: [listing] } });
+  await getSimilarPropertiesWithStatus(id);
+  expect(await getSimilarPropertiesWithStatus(id)).toMatchObject({ status: 'ok', comps: [expect.any(Object)] });
 });

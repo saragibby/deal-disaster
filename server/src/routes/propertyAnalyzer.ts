@@ -32,7 +32,12 @@ import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import * as scenarioService from '../services/analysisScenarioService.js';
-import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
+import {
+  applyRentalMarketFallback, backfillAreaMarket, marketDatasetStatuses,
+} from '../services/analysisDatasetService.js';
+import type {
+  AnalysisDatasetStatus, AnalysisParams, ComparableProperty, MarketStatistics, PropertyData, RentalEstimate,
+} from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
 import { generatePropertySlug } from '../utils/slugify.js';
@@ -48,6 +53,7 @@ import {
   savePropertyRecords,
   setAnalysisShared,
   updateAnalysisAfterReanalysis,
+  updateAnalysisDatasets,
   updateAnalysisOverrides,
 } from '../services/analyzerPersistenceService.js';
 
@@ -116,6 +122,28 @@ function enrichComparables(
       rentSource: hasCalibration ? 'market-calibrated' as const : 'algorithm' as const,
     };
   });
+}
+
+// ── Helper: refetch only the similar-properties dataset ─────────────────
+async function backfillComparables(
+  property: PropertyData,
+  zpid: string,
+  rentalEstimate: RentalEstimate | undefined,
+  marketStatistics: MarketStatistics | null | undefined,
+): Promise<{ comparables: ComparableProperty[]; status: AnalysisDatasetStatus }> {
+  let comparables: ComparableProperty[] = [];
+  let status: AnalysisDatasetStatus = 'unavailable';
+  try {
+    const fetched = await propertyDataService.getSimilarPropertiesWithStatus(zpid);
+    status = fetched.status;
+    comparables = enrichComparables(fetched.comps, property, rentalEstimate, marketStatistics ?? null);
+  } catch {
+    console.warn('[analyzer:comparables] Comparables backfill failed (non-fatal)');
+  }
+  console.info('[analyzer:comparables]', JSON.stringify({
+    requestId: getProviderUsageRequestId(), stage: 'backfill', status, fetchedCount: comparables.length,
+  }));
+  return { comparables, status };
 }
 
 // ── POST /run ────────────────────────────────────────────────────────────
@@ -242,6 +270,9 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     } catch (err: any) {
       console.warn('[analyzer/run] Market stats failed (non-fatal):', err.message);
     }
+    // Zillow had no rental market data even after the ZIP retry: show the
+    // RentCast ZIP summary already fetched above (display only).
+    applyRentalMarketFallback(property, marketStatistics);
 
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
@@ -265,8 +296,10 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
     let comparables: ComparableProperty[] = [];
+    let comparablesStatus: AnalysisDatasetStatus = 'unavailable';
     try {
-      const rawComps = await propertyDataService.getSimilarProperties(zpid);
+      const { comps: rawComps, status } = await propertyDataService.getSimilarPropertiesWithStatus(zpid);
+      comparablesStatus = status;
 
       try {
         await geocoder.geocodeProperties([property, ...rawComps]);
@@ -289,6 +322,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     // Attach comparables to results
     results.comparables = comparables;
+    results.datasetStatus = { comparables: comparablesStatus, ...marketDatasetStatuses(property) };
 
     // Finalize: compute the single-source-of-truth strategy comparison now that
     // all estimates and data sources are attached.
@@ -476,6 +510,11 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     }
 
     const property = row.property_data;
+
+    // Targeted recovery: refetch only area market data the original run lost
+    // (shared weekly DB cache), falling back to stored RentCast ZIP statistics.
+    await backfillAreaMarket(property, row.analysis_results?.marketStatistics);
+
     const newParams: AnalysisParams = {
       ...DEFAULT_ANALYSIS_PARAMS,
       ...row.analysis_params,
@@ -533,7 +572,8 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // No comps? Anchor to Zillow's area rental-market median (real data, high confidence).
-    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent
+    && property.rentalMarketTrends.source !== 'rentcast';
     if (usedZillowRent) {
       rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
     }
@@ -578,8 +618,24 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
       insurance: insuranceSource,
     };
 
-    // Carry over stored comparables from the original analysis
+    // Carry over stored comparables from the original analysis. When the
+    // original run saved none because of a provider failure (or the status is
+    // unknown), refetch only the similar-properties dataset.
     results.comparables = row.analysis_results?.comparables || [];
+    const previousStatus = row.analysis_results?.datasetStatus;
+    let comparablesStatus: AnalysisDatasetStatus | undefined = previousStatus?.comparables
+      ?? (results.comparables.length ? 'ok' : undefined);
+    if (results.comparables.length === 0 && previousStatus?.comparables !== 'none-found') {
+      const backfill = await backfillComparables(
+        property, property.zpid || row.zpid || '', rentalEstimate, row.analysis_results?.marketStatistics,
+      );
+      results.comparables = backfill.comparables;
+      comparablesStatus = backfill.status;
+    }
+    results.datasetStatus = {
+      ...(comparablesStatus ? { comparables: comparablesStatus } : {}),
+      ...marketDatasetStatuses(property),
+    };
 
     // Geocode if coordinates are missing (backfill for older analyses)
     try {
@@ -622,6 +678,60 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
   } catch (err: any) {
     console.error('[analyzer/re-analyze]', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /history/:slug/refresh-missing ──────────────────────────────────
+// Refetch only provider datasets missing from a saved analysis (sale
+// comparables, Zillow housing/rental market). Financial results, params and
+// overrides are not recomputed. Saved comparables are never refetched; market
+// data is one shared area snapshot, so a miss refreshes housing and rental
+// together while keeping the saved dataset that was already present.
+router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const ownerContext = await buildOwnerContext(req);
+    const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
+    if (row == null) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    const property: PropertyData = row.property_data;
+    const results = row.analysis_results;
+    const marketStatistics = results.marketStatistics;
+    await backfillAreaMarket(property, marketStatistics);
+
+    let comparablesStatus = results.datasetStatus?.comparables
+      ?? (results.comparables?.length ? 'ok' : undefined);
+    if (!results.comparables?.length) {
+      const backfill = await backfillComparables(
+        property, property.zpid || row.zpid || '', results.rentalEstimate, marketStatistics,
+      );
+      results.comparables = backfill.comparables;
+      comparablesStatus = backfill.status;
+      if (results.comparables.length > 0) {
+        try {
+          await geocodingService.createGeocodingSession().geocodeProperties([property, ...results.comparables]);
+        } catch {
+          console.warn('[analyzer/refresh-missing] Geocoding failed (non-fatal)');
+        }
+      }
+    }
+    results.datasetStatus = {
+      ...(comparablesStatus ? { comparables: comparablesStatus } : {}),
+      ...marketDatasetStatuses(property),
+    };
+
+    if (!await updateAnalysisDatasets(ownerContext, req.params.slug, property, results)) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
+    if (analysis == null) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    res.json({ analysis });
+  } catch (err: unknown) {
+    console.error('[analyzer/refresh-missing]', err);
+    res.status(500).json({ error: 'Unable to refresh missing data.' });
   }
 });
 
