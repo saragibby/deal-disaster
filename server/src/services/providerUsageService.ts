@@ -8,7 +8,8 @@ export type UsageWorkflow = 'analysis' | 'reanalysis' | 'dataset-refresh' | 'sav
   | 'xome-widget' | 'xome-prewarm' | 'property-lookup' | 'comparison' | 'other-analyzer' | 'background';
 type CacheLayer = 'memory' | 'postgres' | 'in-flight' | 'coordinates' | 'session' | 'saved-analysis';
 type CacheOutcome = 'hit' | 'miss' | 'stale' | 'error' | 'wait' | 'wait-timeout';
-type FallbackReason = 'no-usable-data' | 'provider-failed' | 'widen-search' | 'cache-unavailable';
+type FallbackReason = 'no-usable-data' | 'insufficient-comps' | 'provider-failed' | 'widen-search'
+  | 'cache-unavailable';
 
 // Static labels only: no URL, query, header, address, user ID, or response body enters the ledger.
 const operations = {

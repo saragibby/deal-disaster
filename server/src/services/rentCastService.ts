@@ -6,6 +6,7 @@
  *
  * Endpoints used:
  *   GET /v1/avm/rent/long-term     — algorithmic rent estimate by address
+ *                                    (bundle mode: estimate + recent comps in one request)
  *   GET /v1/listings/rental/long-term — nearby active rental listings (comps)
  *
  * Auth: X-Api-Key header
@@ -21,8 +22,8 @@ import { Pool } from 'pg';
 import { createPostgresMarketCacheStore, createRentCastMarketCache } from './rentCastMarketCache.js';
 import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
 import {
-  createRentCastPropertyCache, isRentEstimateProjection, isRentalCompProjection,
-  type RentEstimateProjection,
+  createRentCastPropertyCache, isRentEstimateBundleProjection, isRentEstimateProjection, isRentalCompProjection,
+  type RentEstimateBundleProjection, type RentEstimateProjection,
 } from './rentCastPropertyCache.js';
 const fetch = createProviderFetch('rentcast');
 export type { MarketStatistics } from '@deal-platform/shared-types';
@@ -249,23 +250,135 @@ async function fetchRentEstimate(query: string): Promise<RentEstimateProjection 
       return null;
     }
 
-    const data: unknown = await res.json();
-    if (!isObject(data) || typeof data.rent !== 'number' || !positiveRent(data.rent) ||
-      (data.rentRangeLow != null && !positiveRent(data.rentRangeLow)) ||
-      (data.rentRangeHigh != null && !positiveRent(data.rentRangeHigh))) {
-      console.warn('[RentCast] Invalid rent estimate; not caching');
-      return null;
-    }
-
-    const result = {
-      mid: Math.round(data.rent),
-      low: Math.round(typeof data.rentRangeLow === 'number' ? data.rentRangeLow : data.rent * 0.9),
-      high: Math.round(typeof data.rentRangeHigh === 'number' ? data.rentRangeHigh : data.rent * 1.1),
-    };
-
+    const result = parseRentEstimate(await res.json());
+    if (!result) console.warn('[RentCast] Invalid rent estimate; not caching');
     return result;
   } catch (err: any) {
     console.warn('[RentCast] Rent estimate error:', err.message);
+    return null;
+  }
+}
+
+function parseRentEstimate(data: unknown): RentEstimateProjection | null {
+  if (!isObject(data) || typeof data.rent !== 'number' || !positiveRent(data.rent) ||
+    (data.rentRangeLow != null && !positiveRent(data.rentRangeLow)) ||
+    (data.rentRangeHigh != null && !positiveRent(data.rentRangeHigh))) {
+    return null;
+  }
+  return {
+    mid: Math.round(data.rent),
+    low: Math.round(typeof data.rentRangeLow === 'number' ? data.rentRangeLow : data.rent * 0.9),
+    high: Math.round(typeof data.rentRangeHigh === 'number' ? data.rentRangeHigh : data.rent * 1.1),
+  };
+}
+
+// ---------- bundle mode (estimate-first) ----------
+
+export const BUNDLE_MAX_RADIUS_MILES = 2;
+/** Recently seen inactive comps count toward the estimate; older listings are dropped. */
+export const BUNDLE_MAX_DAYS_OLD = 180;
+export const BUNDLE_COMP_COUNT = 15;
+/** Fewer plausible bundle comps than this triggers one supplemental active-listings request. */
+export const BUNDLE_MIN_COMPS = 3;
+
+export type RentCastRentMode = 'compatibility' | 'bundle';
+
+export function rentCastRentMode(): RentCastRentMode {
+  return process.env.RENTCAST_RENT_MODE?.trim().toLowerCase() === 'bundle' ? 'bundle' : 'compatibility';
+}
+
+export type RentEstimateBundle = RentEstimateBundleProjection;
+
+/**
+ * Bundle mode: one rent-estimate request returns RentCast's estimate plus its
+ * comparable listings (active and recently inactive), replacing the separate
+ * listings request whenever the comps are sufficient.
+ */
+export async function getRentEstimateBundle(property: PropertyData): Promise<RentEstimateBundle | null> {
+  if (!isConfigured()) return null;
+
+  const params = propertySearchParams(property);
+  params.set('address', `${property.address}, ${property.city}, ${property.state} ${property.zip}`);
+  if (hasValidCoordinates(property)) {
+    params.set('latitude', String(property.latitude));
+    params.set('longitude', String(property.longitude));
+  }
+  params.set('maxRadius', String(BUNDLE_MAX_RADIUS_MILES));
+  params.set('daysOld', String(BUNDLE_MAX_DAYS_OLD));
+  params.set('compCount', String(BUNDLE_COMP_COUNT));
+  return rentEstimateBundleCache.get(params.toString());
+}
+
+function optionalFiniteNumber(value: unknown): boolean {
+  return value == null || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isRentCastBundleComparable(value: unknown): value is RentCastListing & Record<string, unknown> {
+  return isRentCastListing(value) && isObject(value) &&
+    ['distance', 'daysOld', 'correlation', 'latitude', 'longitude'].every(key => optionalFiniteNumber(value[key])) &&
+    (value.status == null || typeof value.status === 'string');
+}
+
+function roundTo(value: number, places: number): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
+export function parseRentEstimateBundle(data: unknown): RentEstimateBundle | null {
+  const estimate = parseRentEstimate(data);
+  if (!estimate || !isObject(data)) return null;
+  const rows = data.comparables ?? [];
+  if (!Array.isArray(rows) || !rows.every(isRentCastBundleComparable)) return null;
+
+  const comps: RentalComp[] = [];
+  for (const row of rows) {
+    if (!row.price || row.price <= 0) continue;
+    const status = row.status === 'Active' ? 'active' : 'inactive';
+    const daysOld = nonnegativeNumber(row.daysOld);
+    if (daysOld !== undefined ? daysOld > BUNDLE_MAX_DAYS_OLD : status !== 'active') continue;
+    const distance = nonnegativeNumber(row.distance);
+    const correlation = nonnegativeNumber(row.correlation);
+    const coordinates = typeof row.latitude === 'number' && typeof row.longitude === 'number' &&
+      Math.abs(row.latitude) <= 90 && Math.abs(row.longitude) <= 180
+      ? { latitude: row.latitude, longitude: row.longitude } : {};
+    comps.push({
+      ...(row.formattedAddress || row.addressLine1 ? { address: row.formattedAddress || row.addressLine1 } : {}),
+      rent: row.price,
+      ...(row.bedrooms != null ? { bedrooms: row.bedrooms } : {}),
+      ...(row.bathrooms != null ? { bathrooms: row.bathrooms } : {}),
+      ...(row.squareFootage != null ? { sqft: row.squareFootage } : {}),
+      source: 'api',
+      status,
+      ...(daysOld !== undefined ? { daysOld: Math.round(daysOld) } : {}),
+      ...(distance !== undefined ? { distance: roundTo(distance, 2) } : {}),
+      ...(correlation !== undefined ? { correlation: roundTo(correlation, 4) } : {}),
+      ...coordinates,
+    });
+  }
+  return { estimate, comps };
+}
+
+async function fetchRentEstimateBundle(query: string): Promise<RentEstimateBundle | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/avm/rent/long-term?${query}`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      console.warn(`[RentCast] Rent estimate bundle failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const result = parseRentEstimateBundle(await res.json());
+    if (!result) {
+      console.warn('[RentCast] Invalid rent estimate bundle; not caching');
+      return null;
+    }
+    console.log(`[RentCast] Rent estimate bundle with ${result.comps.length} recent comps`);
+    return result;
+  } catch (err: any) {
+    console.warn('[RentCast] Rent estimate bundle error:', err.message);
     return null;
   }
 }
@@ -370,6 +483,9 @@ const rentEstimateCache = createRentCastPropertyCache(
 );
 const rentalCompsCache = createRentCastPropertyCache(
   marketCachePool, 'rental-listings', isRentalCompProjection, fetchRentalComps,
+);
+const rentEstimateBundleCache = createRentCastPropertyCache(
+  marketCachePool, 'rent-avm-bundle', isRentEstimateBundleProjection, fetchRentEstimateBundle,
 );
 
 async function fetchMarketStatistics(zip: string): Promise<MarketStatistics | null> {

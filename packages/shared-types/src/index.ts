@@ -321,6 +321,13 @@ export interface RentalComp {
   sqft?: number;
   distance?: number;
   source: 'api' | 'estimate' | 'rentcast';
+  /** RentCast estimate comps only: listing status and days since last seen on the market. */
+  status?: 'active' | 'inactive';
+  daysOld?: number;
+  /** RentCast similarity score, 0-1. */
+  correlation?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface RentalEstimate {

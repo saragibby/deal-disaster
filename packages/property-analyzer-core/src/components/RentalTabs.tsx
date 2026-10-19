@@ -297,7 +297,7 @@ function LTRPanel({
           </h4>
           <RentalCompsTable label="LTR rental comparables" rows={rental.comps}
             columns={LTR_COMP_COLUMNS.filter(column =>
-              !['bedrooms', 'sqft'].includes(column.key) ||
+              !OPTIONAL_LTR_COMP_COLUMNS.includes(column.key) ||
               rental.comps?.some(comp => column.value(comp) != null))} />
         </div>
       )}
@@ -944,7 +944,16 @@ const LTR_COMP_COLUMNS: RentalCompsColumn<RentalComp>[] = [
   { key: 'rent', label: 'Rent / mo', type: 'number', value: comp => comp.rent, format: value => fmt(Number(value)), emphasis: true },
   { key: 'bedrooms', label: 'Beds', type: 'number', value: comp => comp.bedrooms },
   { key: 'sqft', label: 'Sq Ft', type: 'number', value: comp => comp.sqft, format: value => Number(value).toLocaleString() },
+  { key: 'distance', label: 'Distance', type: 'number', value: comp => comp.distance, format: value => `${Number(value).toFixed(1)} mi` },
+  {
+    key: 'status', label: 'Listing', type: 'text',
+    value: comp => comp.status === 'active' ? 'Active'
+      : comp.status === 'inactive'
+        ? (comp.daysOld != null ? `Off market · seen ${comp.daysOld}d ago` : 'Off market')
+        : null,
+  },
 ];
+const OPTIONAL_LTR_COMP_COLUMNS = ['bedrooms', 'sqft', 'distance', 'status'];
 
 const MTR_COMP_COLUMNS: RentalCompsColumn<MTRComp>[] = [
   { key: 'bedrooms', label: 'Beds', type: 'number', value: comp => comp.bedrooms },

@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** RentCast shared-property caching and Census coordinate-only Google avoidance committed; targeted recovery for missing comparables/market data (bounded `/similar` retry, re-analysis backfill, dataset status with a provider-unavailable notice and Refresh button, per-dataset ZIP retry, RentCast display-only rental fallback) implemented locally. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
+**Status:** RentCast shared-property caching and Census coordinate-only Google avoidance committed; targeted recovery for missing comparables/market data (bounded `/similar` retry, re-analysis backfill, dataset status with a provider-unavailable notice and Refresh button, per-dataset ZIP retry, RentCast display-only rental fallback) committed; RentCast bundle mode (flagged, default off) implemented locally. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -631,6 +631,61 @@ retry, no-ZIP no-retry, RentCast display-only fallback, refresh-missing route,
 server build, and the analyzer-core guardrails pass. The notices, button and
 RentCast card were checked visually in the reference SaaS harness with fixture
 data. No live calls.
+
+## Implementation update - RentCast bundle mode
+
+Production plan confirmed as RentCast **Foundation**: $74/month for 1,000
+requests (about $0.074 each), $0.06 per request over quota.
+
+**Why the saving is small.** The earlier rent-estimate gate already removed the
+unused estimate request, so compatibility mode usually makes one rent request
+(active listings). Bundle mode makes one request in that case too. It saves a
+request only when active listings have no usable comps (2 RentCast rent
+requests drop to 1). RentCast's estimate comps are mostly inactive, so an
+active-only bundle would usually need a second request; the user approved
+counting **recently seen inactive comps (last seen within 180 days)**.
+
+- **Flag.** `RENTCAST_RENT_MODE=compatibility` (default) or `bundle`. The modes
+  are mutually exclusive, so production never pays for both.
+- **Bundle request.** One `/avm/rent/long-term` request with `maxRadius=2`,
+  `daysOld=180`, `compCount=15` and coordinates when known. It returns the
+  estimate and comps; comps with a positive price and seen within 180 days are
+  kept (an active comp with no age is kept; an inactive one is dropped).
+- **Supplement.** With fewer than 3 plausible comps, one active-listings request
+  is added and merged without duplicate addresses (usage fallback reason
+  `insufficient-comps`). A failed bundle request also falls back to listings
+  (`provider-failed`) and is not retried.
+- **Financial blending unchanged.** Comps go through the existing
+  `combineEstimates` blend. RentCast's estimate is used only in the existing
+  no-comps blend, reusing the estimate already returned, so bundle mode never
+  makes a second estimate request. Adopting RentCast's central estimate when
+  comps exist remains a separate decision and is not implemented.
+- **Projection and privacy.** Comps are allowlisted to address, rent, beds,
+  baths, square feet, distance, status (`active`/`inactive`), days since last
+  seen, similarity score and coordinates. Subject-property and owner fields are
+  not stored. The 24-hour shared cache uses its own key namespace
+  (`rent-avm-bundle`) and validator; usage is counted under `rent-avm`.
+- **UI.** The long-term rental comps table adds Distance and Listing columns
+  ("Active" or "Off market · seen Nd ago") only when comps carry those fields.
+  Coordinates are stored for a future rent-comps map but not yet displayed.
+
+| Case | Compatibility | Bundle |
+| --- | ---: | ---: |
+| 3+ usable comps | 1 (listings) | 1 (estimate) |
+| 1-2 usable comps | 1 | 2 (estimate + listings) |
+| No active listings, recent inactive comps | 2 (listings + estimate) | 1 |
+| No comps anywhere | 2 + Realtor | 2 + Realtor |
+
+Bundle mode is a win only where active rental inventory is thin, and it costs
+one extra request where 1-2 active listings would have been enough. Roll out
+by comparing matched cohorts with provider usage reports before making it the
+default. ZIP market statistics are unchanged (1 request, cached 7 days).
+
+**Verification:** 11 new mocked tests (`e2e/rentcast-bundle.spec.ts`) cover
+each orchestration case, the mode flag, projection and age filtering, malformed
+responses, the cache validator, request parameters, cache reuse, and usage
+labels. The comp-table columns were checked visually in the reference SaaS
+harness with fixture data. No live calls.
 
 ## 1. Goals and boundaries
 

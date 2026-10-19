@@ -288,6 +288,8 @@ Allowances apply monthly per SKU, not per analysis. Other account traffic consum
 
 These are API plans, not consumer dashboard plans. Three baseline calls become four if ownership records are explicitly loaded.
 
+**Confirmed production plan (2026-10-19): Foundation**, $74/month for 1,000 requests plus $0.06 per request over quota (about $0.074 per request averaged inside the quota). After the committed RentCast changes, a cold analysis makes 2 RentCast requests (rental listings plus ZIP market statistics), or 1 when the ZIP statistics are already cached; a rent-estimate request is added only when no usable comps exist. That is about $0.12-$0.15 per fully cold analysis on Foundation, or $0.06-$0.074 with a warm ZIP. At 1,000 fully cold analyses a month (2,000 requests), RentCast costs about $74 + 1,000 x $0.06 = $134. Set `RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST=0.074` (or `0.06` once over quota) to include it in provider usage reports. See the [bundle-mode update](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---rentcast-bundle-mode) for the remaining RentCast change.
+
 Furnished Finder has no metered billing integration in source. Assuming $0 direct request cost is not a guarantee of free production entitlement: the service explicitly describes an undocumented internal endpoint without a published contract or SLA.
 
 US Census and OSM Nominatim are public geocoding fallbacks, generally without metered fees, subject to their usage policies.
