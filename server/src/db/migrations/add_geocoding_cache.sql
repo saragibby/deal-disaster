@@ -1,6 +1,7 @@
 -- Geocoding Cache
--- Stores address → lat/lng lookups to avoid duplicate Google Geocoding API calls.
--- Addresses don't change coordinates, so entries never expire.
+-- Stores address → lat/lng lookups with provider provenance.
+-- The OSM workflow excludes Google rows; new alternative-source writes use osm:v1: keys.
+-- Historical Google data is retained unchanged pending a separately approved cleanup.
 
 CREATE TABLE IF NOT EXISTS geocoding_cache (
   id            SERIAL PRIMARY KEY,

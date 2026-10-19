@@ -21,7 +21,7 @@ import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
 import { getLongTermRentalEstimate } from '../services/longTermRentalService.js';
-import { recordProviderCache } from '../services/providerUsageService.js';
+import { getProviderUsageRequestId, recordProviderCache } from '../services/providerUsageService.js';
 import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
@@ -266,7 +266,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
     let comparables: ComparableProperty[] = [];
     try {
-      const rawComps = zpid ? await propertyDataService.getSimilarProperties(zpid) : [];
+      const rawComps = await propertyDataService.getSimilarProperties(zpid);
 
       try {
         await geocoder.geocodeProperties([property, ...rawComps]);
@@ -276,8 +276,15 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
       // Enrich comps with calibrated rent estimates using subject's market data
       comparables = enrichComparables(rawComps, property, rentalEstimate, marketStatistics);
-    } catch (err: any) {
-      console.warn('[analyzer/run] Failed to fetch comparables:', err.message);
+      console.info('[analyzer:comparables]', JSON.stringify({
+        requestId: getProviderUsageRequestId(), stage: 'ready',
+        hasZpid: !!zpid, fetchedCount: rawComps.length, enrichedCount: comparables.length,
+        mappedCount: comparables.filter(geocodingService.hasValidCoordinates).length,
+      }));
+    } catch {
+      console.warn('[analyzer:comparables]', JSON.stringify({
+        requestId: getProviderUsageRequestId(), stage: 'failed', hasZpid: !!zpid,
+      }));
     }
 
     // Attach comparables to results

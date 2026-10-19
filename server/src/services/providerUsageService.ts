@@ -14,7 +14,7 @@ const operations = {
   zillow: ['byzpid', 'byaddress', 'pricehistory', 'similar', 'housing_market', 'rental_market', 'property-cache'],
   airdna: ['rentalizer', 'market-statistics', 'estimate-cache'],
   rentcast: ['rent-avm', 'rental-listings', 'markets', 'property-records'],
-  google: ['geocoding', 'places-nearby'],
+  google: ['geocoding', 'places-nearby', 'places-nearby-new', 'places-text-new'],
   geocoding: ['coordinates'],
   census: ['geocoding'],
   nominatim: ['geocoding'],
@@ -48,7 +48,7 @@ interface UsageContext {
 
 export interface ProviderUsageSummary {
   schemaVersion: 1;
-  pricingVersion: '2026-10-16-scenario-v1';
+  pricingVersion: '2026-10-16-scenario-v2';
   requestId: string;
   parentRequestId?: string;
   workflow: UsageWorkflow;
@@ -64,6 +64,10 @@ export interface ProviderUsageSummary {
 
 const storage = new AsyncLocalStorage<UsageContext>();
 const defaultReporter = (summary: ProviderUsageSummary) => console.info('[provider:usage]', JSON.stringify(summary));
+
+export function getProviderUsageRequestId(): string | undefined {
+  return storage.getStore()?.requestId;
+}
 
 function endpoint(provider: DataProvider, operation: string): EndpointUsage | undefined {
   const context = storage.getStore();
@@ -109,7 +113,7 @@ function summarize(value: UsageContext, outcome: ProviderUsageSummary['outcome']
     ...structuredClone(row), estimatedCostUsd: Number(row.estimatedCostUsd.toFixed(6)),
   }));
   return {
-    schemaVersion: 1, pricingVersion: '2026-10-16-scenario-v1',
+    schemaVersion: 1, pricingVersion: '2026-10-16-scenario-v2',
     requestId: value.requestId,
     ...(value.parentRequestId ? { parentRequestId: value.parentRequestId } : {}),
     workflow: value.workflow, outcome, durationMs: Math.round(performance.now() - value.startedAt),
@@ -185,7 +189,11 @@ function operationFor(provider: DataProvider, input: Parameters<typeof fetch>[0]
       '/v1/avm/rent/long-term': 'rent-avm', '/v1/listings/rental/long-term': 'rental-listings',
     } as Record<string, string>)[path] ?? 'other';
   }
-  if (provider === 'google') return path.includes('/geocode/') ? 'geocoding' : path.includes('/place/nearbysearch/') ? 'places-nearby' : 'other';
+  if (provider === 'google') {
+    if (path === '/v1/places:searchnearby') return 'places-nearby-new';
+    if (path === '/v1/places:searchtext') return 'places-text-new';
+    return path.includes('/geocode/') ? 'geocoding' : path.includes('/place/nearbysearch/') ? 'places-nearby' : 'other';
+  }
   if (provider === 'census' || provider === 'nominatim') return 'geocoding';
   if (provider === 'furnished-finder') return 'search';
   if (provider === 'realtor') return 'listings';

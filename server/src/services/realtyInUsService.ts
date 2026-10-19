@@ -17,6 +17,7 @@
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import { filterPlausibleRentalComps } from './rentalEstimationService.js';
 import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+import { hasValidCoordinates } from './geocodingService.js';
 const fetch = createProviderFetch('realtor');
 
 const RAPIDAPI_KEY = () => process.env.RAPIDAPI_KEY || '';
@@ -80,6 +81,14 @@ function normalizeForSaleProperty(result: any, sourceInput: string): PropertyDat
     ...(Array.isArray(result?.photos) ? result.photos.map((photo: any) => photo?.href) : []),
   ].filter((photo): photo is string => typeof photo === 'string' && photo.length > 0);
 
+  const rawCoordinates = address.coordinate;
+  const coordinates = {
+    latitude: rawCoordinates?.lat != null && String(rawCoordinates.lat).trim()
+      ? Number(rawCoordinates.lat) : undefined,
+    longitude: rawCoordinates?.lon != null && String(rawCoordinates.lon).trim()
+      ? Number(rawCoordinates.lon) : undefined,
+  };
+
   return {
     zpid: '',
     address: streetAddress,
@@ -96,8 +105,9 @@ function normalizeForSaleProperty(result: any, sourceInput: string): PropertyDat
     description: result?.description?.text ? String(result.description.text) : undefined,
     photos: [...new Set(photos)],
     homeStatus: result?.status ? String(result.status) : undefined,
-    latitude: Number(address.coordinate?.lat) || undefined,
-    longitude: Number(address.coordinate?.lon) || undefined,
+    ...(hasValidCoordinates(coordinates) ? {
+      ...coordinates, coordinateSource: 'realtor', coordinatesObservedAt: new Date().toISOString(),
+    } : {}),
     zillowUrl: sourceInput.toLowerCase().includes('zillow.com') ? sourceInput : undefined,
   };
 }

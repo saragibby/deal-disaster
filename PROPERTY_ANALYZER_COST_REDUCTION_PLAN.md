@@ -1,7 +1,7 @@
 # Property Analyzer Usage and Cost Reduction Plan
 
 **Date:** October 16, 2026  
-**Status:** Provider retry/cache-correctness fixes committed; shared caching expanded locally to RentCast rental listings and AVM, opt-in pending deployment. Zillow/AirDNA/Xome durable adapters remain pending rights review.
+**Status:** RentCast shared-property caching committed; coordinate-only Google avoidance implemented locally using Census. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
 ## Implementation update - coordinate reuse
@@ -12,7 +12,7 @@ The first recommended slice is committed as `8cfef67` on `saragibby-analyzer-cos
 - New analyses share one request-scoped geocoding session across the early subject and later comparable stages. Valid pairs are not overwritten; successes and failures are remembered for that analysis.
 - Re-analysis fills each missing/invalid pair even when some comparables already have valid coordinates.
 - Normalize and deduplicate missing addresses before cache reads/provider work; overlapping single/batch calls share in-process in-flight work. Apartment/unit text remains part of identity.
-- Retain the existing persistent cache and Google -> Census -> Nominatim fallback order, validate coordinate ranges including valid zeros, and log non-fatal failures without upstream messages, addresses, or request URLs.
+- At this commit, retain the existing persistent cache and Google -> Census -> Nominatim fallback order, validate coordinate ranges including valid zeros, and log non-fatal failures without upstream messages, addresses, or request URLs. The later Google update below supersedes that production provider order.
 - Emit `[geocoding:usage]` per batch with input count, existing-coordinate reuse, persistent-cache/in-flight hits, provider attempts, and resolved/unresolved unique-key counts. These are local counters, not billing records or a complete all-provider/per-analysis telemetry system. Session-memoized rows are excluded from subsequent lookup batches.
 
 **Verification:** `npm run build:server` passes. The isolated mocked-provider suite,
@@ -26,8 +26,9 @@ uses no database, and sends no live provider requests.
 
 **Not included:** RentCast changes, Places migration/caching, cross-process single-flight,
 additional provider coordinate adapters, provenance/retention migrations, or the
-production policy audit. Existing persistent geocoding retention is unchanged, not
-certified compliant by this implementation. The broader Phase 0 and Phase 1A items
+production policy audit. Persistent geocoding retention was unchanged in that
+slice; see the later Google update for source-based cache exclusion. This does
+not certify compliance. The broader Phase 0 and Phase 1A items
 below remain open where they exceed this slice.
 
 ## Implementation update - RentCast quick wins
@@ -116,7 +117,9 @@ cache freshness are unchanged.
 ### Structured summaries and correlation
 
 One `[provider:usage]` JSON summary is emitted when the HTTP response finishes or
-closes, with `schemaVersion: 1` and `pricingVersion: "2026-10-16-scenario-v1"`.
+closes, with `schemaVersion: 1`. The initial pricing model was
+`2026-10-16-scenario-v1`; the Google transport preparation below updates it to
+`2026-10-16-scenario-v2` with separate Nearby/Text Search (New) operation labels.
 
 | Field | Meaning |
 | --- | --- |
@@ -252,7 +255,7 @@ retention/display review remain separate follow-ups.
 
 ## Implementation update - expanded shared caching, RentCast property datasets
 
-This local slice adds opt-in shared **rental listings and rent AVM projections**,
+Committed as `82a5ee3`, this slice adds opt-in shared **rental listings and rent AVM projections**,
 using the same reviewed RentCast storage rights as the ZIP-market cache. It does
 not change the listings-first strategy or revive the unused AVM call: usable
 rental comps still mean zero AVM requests.
@@ -342,6 +345,214 @@ open-endpoint access alone; do not automatically enable cross-user durable
 storage on that basis. The reusable infrastructure is ready for those adapters
 after their provider-specific rights review. RentCast private-record reuse and
 broader sale/rental bundle projections are also separate work.
+
+## Implementation update - Google foundations, not production Places migration
+
+This local increment begins the Google item without treating a transport change
+or slower-moving institutions as permission for broader data storage.
+
+### Selected scope - coordinate lookups only, effective on backend deployment
+
+After reviewing Leaflet/OpenStreetMap compatibility, the user chose to stop
+new Google coordinate lookups rather than change map providers. Two follow-up
+decisions explicitly limit this increment:
+
+- **Keep historical data unchanged.** Do not purge saved coordinates/institutions,
+  recalculate old demand scores, or delete existing geocoding-cache rows.
+- **Keep Google institution enrichment for now.** Its proximity boost can also add
+  up to two percentage points to modeled MTR occupancy, affecting revenue. This
+  is not merely a cosmetic demand-score change. No scoring, occupancy, rental
+  revenue, public/saved projection, or institution-display changes are included.
+
+These decisions defer complete retention remediation and Places display/storage
+compatibility; they do not resolve or certify those issues.
+
+The default geocoder now uses
+[geocodingCache](server/src/services/geocodingCache.ts), built on the existing
+table's `provider` and `created_at` fields:
+
+- Preserve valid provider-native coordinates and tag newly normalized Zillow and
+  Realty-in-US pairs with `coordinateSource` and `coordinatesObservedAt`. Realty
+  pairs are range-checked together, including valid zero coordinates. Provenance
+  records the upstream service and local observation time, not its licensing
+  rights, survey date, or independent accuracy verification.
+- Use **Census only** for new unresolved address lookups. No Google Geocoding
+  requests or automatic public Nominatim fallback. Preserve request/session
+  deduplication, finite-coordinate validation, zero coordinates, and sanitized
+  diagnostics. Census HTTP/no-match/malformed responses leave the location
+  unresolved; do not invent coordinates or call a paid geocoder silently.
+- Reuse only known Census/Nominatim database rows. Exclude **all Google cache
+  rows regardless of age**, plus null/unknown providers. New alternative-source
+  rows use `osm:v1:` address keys, so filling a Census miss does not overwrite a
+  historical Google or unknown-source row. The new namespace wins over an older
+  alternative-source entry. Reads do not renew timestamps.
+- Carry provider/time metadata through fresh responses, database hits, sessions,
+  duplicate-address fills, and saved property/comparable JSON. Explicitly
+  Google-tagged supplied coordinates/cache hits are not reused by the default
+  geocoder. Unprovenanced supplied coordinates from historical analyses remain
+  untouched and are **not relabeled** as Census/native-provider observations.
+- A cache read/write failure is observable and nonfatal; request the free Census
+  fallback as needed. No completed paid request can be repeated by this path.
+  No new schema columns or migration execution are required.
+
+**Nominatim operational constraint:** the public service's one-request-per-second
+limit applies across the application, not each process, and bulk usage is
+restricted. Do not redirect the former 21-location workflow to that endpoint.
+A future fallback needs a deliberately selected self-hosted/commercial service
+and its own terms, attribution, quotas, and deployment configuration. Existing
+known Nominatim cache rows may still be reused; production sends it no new calls.
+
+**Important limitations:** historical cache/saved/exported Google content is not
+purged or sanitized, and unprovenanced historical pins may still appear on OSM.
+No claim of full map compatibility or retention compliance is made. The earlier
+uncommitted thirty-day Google cache read/cleanup prototype was superseded by
+source exclusion plus the explicit decision not to change historical data.
+No scheduled retention job is enabled. Alternative-source retention remains as
+before; this is not approval of unlimited retention for every provider.
+`coordinatesObservedAt` on database hits uses stored insertion time, not a new
+observation. No live database or historical snapshot audit was performed.
+
+**Cost effect:** Google Geocoding requests become zero for new missing-address
+lookups, even on an all-cold analysis; native coordinates can still avoid Census
+calls. If 21 distinct missing addresses previously required Google, this avoids
+21 billable candidates, modeled at **$0.105** before allowances/tiering. The 21
+free Census requests replace them, so this is not a 21-request reduction in total
+network traffic. Do not double-count savings already achieved by coordinate
+reuse. Existing five-search Legacy Places enrichment remains up to **$0.160**
+per cold eligible location under the historical model; this is not a zero-Google
+workflow. Retain the existing Google key while Places still uses it.
+
+### Places API (New) - typed transport prepared, not activated
+
+[googlePlacesService](server/src/services/googlePlacesService.ts) is an injected,
+mock-tested factory. **It is not imported by the production proximity scorer,
+has no activation flag yet, and makes no calls unless explicitly invoked.**
+Production still uses Legacy Places with its existing seven-day memory cache.
+That pre-existing retention/display policy remains unapproved, not silently
+certified by leaving it unchanged.
+
+- Preserve five search intents: two Nearby Search (New) POST requests for
+  `hospital`/`university`, plus three Text Search (New) POST requests for military
+  bases, corporate office parks, and government buildings. Nearby Search (New)
+  does not support Legacy `keyword`; do not substitute broad unrelated types.
+- Explicit field mask:
+  `places.id,places.displayName,places.location,places.types,places.attributions`.
+  No wildcard, Details requests, photos, reviews, contact fields, or opening hours.
+  Requested fields are in the Pro search model; the accounting scenario uses
+  $0.032 each for Nearby/Text Pro, before allowances/tier/account differences.
+  Five searches therefore still model **$0.160**, not automatic migration savings.
+- Keep a sixteen-kilometer circle restriction for Nearby; Text Search uses a
+  circle bias plus a local hard radius check because bias alone does not enforce
+  coverage. Deduplicate place IDs within each category; do not conflate the five
+  categories or claim complete geographic coverage from twenty-result caps.
+- Validate finite coordinates, names, types, and structured attribution fields;
+  unsafe attribution URI schemes and malformed responses are unavailable, not
+  successful empty datasets. Valid empty responses remain distinct.
+- Return complete/partial/unavailable/unconfigured status and per-category
+  results. Preserve third-party attributions for the future display integration;
+  they are not rendered by the current UI because the new adapter is not wired.
+- Fifteen-second requests; exact-coordinate concurrent single-flight, cloned
+  outputs, and **no completed-result cache**, PostgreSQL persistence, retries,
+  paid shadow traffic, or automatic Legacy fallback. Key headers and payloads
+  never enter the new diagnostics.
+- Accounting distinguishes `places-nearby-new` from `places-text-new` under
+  pricing version v2. The factory's default transport uses the existing scoped
+  ledger; injected tests can bypass network while exercising the same mapping.
+
+**Verification:** 95 isolated provider tests (75 previous plus 15 Google transport/cache tests and five coordinate-policy tests)
+and 25 disposable PostgreSQL cache tests pass, along with shared-package,
+all frontend-app, and backend builds and the analyzer boundary checks.
+Coverage includes request bodies/field masks, two-versus-three endpoint counts,
+exact-location single-flight, no completed-result storage, local radius filtering,
+attribution preservation, malformed/HTTP/network failures, partial versus empty
+results, sanitized accounting, production Census-only request accounting,
+no Google/public-Nominatim fallback, incompatible-source rejection, native and
+cached provenance, unchanged unprovenanced input, unchanged historical database
+rows, namespace preference, alternative-source refreshes, and explicit read errors.
+Existing provider and RentCast cache regressions remain intact. No paid requests,
+Cloud configuration changes, or production database access were used.
+
+### Remaining Google rollout gates and next increment
+
+1. Confirm the applicable Google agreement/region and obtain a separate decision
+   on the explicitly deferred historical cleanup and Google institution behavior.
+   Remediate geocoding/Places retention and non-Google map usage, including
+   scheduled deletion and saved-snapshot provenance/expiry. Source exclusion does
+   not delete retained content or make old pins compatible.
+2. Implement required Google Maps and third-party attribution in every relevant
+   display/export and settle whether/how Google-derived institution names and
+   demand scores may be saved, shared, or refreshed.
+3. Wire the new transport to scoring behind an explicit migration flag, with
+   tested category coverage, distance/selection and score semantics, unavailable
+   states, public/saved data handling, and an allowed Legacy rollback.
+4. Enable Places API (New), server key restrictions, quotas, alerts, and SKU
+   monitoring in Google Cloud. This was not done from the implementation session.
+5. Only then evaluate permitted shared area observations or independently
+   licensed institutional data. No 30-90-day Places cache or multi-category
+   request consolidation is enabled here.
+
+## Debugging update - missing sale comparables
+
+The local analysis investigated on October 16 had valid Census subject
+coordinates but zero saved sale comparables. Its usage ledger recorded one
+HTTP-200 `/similar` call; this does not prove a successful property dataset.
+A later correctly parameterized diagnostic returned 20 comparable rows with
+native coordinates for that same property. Therefore low regional inventory
+and a Census failure are not established explanations for the original result.
+The original response body was not retained, so its exact failure cannot be
+reconstructed from HTTP-status accounting alone.
+
+The next local increment adds diagnostics without extra provider calls:
+
+- `[similar:diagnostic]` reports `missing-zpid`, `http-error`, `provider-error`
+  (including HTTP-200 `ErrorMessage`/error payloads), `invalid-envelope`,
+  `invalid-json`, `request-failed`, `normalization-failed`, `empty-response`,
+  `all-filtered`, `success`, or `cache-hit`.
+- Provider-error diagnostics include the allowlisted error field and a static
+  category: rate/quota, access/billing, invalid input, not found, upstream
+  unavailable, or unspecified. These are heuristics over the error text, not
+  proof of account state or a retry policy; raw text is never logged.
+- Success/filter diagnostics include raw, returned, rejected, invalid-record,
+  invalid-price, invalid-square-footage, and native-coordinate counts. Invalid
+  price/square-footage counts can overlap for one rejected row. No radius,
+  inventory, bedroom, or price-similarity filter is added.
+- Validate finite positive price and square footage; isolate malformed rows
+  instead of allowing one null record to discard the entire response. Keep the
+  two existing snake/camel envelope names and the correct `byzpid` parameter.
+- Do not cache all-rejected results as a valid 24-hour empty dataset. Valid
+  nonempty results retain the existing 24-hour TTL (the old 30-minute comment
+  was inaccurate). Cached copies cannot be mutated by downstream geocoding.
+- `[analyzer:comparables]` reports fetched/enriched/mapped counts before saving,
+  or an explicit failed pipeline. Both diagnostic logs include the existing
+  request ID when scoped, correlating with `[provider:usage]` without emitting
+  addresses, ZPIDs, URLs, credentials, response bodies, or exception messages.
+
+**Local debugging:** restart the backend to clear any old cached empty results,
+then run one **new analysis** (normal provider charges apply). Capture the
+`[similar:diagnostic]`, `[analyzer:comparables]`, and matching `[provider:usage]`
+lines. Opening history and the existing financial re-analysis route do not
+refetch sale comparables. A successful `/similar` dataset with mapped rows
+points downstream; `provider-error`/`empty-response` points upstream;
+`invalid-envelope` points to response-contract drift; `all-filtered` identifies
+local price/size requirements. No automatic retry, paid fallback, live request,
+historical rewrite, or search-radius expansion is introduced by this increment.
+
+**Verification:** mocked tests cover a complete 20-row response, correct
+`byzpid`, HTTP-200 provider errors, malformed envelopes/rows, exact filter
+counts, empty versus failed results, cache recovery/isolation, existing
+camel-case support, sanitized failures, missing ZPID, and request-ID correlation.
+All 118 provider tests and the backend build pass.
+
+**Observed follow-up:** the user's new Frankenmuth analysis logged
+`provider-error` with HTTP 200 and `hasZpid: true`, followed by zero
+fetched/enriched/mapped rows. Census resolved the subject. With explicit approval,
+one later isolated request using that saved ZPID returned `200: Success` and
+20 rows; the saved top-level/property identifiers agreed. This confirms an
+intermittent upstream error response for that workflow, not local inventory
+filtering or a Census failure. The error body from the failing request was not
+retained; account throttling, upstream instability, and timing/concurrency are
+not individually proven causes. Safe error categories now make subsequent
+failures more informative. No automatic retries or wider searches were enabled.
 
 ## 1. Goals and boundaries
 
@@ -684,8 +895,13 @@ Successful RentCast calls = V + M + S + O
 For Google:
 
 ```text
-Geocoding calls = unique unresolved eligible address misses
-Places calls   = category searches for new/expired permitted area observations
+Selected coordinate-only increment:
+  Google geocoding calls = 0
+  Census calls = unique unresolved eligible address/cache misses
+  Legacy Places calls = existing category searches on eligible location misses
+
+Future policy-approved Places strategy:
+  Places calls = category searches for new/expired permitted area observations
 ```
 
 Report three numbers separately: marginal cost at current quota position, allocated monthly cost per completed analysis, and all-cold scenario cost. Include background refresh, failures where billable, infrastructure, and fixed fees in realized unit economics.
@@ -698,6 +914,7 @@ Report three numbers separately: marginal cost at current quota position, alloca
 - [Nearby Search migration guide](https://developers.google.com/maps/documentation/places/web-service/legacy/migrate-nearby): POST, field masks, multiple types, and keyword-to-Text-Search differences.
 - [Nearby Search (New)](https://developers.google.com/maps/documentation/places/web-service/nearby-search) and [place types](https://developers.google.com/maps/documentation/places/web-service/place-types): field/SKU selection, result limits, and supported category filters.
 - [Google Maps service-specific terms](https://cloud.google.com/maps-platform/terms/maps-service-terms), subject to the applicable account/region agreement.
+- [Census Geocoding services](https://geocoding.geo.census.gov/geocoder/) and [public Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 - [RentCast rent estimate and comps](https://developers.rentcast.io/reference/rent-estimate-long-term)
 - [RentCast market statistics](https://developers.rentcast.io/reference/market-statistics)
 - [RentCast successful-request billing](https://developers.rentcast.io/reference/billing-and-pricing)

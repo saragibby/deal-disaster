@@ -22,7 +22,7 @@
 import type { PropertyData, PropertySummary, ComparableProperty } from '@deal-platform/shared-types';
 import { getAreaMarketData } from './areaMarketService.js';
 import { hasValidCoordinates } from './geocodingService.js';
-import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+import { createProviderFetch, getProviderUsageRequestId, recordProviderCache } from './providerUsageService.js';
 const fetch = createProviderFetch('zillow');
 
 // ---------- configuration ----------
@@ -302,70 +302,150 @@ export async function searchProperties(query: string): Promise<PropertySummary[]
  * Uses: GET /similar?byzpid=<zpid>
  *
  * Returns up to ~20 similar properties with price, beds, baths, sqft, etc.
- * Results are cached for 30 minutes to minimise API calls.
+ * Successful nonempty results are cached for 24 hours.
  */
 export async function getSimilarProperties(zpid: string): Promise<ComparableProperty[]> {
+  const diagnose = (
+    outcome: 'cache-hit' | 'missing-zpid' | 'http-error' | 'provider-error' | 'invalid-envelope'
+      | 'empty-response' | 'all-filtered' | 'success' | 'request-failed' | 'invalid-json' | 'normalization-failed',
+    counts: Record<string, number> = {},
+    providerError?: { field: string; category: string },
+  ) => {
+    const report = {
+      requestId: getProviderUsageRequestId(), outcome, ...counts,
+      ...(providerError ? { providerError } : {}),
+    };
+    if (outcome === 'success' || outcome === 'cache-hit' || outcome === 'empty-response') {
+      console.info('[similar:diagnostic]', JSON.stringify(report));
+    } else {
+      console.warn('[similar:diagnostic]', JSON.stringify(report));
+    }
+  };
+  if (!zpid.trim()) {
+    diagnose('missing-zpid');
+    return [];
+  }
   const cacheKey = `similar:${zpid}`;
   const cached = getCached<ComparableProperty[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    diagnose('cache-hit', { returnedCount: cached.length });
+    return structuredClone(cached);
+  }
 
+  let phase: 'request' | 'json' | 'normalize' = 'request';
   try {
     const host = RAPIDAPI_HOST();
-    const url = `https://${host}/similar?byzpid=${zpid}`;
+    const url = `https://${host}/similar?byzpid=${encodeURIComponent(zpid)}`;
     const res = await fetch(url, { headers: rapidHeaders() });
 
     if (!res.ok) {
-      console.warn(`[similar] HTTP ${res.status} for zpid ${zpid}`);
+      diagnose('http-error', { httpStatus: res.status });
       return [];
     }
 
-    const raw = await res.json() as any;
+    phase = 'json';
+    const raw: unknown = await res.json();
+    phase = 'normalize';
+    const envelope = asRecord(raw);
+    if (!envelope) {
+      diagnose('invalid-envelope');
+      return [];
+    }
+    const errorField = envelope.ErrorMessage ? 'ErrorMessage' : envelope.error ? 'error'
+      : envelope.success === false ? 'success'
+        : typeof envelope.message === 'string' &&
+          /error|not found|denied|limit|quota|unauthori|forbidden|failed/i.test(envelope.message) ? 'message' : undefined;
+    if (errorField) {
+      const errorValue = envelope[errorField];
+      const text = typeof errorValue === 'string' ? errorValue
+        : stringValue(asRecord(errorValue)?.message);
+      const category = /rate|quota|too many|limit|throttl/i.test(text) ? 'rate-or-quota'
+        : /unauthori|forbidden|subscri|api.?key|access denied|billing|credit/i.test(text) ? 'access-or-billing'
+          : /invalid|missing|required|parameter|zpid/i.test(text) ? 'invalid-input'
+            : /not found|no similar|no propert|no result/i.test(text) ? 'not-found'
+              : /timeout|timed out|temporar|try again|unavailable|internal server/i.test(text) ? 'upstream-unavailable'
+                : 'unspecified';
+      diagnose('provider-error', { httpStatus: res.status }, { field: errorField, category });
+      return [];
+    }
 
     // Response shape: { similar_properties: { propertyDetails: [...] } }
-    const details: any[] =
-      raw?.similar_properties?.propertyDetails ||
-      raw?.similarProperties?.propertyDetails ||
-      [];
-
-    if (!Array.isArray(details) || details.length === 0) return [];
-
-    const comps: ComparableProperty[] = details
-      .filter((d: any) => d.price && d.livingArea)
-      .map((d: any) => {
-        const addr = d.address || {};
-        const price = Number(d.price) || 0;
-        const sqft = Number(d.livingArea) || 0;
-
-        const compZpid = String(d.zpid || '');
-        return {
-          zpid: compZpid,
-          address: addr.streetAddress || '',
-          city: addr.city || '',
-          state: addr.state || '',
-          zip: String(addr.zipcode || ''),
-          price,
-          bedrooms: Number(d.bedrooms) || 0,
-          bathrooms: Number(d.bathrooms) || 0,
-          sqft,
-          ...(hasValidCoordinates(d) ? { latitude: d.latitude, longitude: d.longitude } : {}),
-          lotSize: d.lotSize ? Number(d.lotSize) : undefined,
-          yearBuilt: d.yearBuilt ? Number(d.yearBuilt) : undefined,
-          homeStatus: d.homeStatus || undefined,
-          homeType: d.homeType || undefined,
-          photo: d.miniCardPhotos?.[0]?.url || d.imgSrc || undefined,
-          estimatedRent: 0,   // will be enriched by the route
-          pricePerSqft: sqft > 0 ? Math.round(price / sqft) : 0,
-          rentPerSqft: 0,     // will be enriched by the route
-          zillowUrl: compZpid ? `https://www.zillow.com/homedetails/${compZpid}_zpid/` : undefined,
-        };
+    const details = asRecord(envelope.similar_properties)?.propertyDetails ??
+      asRecord(envelope.similarProperties)?.propertyDetails;
+    if (!Array.isArray(details)) {
+      diagnose('invalid-envelope');
+      return [];
+    }
+    if (details.length === 0) {
+      diagnose('empty-response', { rawCount: 0, returnedCount: 0 });
+      return [];
+    }
+    const comps: ComparableProperty[] = [];
+    const rejected = { invalidRecord: 0, invalidPrice: 0, invalidSqft: 0 };
+    for (const entry of details) {
+      const d = asRecord(entry);
+      if (!d) { rejected.invalidRecord++; continue; }
+      const price = positiveNumber(d.price);
+      const sqft = positiveNumber(d.livingArea);
+      if (price === undefined || sqft === undefined) {
+        if (price === undefined) rejected.invalidPrice++;
+        if (sqft === undefined) rejected.invalidSqft++;
+        continue;
+      }
+      const addr = asRecord(d.address);
+      const compZpid = stringValue(d.zpid);
+      const photos = Array.isArray(d.miniCardPhotos) ? d.miniCardPhotos : [];
+      comps.push({
+        zpid: compZpid,
+        address: stringValue(addr?.streetAddress),
+        city: stringValue(addr?.city),
+        state: stringValue(addr?.state),
+        zip: stringValue(addr?.zipcode),
+        price,
+        bedrooms: Number(d.bedrooms) || 0,
+        bathrooms: Number(d.bathrooms) || 0,
+        sqft,
+        ...(hasValidCoordinates(d) ? {
+          latitude: d.latitude, longitude: d.longitude,
+          coordinateSource: 'zillow' as const, coordinatesObservedAt: new Date().toISOString(),
+        } : {}),
+        lotSize: positiveNumber(d.lotSize),
+        yearBuilt: positiveNumber(d.yearBuilt),
+        homeStatus: stringValue(d.homeStatus) || undefined,
+        homeType: stringValue(d.homeType) || undefined,
+        photo: stringValue(asRecord(photos[0])?.url) || stringValue(d.imgSrc) || undefined,
+        estimatedRent: 0,   // will be enriched by the route
+        pricePerSqft: Math.round(price / sqft),
+        rentPerSqft: 0,     // will be enriched by the route
+        zillowUrl: compZpid ? `https://www.zillow.com/homedetails/${compZpid}_zpid/` : undefined,
       });
-
-    setCache(cacheKey, comps);
+    }
+    diagnose(comps.length ? 'success' : 'all-filtered', {
+      rawCount: details.length, returnedCount: comps.length, rejectedCount: details.length - comps.length,
+      ...rejected, withCoordinates: comps.filter(hasValidCoordinates).length,
+    });
+    if (comps.length > 0) setCache(cacheKey, structuredClone(comps));
     return comps;
-  } catch (err: any) {
-    console.warn('[similar] Failed to fetch similar properties:', err.message);
+  } catch {
+    diagnose(phase === 'request' ? 'request-failed'
+      : phase === 'json' ? 'invalid-json' : 'normalization-failed');
     return [];
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined;
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
 // ---------- normalizer ----------
@@ -449,7 +529,10 @@ function normalizePropertyData(raw: any, zpid: string): PropertyData {
     propertyType: raw.homeType || raw.propertyType || undefined,
     description: undefined,
     photos: uniquePhotos,
-    ...(hasValidCoordinates(raw) ? { latitude: raw.latitude, longitude: raw.longitude } : {}),
+    ...(hasValidCoordinates(raw) ? {
+      latitude: raw.latitude, longitude: raw.longitude,
+      coordinateSource: 'zillow', coordinatesObservedAt: new Date().toISOString(),
+    } : {}),
     taxHistory: normalizeTaxHistory(raw),
     priceHistory: normalizePriceHistory(raw),
     homeStatus: raw.daysOnZillow != null ? `${raw.daysOnZillow} days on Zillow` : undefined,

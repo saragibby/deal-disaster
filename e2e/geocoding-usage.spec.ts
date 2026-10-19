@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   createGeocodingService,
+  geocodeAddress,
   hasValidCoordinates,
   normalizeAddressKey,
   type AddressInput,
@@ -8,6 +9,133 @@ import {
   type Geocoordinates,
 } from '../server/src/services/geocodingService';
 import { getPropertyByAddress, getSimilarProperties } from '../server/src/services/propertyDataService';
+import { pool } from '../server/src/db/pool';
+import { withProviderUsage, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
+
+test('production geocoder calls Census only and persists alternative-source provenance', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalQuery = pool.query;
+  const requests: URL[] = [];
+  const queries: { sql: string; values: unknown[] }[] = [];
+  const reports: ProviderUsageSummary[] = [];
+  globalThis.fetch = async input => {
+    requests.push(new URL(String(input)));
+    return Response.json({ result: { addressMatches: [{ coordinates: { x: -78, y: 0 } }] } });
+  };
+  Object.defineProperty(pool, 'query', {
+    configurable: true, writable: true,
+    value: async (sql: string, values: unknown[]) => {
+      queries.push({ sql, values });
+      return { rows: [] };
+    },
+  });
+  try {
+    const result = await withProviderUsage('analysis', () =>
+      geocodeAddress('1 Production Fixture St', 'Example', 'NC', '27500'), report => reports.push(report));
+    expect(result).toMatchObject({
+      lat: 0, lng: -78, coordinateSource: 'census', coordinatesObservedAt: expect.any(String),
+    });
+    expect(requests.map(url => url.hostname)).toEqual(['geocoding.geo.census.gov']);
+    expect(queries).toHaveLength(2);
+    expect(queries[0].sql).toContain("provider IN ('census', 'nominatim')");
+    expect(queries[1].values).toContain('census');
+    expect(queries[1].values[0]).toMatch(/^osm:v1:/);
+    expect(queries.some(query => /DELETE/.test(query.sql))).toBe(false);
+    expect(reports[0]).toMatchObject({ attempts: 1, estimatedCostUsd: 0 });
+    expect(reports[0].endpoints.filter(endpoint => endpoint.attempts > 0)
+      .map(endpoint => endpoint.provider)).toEqual(['census']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(pool, 'query', { configurable: true, writable: true, value: originalQuery });
+  }
+});
+
+test('default geocoder has no Google or public Nominatim fallback when Census has no match', async () => {
+  const requests: string[] = [];
+  let writes = 0;
+  const service = createGeocodingService({
+    googleApiKey: () => 'fixture-configured-but-unused',
+    lookup: async () => new Map(),
+    store: async () => { writes++; },
+    report: () => {},
+    fetch: async input => {
+      requests.push(new URL(String(input)).hostname);
+      return Response.json({ result: { addressMatches: [] } });
+    },
+  });
+  const item = address(600);
+  const session = service.createSession();
+  await session.geocodeProperties([item]);
+  await session.geocodeProperties([item, { ...item }]);
+  expect(requests).toEqual(['geocoding.geo.census.gov']);
+  expect(hasValidCoordinates(item)).toBe(false);
+  expect(writes).toBe(0);
+});
+
+test('default geocoder rejects explicitly Google-derived coordinates and cache hits', async () => {
+  const item: AddressInput = {
+    ...address(601), latitude: 10, longitude: 20, coordinateSource: 'google',
+    coordinatesObservedAt: '2026-10-01T00:00:00.000Z',
+  };
+  const calls: string[] = [];
+  const service = createGeocodingService({
+    googleApiKey: () => 'fixture-configured-but-unused',
+    lookup: async keys => new Map(keys.map(key => [key, {
+      lat: 11, lng: 21, coordinateSource: 'google' as const,
+    }])),
+    store: async () => {},
+    report: () => {},
+    fetch: async input => {
+      calls.push(new URL(String(input)).hostname);
+      return Response.json({ result: { addressMatches: [{ coordinates: { x: -78, y: 35 } }] } });
+    },
+  });
+  expect((await service.geocodeMultiple([item])).values().next().value).toMatchObject({
+    lat: 35, lng: -78, coordinateSource: 'census',
+  });
+  await service.createSession().geocodeProperties([item]);
+  expect(item).toMatchObject({
+    latitude: 35, longitude: -78, coordinateSource: 'census', coordinatesObservedAt: expect.any(String),
+  });
+  expect(calls).toEqual(Array(2).fill('geocoding.geo.census.gov'));
+});
+
+test('default geocoder preserves native sources and passes provenance to same-address gaps', async () => {
+  const timestamp = '2026-10-01T00:00:00.000Z';
+  const native: AddressInput = {
+    ...address(602), latitude: 0, longitude: 0,
+    coordinateSource: 'zillow', coordinatesObservedAt: timestamp,
+  };
+  const missing = address(602);
+  const service = createGeocodingService({
+    googleApiKey: () => '',
+    lookup: async () => { throw new Error('Unexpected cache lookup'); },
+    store: async () => { throw new Error('Unexpected cache write'); },
+    fetch: async () => { throw new Error('Unexpected HTTP call'); },
+    report: report => expect(report.providerAttempts).toEqual({ google: 0, census: 0, nominatim: 0 }),
+  });
+  await service.createSession().geocodeProperties([native, missing]);
+  expect(missing).toMatchObject({
+    latitude: 0, longitude: 0, coordinateSource: 'zillow', coordinatesObservedAt: timestamp,
+  });
+  expect(native.coordinatesObservedAt).toBe(timestamp);
+});
+
+test('default geocoder preserves historical unprovenanced coordinates without relabeling them', async () => {
+  const historic: AddressInput = { ...address(603), latitude: 35, longitude: -78 };
+  const before = structuredClone(historic);
+  let calls = 0;
+  const service = createGeocodingService({
+    googleApiKey: () => '',
+    lookup: async () => { calls++; return new Map(); },
+    store: async () => { calls++; },
+    fetch: async () => { calls++; return Response.json({}); },
+    report: () => {},
+  });
+  await service.createSession().geocodeProperties([historic]);
+  expect(historic).toEqual(before);
+  expect(calls).toBe(0);
+});
 
 function address(index: number): AddressInput {
   return { address: `${index} Fixture St`, city: 'Example', state: 'NC', zip: '27500' };
@@ -23,6 +151,7 @@ function harness(options: {
   let reads = 0;
   let writes = 0;
   const service = createGeocodingService({
+    providers: ['google', 'census', 'nominatim'],
     googleApiKey: () => 'fixture-key-not-a-credential',
     fetch: async (...args) => {
       requests.push(new URL(String(args[0])).hostname);
@@ -85,7 +214,7 @@ test('deduplicates overlapping single and batch requests before cache lookup com
   expect(h.requests).toHaveLength(1);
   expect(h.reads()).toBe(1);
   expect(h.writes()).toBe(1);
-  expect(single).toEqual({ lat: 35, lng: -78 });
+  expect(single).toMatchObject({ lat: 35, lng: -78, coordinateSource: 'google' });
   expect([...batch]).toEqual([...other]);
   expect(h.reports.reduce((sum, report) => sum + report.inFlightHits, 0)).toBe(2);
 });
@@ -291,9 +420,13 @@ test('preserves canonical numeric coordinates during property and comparable nor
     ] } });
   };
   try {
-    expect(await getPropertyByAddress('1 Fixture St')).toMatchObject({ latitude: 0, longitude: -78 });
+    expect(await getPropertyByAddress('1 Fixture St')).toMatchObject({
+      latitude: 0, longitude: -78, coordinateSource: 'zillow', coordinatesObservedAt: expect.any(String),
+    });
     const comps = await getSimilarProperties('coordinate-normalization-fixture');
-    expect(comps[0]).toMatchObject({ latitude: 35, longitude: -78 });
+    expect(comps[0]).toMatchObject({
+      latitude: 35, longitude: -78, coordinateSource: 'zillow', coordinatesObservedAt: expect.any(String),
+    });
     expect(comps[1]).not.toHaveProperty('latitude');
   } finally {
     globalThis.fetch = originalFetch;

@@ -1,4 +1,6 @@
 import { pool } from '../db/pool.js';
+import type { CoordinateProvenance } from '@deal-platform/shared-types';
+import { createPostgresGeocodingCache, type GeocodingProvider, type GeocodingCacheWrite } from './geocodingCache.js';
 import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
 const geocodingFetch = {
   google: createProviderFetch('google'),
@@ -6,12 +8,12 @@ const geocodingFetch = {
   nominatim: createProviderFetch('nominatim'),
 };
 
-export interface Geocoordinates {
+export interface Geocoordinates extends CoordinateProvenance {
   lat: number;
   lng: number;
 }
 
-export interface AddressInput {
+export interface AddressInput extends CoordinateProvenance {
   address: string;
   city: string;
   state: string;
@@ -20,13 +22,8 @@ export interface AddressInput {
   longitude?: number;
 }
 
-type Provider = 'google' | 'census' | 'nominatim';
-interface CacheWrite {
-  key: string;
-  coords: Geocoordinates;
-  address: string;
-  provider: Provider;
-}
+type Provider = GeocodingProvider;
+type CacheWrite = GeocodingCacheWrite;
 
 export interface GeocodingAccounting {
   inputCount: number;
@@ -43,6 +40,7 @@ interface Dependencies {
   store(entries: CacheWrite[]): Promise<void>;
   fetch: typeof fetch;
   googleApiKey(): string;
+  providers?: readonly Provider[];
   report(accounting: GeocodingAccounting): void;
 }
 
@@ -85,6 +83,10 @@ function warn(operation: string, provider?: Provider, status?: number): void {
 }
 
 export function createGeocodingService(deps: Dependencies) {
+  const providers: readonly Provider[] = deps.providers ?? ['census'];
+  const allowsGoogle = providers.includes('google');
+  const reusable = (item: AddressInput): item is AddressInput & { latitude: number; longitude: number } =>
+    hasValidCoordinates(item) && (allowsGoogle || item.coordinateSource !== 'google');
   const inFlight = new Map<string, Promise<Geocoordinates | null>>();
   let nextNominatimStart = 0;
 
@@ -135,14 +137,14 @@ export function createGeocodingService(deps: Dependencies) {
         const location = record(record(first?.geometry)?.location);
         const coords = parseCoordinates(location?.lat, location?.lng);
         if (!coords) warn('no-valid-result', provider);
-        return coords;
+        return coords ? { ...coords, coordinateSource: provider, coordinatesObservedAt: new Date().toISOString() } : null;
       }
       if (provider === 'census') {
         const first = firstRecord(record(record(data)?.result)?.addressMatches);
         const location = record(first?.coordinates);
         const coords = parseCoordinates(location?.y, location?.x);
         if (!coords) warn('no-valid-result', provider);
-        return coords;
+        return coords ? { ...coords, coordinateSource: provider, coordinatesObservedAt: new Date().toISOString() } : null;
       }
       const first = firstRecord(data);
       const coords = typeof first?.lat === 'string' && first.lat.trim() &&
@@ -150,7 +152,7 @@ export function createGeocodingService(deps: Dependencies) {
         ? parseCoordinates(Number(first.lat), Number(first.lon))
         : null;
       if (!coords) warn('no-valid-result', provider);
-      return coords;
+      return coords ? { ...coords, coordinateSource: provider, coordinatesObservedAt: new Date().toISOString() } : null;
     } catch {
       warn('request-failure', provider);
       return null;
@@ -167,8 +169,12 @@ export function createGeocodingService(deps: Dependencies) {
     const unique = new Map<string, AddressInput>();
     for (const item of items) {
       const key = normalizeAddressKey(item.address, item.city, item.state, item.zip);
-      if (hasValidCoordinates(item)) {
-        result.set(key, { lat: item.latitude, lng: item.longitude });
+      if (reusable(item)) {
+        result.set(key, {
+          lat: item.latitude, lng: item.longitude,
+          ...(item.coordinateSource ? { coordinateSource: item.coordinateSource } : {}),
+          ...(item.coordinatesObservedAt ? { coordinatesObservedAt: item.coordinatesObservedAt } : {}),
+        });
         accounting.reusedCoordinates++;
       }
       if (!item.address.trim()) {
@@ -212,7 +218,7 @@ export function createGeocodingService(deps: Dependencies) {
       for (let i = 0; i < owned.length; i += 5) {
         await Promise.all(owned.slice(i, i + 5).map(async ({ key, item }) => {
           const hit = cached.get(key);
-          if (hit && parseCoordinates(hit.lat, hit.lng)) {
+          if (hit && (allowsGoogle || hit.coordinateSource !== 'google') && parseCoordinates(hit.lat, hit.lng)) {
             recordProviderCache('geocoding', 'coordinates', 'postgres', 'hit');
             accounting.cacheHits++;
             outcomes.set(key, hit);
@@ -220,8 +226,8 @@ export function createGeocodingService(deps: Dependencies) {
           }
           recordProviderCache('geocoding', 'coordinates', 'postgres', 'miss');
           const address = `${item.address}, ${item.city}, ${item.state} ${item.zip}`;
-          for (const provider of ['google', 'census', 'nominatim'] as const) {
-            if (provider !== 'google') recordProviderFallback(provider, 'geocoding', 'no-usable-data');
+          for (const [index, provider] of providers.entries()) {
+            if (index > 0) recordProviderFallback(provider, 'geocoding', 'no-usable-data');
             const coords = await request(provider, address, accounting);
             if (coords) {
               outcomes.set(key, coords);
@@ -265,12 +271,23 @@ export function createGeocodingService(deps: Dependencies) {
     const completed = new Map<string, Geocoordinates | null>();
     return {
       async geocodeProperties(items: AddressInput[]): Promise<void> {
+        for (const item of items) {
+          if (!allowsGoogle && item.coordinateSource === 'google') {
+            delete item.latitude;
+            delete item.longitude;
+            delete item.coordinateSource;
+            delete item.coordinatesObservedAt;
+            warn('incompatible-coordinate-source', 'google');
+          }
+        }
         const located = items.filter((item): item is AddressInput & {
           latitude: number; longitude: number;
         } => hasValidCoordinates(item) && item.address.trim().length > 0);
         for (const item of located) {
           completed.set(normalizeAddressKey(item.address, item.city, item.state, item.zip), {
             lat: item.latitude, lng: item.longitude,
+            ...(item.coordinateSource ? { coordinateSource: item.coordinateSource } : {}),
+            ...(item.coordinatesObservedAt ? { coordinatesObservedAt: item.coordinatesObservedAt } : {}),
           });
         }
         const unresolved = items.filter(item => !hasValidCoordinates(item));
@@ -287,6 +304,8 @@ export function createGeocodingService(deps: Dependencies) {
           if (coords) {
             item.latitude = coords.lat;
             item.longitude = coords.lng;
+            if (coords.coordinateSource) item.coordinateSource = coords.coordinateSource;
+            if (coords.coordinatesObservedAt) item.coordinatesObservedAt = coords.coordinatesObservedAt;
           }
         }
       },
@@ -304,35 +323,15 @@ export function createGeocodingService(deps: Dependencies) {
 }
 
 const service = createGeocodingService({
+  ...createPostgresGeocodingCache(pool),
+  providers: ['census'],
   fetch: (input, init) => {
     const host = new URL(String(input)).hostname;
     return geocodingFetch[host === 'maps.googleapis.com' ? 'google'
       : host === 'geocoding.geo.census.gov' ? 'census' : 'nominatim'](input, init);
   },
-  googleApiKey: () => process.env.GOOGLE_GEOCODING_API_KEY || '',
+  googleApiKey: () => '',
   report: accounting => console.info('[geocoding:usage]', accounting),
-  async lookup(keys) {
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const { rows } = await pool.query<{
-      address_key: string; latitude: number; longitude: number;
-    }>(
-      `SELECT address_key, latitude, longitude FROM geocoding_cache WHERE address_key IN (${placeholders})`,
-      keys,
-    );
-    return new Map(rows.map(row => [row.address_key, { lat: row.latitude, lng: row.longitude }]));
-  },
-  async store(entries) {
-    const values: Array<string | number> = [];
-    const placeholders = entries.map((entry, i) => {
-      values.push(entry.key, entry.coords.lat, entry.coords.lng, entry.address, entry.provider);
-      return `(${Array.from({ length: 5 }, (_, n) => `$${i * 5 + n + 1}`).join(', ')})`;
-    });
-    await pool.query(
-      `INSERT INTO geocoding_cache (address_key, latitude, longitude, formatted_address, provider)
-       VALUES ${placeholders.join(', ')} ON CONFLICT (address_key) DO NOTHING`,
-      values,
-    );
-  },
 });
 
 export const geocodeAddress = service.geocodeAddress;

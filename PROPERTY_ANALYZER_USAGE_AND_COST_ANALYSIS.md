@@ -72,6 +72,49 @@ not enable the separate ZIP-market flag. Zillow/AirDNA/Xome shared adapters rema
 pending provider-specific storage-rights review. See
 [scope, validation, rollout, and deferred providers](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---expanded-shared-caching-rentcast-property-datasets).
 
+**Google coordinate-only update:** the next local increment uses Census for new
+missing-address lookups and excludes **all** Google geocoding-cache rows, regardless
+of age. New Census entries use a separate namespace without overwriting old rows;
+new provider-native and resolved coordinates carry source/time provenance.
+No automatic public Nominatim fallback is enabled. With 21 genuinely missing
+addresses, 21 free Census requests replace the former Google requests, avoiding
+up to **$0.105** at the modeled first paid tier, not reducing total HTTP calls by
+21. Do not double-count this against coordinate-reuse savings.
+
+The user explicitly chose to **leave historical data unchanged and retain Google
+institution enrichment**. Old unprovenanced coordinates are not relabeled or
+removed; historical caches, snapshots, and exports are not purged. No scheduled
+retention job runs. Google proximity can add up to two percentage points to
+modeled MTR occupancy as well as demand scores, so removing it would change
+financial estimates. That behavior remains unchanged. Full historical retention
+and Places/OSM compatibility are **deferred, not completed**.
+
+A separate typed Places (New) factory is prepared
+and tested but **not connected to production scoring**: two Nearby searches and
+three Text searches preserve the existing category intents, retain attribution
+metadata, and use explicit Pro field masks with no result persistence. Accounting
+now identifies the new endpoints separately under pricing version v2. Five calls
+still model $0.160; no new migration or area-cache savings are claimed. The old
+thirty-day Google cache prototype was superseded by source exclusion without
+deletion, consistent with the user's narrower approval. See
+[implemented Google foundations and remaining rollout gates](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#implementation-update---google-foundations-not-production-places-migration).
+
+**Comparable-debugging update:** the investigated local snapshot had working
+Census coordinates but zero sale comparables; a later correctly parameterized
+Zillow diagnostic returned 20 rows. HTTP 200 alone cannot explain the earlier
+empty result. New local diagnostics distinguish upstream errors/empty datasets,
+response-shape issues, local price/size rejection, cache reuse, and downstream
+enrichment/mapping counts using the same request ID, without additional provider
+requests. All-rejected results are no longer cached for 24 hours. See the
+[debugging procedure](PROPERTY_ANALYZER_COST_REDUCTION_PLAN.md#debugging-update---missing-sale-comparables).
+Follow-up logs for a Frankenmuth analysis confirmed an HTTP-200 provider error
+before any comparable filtering. One approved isolated request for that same
+saved ZPID then returned 20 rows. This establishes intermittent upstream failure,
+not low inventory or a Census regression; its exact error cause remains unknown.
+Safe error-field/category logging now distinguishes common failure classes
+without retaining raw provider errors. No automatic retries, increased search
+traffic, or new measured savings are claimed.
+
 ## Executive summary
 
 A new property analysis returning **20 comparable properties**, with all relevant providers enabled and all application caches initially empty, makes:

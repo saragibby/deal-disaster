@@ -220,7 +220,11 @@ test('Realty-in-US malformed responses are not cached and both entitled fallback
   globalThis.fetch = async () => Response.json({ data: { home_search: { results: [{
     list_price: 200000, location: { address: {
       line: subject.address, city: subject.city, state_code: subject.state, postal_code: subject.zip,
+      coordinate: { lat: 0, lon: -78 },
     } }, description: { beds: 3, baths: 2 },
   }] } } });
-  expect((await getForSaleProperty(`${subject.address}, ${subject.city}, NC ${subject.zip}`))?.address).toBe(subject.address);
+  expect(await getForSaleProperty(`${subject.address}, ${subject.city}, NC ${subject.zip}`)).toMatchObject({
+    address: subject.address, latitude: 0, longitude: -78,
+    coordinateSource: 'realtor', coordinatesObservedAt: expect.any(String),
+  });
 });

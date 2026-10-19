@@ -250,7 +250,12 @@ export interface HousingMarket {
   zhviTimeSeries: Array<{ date: string; value: number }>;
 }
 
-export interface PropertyData {
+export interface CoordinateProvenance {
+  coordinateSource?: 'zillow' | 'realtor' | 'census' | 'nominatim' | 'google';
+  coordinatesObservedAt?: string;
+}
+
+export interface PropertyData extends CoordinateProvenance {
   zpid: string;
   address: string;
   city: string;
@@ -480,7 +485,7 @@ export interface TaxSavingsBreakdown {
   personalPropertyDepreciation?: number;
 }
 
-export interface ComparableProperty {
+export interface ComparableProperty extends CoordinateProvenance {
   zpid: string;
   address: string;
   city: string;

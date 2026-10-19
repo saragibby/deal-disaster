@@ -17,6 +17,7 @@ import {
 import { RENTCAST_MARKET_CACHE_SCHEMA } from '../server/src/db/rentCastMarketCacheSchema';
 import { withProviderUsage, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
 import { PROVIDER_DATA_CACHE_SCHEMA } from '../server/src/db/providerDataCacheSchema';
+import { createPostgresGeocodingCache } from '../server/src/services/geocodingCache';
 import {
   rentCastPropertyCacheKey, isRentEstimateProjection, isRentalCompProjection,
   RENTCAST_PROPERTY_FRESH_MS, createRentCastPropertyCache, type RentEstimateProjection,
@@ -298,8 +299,10 @@ test.describe('isolated real PostgreSQL market cache', () => {
     await db.query(await readFile(path.join(process.cwd(),
       'server/src/db/migrations/add_provider_data_cache.sql'), 'utf8'));
     await db.query(PROVIDER_DATA_CACHE_SCHEMA);
+    await db.query(await readFile(path.join(process.cwd(),
+      'server/src/db/migrations/add_geocoding_cache.sql'), 'utf8'));
   });
-  test.beforeEach(async () => { await db.query('TRUNCATE rentcast_market_cache, provider_data_cache'); });
+  test.beforeEach(async () => { await db.query('TRUNCATE rentcast_market_cache, provider_data_cache, geocoding_cache'); });
   test.afterAll(async () => {
     await db?.end();
     if (started) await exec('pg_ctl', ['-D', path.join(directory, 'data'), '-m', 'immediate', '-w', 'stop']);
@@ -356,6 +359,62 @@ test.describe('isolated real PostgreSQL market cache', () => {
     } finally {
       for (const child of children) if (child.exitCode === null) child.kill();
     }
+  });
+
+  test('OSM cache excludes Google regardless of age and preserves all historical rows', async () => {
+    const cache = createPostgresGeocodingCache(db);
+    for (const [key, provider, age] of [
+      ['fresh', 'google', "clock_timestamp() - interval '29 days'"],
+      ['expired', 'google', "clock_timestamp() - interval '30 days'"],
+      ['undated', 'google', 'NULL'],
+      ['future', 'google', "clock_timestamp() + interval '1 day'"],
+      ['unknown', 'unverified', 'clock_timestamp()'],
+      ['census', 'census', "clock_timestamp() - interval '365 days'"],
+      ['nominatim', 'nominatim', "clock_timestamp() - interval '365 days'"],
+    ]) {
+      await db.query(`INSERT INTO geocoding_cache(address_key, latitude, longitude, provider, created_at)
+        VALUES ($1, 35, -80, $2, ${age})`, [key, provider]);
+    }
+    const before = (await db.query('SELECT * FROM geocoding_cache ORDER BY id')).rows;
+    const result = await cache.lookup(['fresh', 'expired', 'undated', 'future', 'unknown', 'census', 'nominatim']);
+    expect([...result.keys()].sort()).toEqual(['census', 'nominatim']);
+    expect(result.get('census')).toMatchObject({ lat: 35, lng: -80, coordinateSource: 'census' });
+    expect(result.get('census')?.coordinatesObservedAt).toEqual(expect.any(String));
+    expect((await cache.lookup(['fresh'])).size).toBe(0);
+    await expect(cache.store([{
+      key: 'expired', coords: { lat: 0, lng: 0 }, provider: 'google', address: 'Fixture Unit 1',
+    }])).rejects.toThrow('disabled for OpenStreetMap');
+    expect((await db.query('SELECT * FROM geocoding_cache ORDER BY id')).rows).toEqual(before);
+    await cache.store([{
+      key: 'unknown', coords: { lat: 36, lng: -81 }, provider: 'census', address: 'Fixture Unit 2',
+    }]);
+    const replacement = (await db.query("SELECT provider, latitude FROM geocoding_cache WHERE address_key = 'osm:v1:unknown'")).rows[0];
+    expect(replacement).toMatchObject({ provider: 'census', latitude: 36 });
+    expect((await cache.lookup(['unknown'])).get('unknown')).toMatchObject({ lat: 36, lng: -81, coordinateSource: 'census' });
+    expect((await db.query("SELECT * FROM geocoding_cache WHERE address_key NOT LIKE 'osm:v1:%' ORDER BY id")).rows).toEqual(before);
+  });
+
+  test('new Census cache namespace preserves Google history and refreshes only its own entries', async () => {
+    await db.query(`INSERT INTO geocoding_cache(address_key, latitude, longitude, provider, created_at)
+      SELECT 'old-' || n, 35, -80, 'google', clock_timestamp() - interval '31 days'
+      FROM generate_series(1, 125) n`);
+    const cache = createPostgresGeocodingCache(db);
+    expect((await cache.lookup(Array.from({ length: 125 }, (_, n) => `old-${n + 1}`))).size).toBe(0);
+    const before = (await db.query('SELECT * FROM geocoding_cache ORDER BY id')).rows;
+    for (const lat of [0, 36]) {
+      await cache.store([{
+        key: 'old-1', coords: { lat, lng: -81 }, provider: 'census', address: 'Fixture Unit 1',
+      }]);
+      const hit = (await cache.lookup(['old-1'])).get('old-1');
+      expect(hit).toMatchObject({ lat, lng: -81, coordinateSource: 'census' });
+      expect(hit?.coordinatesObservedAt).toEqual(expect.any(String));
+    }
+    expect((await db.query("SELECT * FROM geocoding_cache WHERE provider = 'google' ORDER BY id")).rows).toEqual(before);
+    expect((await db.query('SELECT * FROM geocoding_cache')).rowCount).toBe(126);
+    await db.query(`INSERT INTO geocoding_cache(address_key, latitude, longitude, provider)
+      VALUES ('old-1', 35, -80, 'census')
+      ON CONFLICT(address_key) DO UPDATE SET provider = 'census'`);
+    expect((await cache.lookup(['old-1'])).get('old-1')).toMatchObject({ lat: 36, lng: -81 });
   });
 
   for (const operation of ['avm', 'listings', 'empty'] as const) {
