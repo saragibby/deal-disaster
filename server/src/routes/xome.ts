@@ -11,6 +11,8 @@
 
 import { Router, Response, type RequestHandler } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { createProviderFetch, recordProviderCache, withProviderUsage } from '../services/providerUsageService.js';
+const fetch = createProviderFetch('xome');
 
 const XOME_API_KEY = () => process.env.XOME_API_KEY || '';
 const XOME_API_URL = () =>
@@ -58,11 +60,16 @@ async function fetchAllListings(): Promise<any[]> {
 
 async function getCachedListings(): Promise<any[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
+    recordProviderCache('xome', 'listings', 'memory', 'hit');
     return cache.listings;
   }
 
   // Deduplicate concurrent requests during a cache refresh
-  if (fetchInProgress) return fetchInProgress;
+  if (fetchInProgress) {
+    recordProviderCache('xome', 'listings', 'in-flight', 'hit');
+    return fetchInProgress;
+  }
+  recordProviderCache('xome', 'listings', 'memory', cache ? 'stale' : 'miss');
 
   fetchInProgress = fetchAllListings()
     .then((listings) => {
@@ -75,6 +82,7 @@ async function getCachedListings(): Promise<any[]> {
       fetchInProgress = null;
       // Return stale cache if available
       if (cache) {
+        recordProviderCache('xome', 'listings', 'memory', 'stale');
         console.warn('[xome] Refresh failed, using stale cache:', err.message);
         return cache.listings;
       }
@@ -161,10 +169,12 @@ export function createXomeRouter(requireAuth: RequestHandler = authenticateToken
     // Check cache first
     const cached = trendsCache.get(postalCode);
     if (cached && Date.now() < cached.expiresAt) {
+      recordProviderCache('xome', 'market-trends', 'memory', 'hit');
       console.log(`[xome/market-trends] Cache hit for ${postalCode}`);
       res.json(cached.data);
       return;
     }
+    recordProviderCache('xome', 'market-trends', 'memory', cached ? 'stale' : 'miss');
 
     try {
       const response = await fetch(url, {
@@ -199,7 +209,7 @@ export function createXomeRouter(requireAuth: RequestHandler = authenticateToken
 /*  Pre-warm listing cache on import so the first user request is fast  */
 /* ------------------------------------------------------------------ */
 if (XOME_API_KEY()) {
-  getCachedListings().catch((err) =>
+  withProviderUsage('xome-prewarm', getCachedListings).catch((err) =>
     console.warn('[xome] Cache pre-warm failed:', err.message),
   );
 }

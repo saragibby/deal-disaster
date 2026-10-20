@@ -559,7 +559,7 @@ function buildComparables(property: PropertyData, index: number): ComparableProp
   ];
 }
 
-function buildMarketStatistics(index: number): MarketStatistics {
+function buildMarketStatistics(index: number) {
   return {
     medianRent: 2525 + index * 110,
     averageRent: 2580 + index * 115,
@@ -567,7 +567,7 @@ function buildMarketStatistics(index: number): MarketStatistics {
     totalListings: 34 + index * 4,
     avgDaysOnMarket: Math.max(16, 29 - index),
     rentTrend: 'rising',
-  };
+  } satisfies MarketStatistics;
 }
 
 function buildMarketTrendRows(postalCode: string) {
@@ -921,6 +921,9 @@ function createMockApi(): AnalyzerApiClient {
     async reAnalyze(slug) {
       return findAnalysis(slug);
     },
+    async refreshMissingData(slug) {
+      return findAnalysis(slug);
+    },
     async saveAdjustments() {
       return undefined;
     },
@@ -1076,6 +1079,12 @@ function createInvestorLabApi(token: string): AnalyzerApiClient {
         method: 'POST',
         body: JSON.stringify({ params }),
       });
+    },
+    async refreshMissingData(slug) {
+      const response = await investorLabFetch<{ analysis: PropertyAnalysis }>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/refresh-missing`, token, { method: 'POST' },
+      );
+      return response.analysis;
     },
     async saveAdjustments(slug, payload) {
       await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/overrides`, token, {

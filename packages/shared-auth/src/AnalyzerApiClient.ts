@@ -121,6 +121,14 @@ export function createAnalyzerApiClient(apiService: ApiService): AnalyzerApiClie
       });
     },
 
+    async refreshMissingData(slug: string) {
+      const response = await apiService.fetchJson<{ analysis: PropertyAnalysis }>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/refresh-missing`,
+        { method: 'POST', auth: true },
+      );
+      return response.analysis;
+    },
+
     async saveAdjustments(slug: string, payload: SaveAdjustmentsPayload) {
       await apiService.fetchJson<{ success: boolean }>(
         `/api/analyzer/history/${encodeURIComponent(slug)}/overrides`,

@@ -9,6 +9,7 @@ import {
   MapPin, Printer,
 } from 'lucide-react';
 import ComparableProperties from './ComparableProperties';
+import DatasetNotice from './DatasetNotice';
 import ForeclosureCard from './ForeclosureCard';
 import DealVerdictCard from './DealVerdictCard';
 import { SectionNav, deriveSignals } from './SectionNav';
@@ -136,6 +137,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   const [showAllParams, setShowAllParams] = useState(false);
   const [showOfferSlider, setShowOfferSlider] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [refreshingData, setRefreshingData] = useState(false);
+  const [refreshDataError, setRefreshDataError] = useState<string | null>(null);
   const [showStreetView, setShowStreetView] = useState(false);
   const offerRef = useRef<HTMLDivElement>(null);
 
@@ -214,6 +217,27 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       setReanalyzing(false);
     }
   }, [analysis.slug, api, onUpdate, params, originalParams]);
+
+  // Refetch only datasets a provider failed to return (no financial rerun).
+  const datasetStatus = results.datasetStatus;
+  const comparablesUnavailable = datasetStatus?.comparables === 'unavailable' && !results.comparables?.length;
+  const marketUnavailable = datasetStatus?.housingMarket === 'unavailable' || datasetStatus?.rentalMarket === 'unavailable';
+  const canRefreshData = !readOnly && !!analysis.slug && !!onUpdate && !!api.refreshMissingData;
+  const handleRefreshMissingData = useCallback(async () => {
+    if (!analysis.slug || !onUpdate || !api.refreshMissingData) return;
+    setRefreshingData(true);
+    setRefreshDataError(null);
+    try {
+      onUpdate(await api.refreshMissingData(analysis.slug));
+    } catch (err: any) {
+      setRefreshDataError(err?.message || 'Refreshing missing data failed. Please try again later.');
+    } finally {
+      setRefreshingData(false);
+    }
+  }, [analysis.slug, api, onUpdate]);
+  const refreshProps = canRefreshData
+    ? { onRefresh: handleRefreshMissingData, refreshing: refreshingData, error: refreshDataError }
+    : {};
 
   // Scroll to loan calculator for mortgage adjustment
   const scrollToLoanCalc = useCallback(() => {
@@ -1336,15 +1360,32 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       </div>
 
       {/* Comparable Properties */}
-      {results.comparables && results.comparables.length > 0 && (
+      {results.comparables && results.comparables.length > 0 ? (
         <div id="comparables" className="results__section"><ComparableProperties
           comparables={results.comparables}
           subject={property}
           subjectRent={rental.mid}
         /></div>
-      )}
+      ) : comparablesUnavailable ? (
+        <div id="comparables" className="results__section">
+          <DatasetNotice
+            message="Comparable sales were temporarily unavailable from our data provider."
+            {...refreshProps}
+          />
+        </div>
+      ) : datasetStatus?.comparables === 'none-found' ? (
+        <div id="comparables" className="results__section">
+          <DatasetNotice message="Our data provider returned no comparable sales for this property." />
+        </div>
+      ) : null}
 
       {/* Housing Market + Rental Market side-by-side */}
+      {marketUnavailable && (
+        <DatasetNotice
+          message="Some market data was temporarily unavailable from our data provider."
+          {...(comparablesUnavailable ? {} : refreshProps)}
+        />
+      )}
       <div id="market-trends" className="results__trends-grid results__section">
         <HousingMarketTrends properties={[analysis]} />
         <RentalMarketTrends properties={[analysis]} />

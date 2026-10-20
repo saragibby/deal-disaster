@@ -20,6 +20,8 @@ import { authenticateOptional, authenticateToken, AuthRequest } from '../middlew
 import * as propertyDataService from '../services/propertyDataService.js';
 import { resolvePropertyInput } from '../services/propertyInputResolver.js';
 import * as rentalEstimationService from '../services/rentalEstimationService.js';
+import { getLongTermRentalEstimate } from '../services/longTermRentalService.js';
+import { getProviderUsageRequestId, recordProviderCache } from '../services/providerUsageService.js';
 import * as strEstimationService from '../services/strEstimationService.js';
 import * as investmentAnalysisService from '../services/investmentAnalysisService.js';
 import * as geocodingService from '../services/geocodingService.js';
@@ -30,7 +32,12 @@ import * as mtrEstimationService from '../services/mtrEstimationService.js';
 import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import * as scenarioService from '../services/analysisScenarioService.js';
-import type { AnalysisParams, ComparableProperty, PropertyData } from '@deal-platform/shared-types';
+import {
+  applyRentalMarketFallback, backfillAreaMarket, marketDatasetStatuses,
+} from '../services/analysisDatasetService.js';
+import type {
+  AnalysisDatasetStatus, AnalysisParams, ComparableProperty, MarketStatistics, PropertyData, RentalEstimate,
+} from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
 import { generatePropertySlug } from '../utils/slugify.js';
@@ -46,6 +53,7 @@ import {
   savePropertyRecords,
   setAnalysisShared,
   updateAnalysisAfterReanalysis,
+  updateAnalysisDatasets,
   updateAnalysisOverrides,
 } from '../services/analyzerPersistenceService.js';
 
@@ -116,6 +124,28 @@ function enrichComparables(
   });
 }
 
+// ── Helper: refetch only the similar-properties dataset ─────────────────
+async function backfillComparables(
+  property: PropertyData,
+  zpid: string,
+  rentalEstimate: RentalEstimate | undefined,
+  marketStatistics: MarketStatistics | null | undefined,
+): Promise<{ comparables: ComparableProperty[]; status: AnalysisDatasetStatus }> {
+  let comparables: ComparableProperty[] = [];
+  let status: AnalysisDatasetStatus = 'unavailable';
+  try {
+    const fetched = await propertyDataService.getSimilarPropertiesWithStatus(zpid);
+    status = fetched.status;
+    comparables = enrichComparables(fetched.comps, property, rentalEstimate, marketStatistics ?? null);
+  } catch {
+    console.warn('[analyzer:comparables] Comparables backfill failed (non-fatal)');
+  }
+  console.info('[analyzer:comparables]', JSON.stringify({
+    requestId: getProviderUsageRequestId(), stage: 'backfill', status, fetchedCount: comparables.length,
+  }));
+  return { comparables, status };
+}
+
 // ── POST /run ────────────────────────────────────────────────────────────
 // Full pipeline: fetch property → estimate rent → compute analysis → persist
 router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
@@ -128,6 +158,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const { property, source, sourceUrl } = await resolvePropertyInput(url);
     const zpid = property.zpid || '';
+    const geocoder = geocodingService.createGeocodingSession();
 
     // Merge user params with defaults
     const params: AnalysisParams = { ...DEFAULT_ANALYSIS_PARAMS, ...userParams };
@@ -170,16 +201,10 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     let hoaSource: 'zillow' | 'estimate' | 'none' = 'none';
 
     // Early geocode of subject property (cache-first, needed for proximity scoring)
-    if (!property.latitude || !property.longitude) {
-      try {
-        const coords = await geocodingService.geocodeAddress(
-          property.address, property.city, property.state, property.zip,
-        );
-        if (coords) {
-          property.latitude = coords.lat;
-          property.longitude = coords.lng;
-        }
-      } catch { /* non-fatal */ }
+    try {
+      await geocoder.geocodeProperties([property]);
+    } catch {
+      console.warn('[analyzer/run] Subject geocoding failed (non-fatal)');
     }
 
     if (userParams?.monthlyHoa == null) {
@@ -205,32 +230,8 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     // Rental estimation — real for-rent comps first (RentCast → Realtor.com),
     // then Zillow area-median anchor, then the bare algorithm.
-    let apiComps = await rentCastService.getRentalComps(property);
-    let compSource: 'rentcast' | 'realtor' | null = apiComps.length > 0 ? 'rentcast' : null;
-    if (apiComps.length === 0) {
-      apiComps = await realtyInUsService.getRentalComps(property);
-      if (apiComps.length > 0) compSource = 'realtor';
-    }
-    apiComps = rentalEstimationService.filterPlausibleRentalComps(apiComps, property);
-    const algorithmic = rentalEstimationService.estimateRent(property);
-    let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
-
-    // Also try RentCast's AVM rent estimate as a cross-check
-    const rentCastEstimate = await rentCastService.getRentEstimate(property);
-    if (rentCastEstimate && apiComps.length === 0) {
-      // If we got an AVM estimate but no comps, blend it in
-      rentalEstimate.mid = Math.round((rentalEstimate.mid + rentCastEstimate.mid) / 2);
-      rentalEstimate.low = Math.round((rentalEstimate.low + rentCastEstimate.low) / 2);
-      rentalEstimate.high = Math.round((rentalEstimate.high + rentCastEstimate.high) / 2);
-      if (rentalEstimate.confidence === 'low') rentalEstimate.confidence = 'medium';
-    }
-
-    // No rental comps? Anchor to Zillow's area rental-market median (real data,
-    // high confidence) instead of falling back to the bare algorithm.
-    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
-    if (usedZillowRent) {
-      rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
-    }
+    const { rentalEstimate, compSource, usedZillowRent, usedAvm } = await getLongTermRentalEstimate(property);
+    const apiComps = rentalEstimate.comps || [];
 
     // Short-term rental — prefer AirDNA real data, fall back to algorithmic
     let strEstimate = await airDnaService.getSTREstimate(property);
@@ -242,7 +243,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     // calibrated to real furnished comps (Furnished Finder) when available.
     let proximityBoost = 0;
     let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
-    if (property.latitude && property.longitude) {
+    if (geocodingService.hasValidCoordinates(property)) {
       try {
         const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
         proximityBoost = proximity.boost;
@@ -269,6 +270,9 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     } catch (err: any) {
       console.warn('[analyzer/run] Market stats failed (non-fatal):', err.message);
     }
+    // Zillow had no rental market data even after the ZIP retry: show the
+    // RentCast ZIP summary already fetched above (display only).
+    applyRentalMarketFallback(property, marketStatistics);
 
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
@@ -282,7 +286,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
         ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
         : usedZillowRent
           ? 'zillow'
-          : (rentCastEstimate ? 'blended' : 'algorithm'),
+          : (usedAvm ? 'blended' : 'algorithm'),
       str: strEstimate.source === 'airdna' ? 'airdna' : 'algorithm',
       mtr: mtrEstimate.source,
       hoa: hoaSource,
@@ -292,48 +296,33 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
 
     // Fetch & enrich comparable properties (non-blocking — don't fail the analysis)
     let comparables: ComparableProperty[] = [];
+    let comparablesStatus: AnalysisDatasetStatus = 'unavailable';
     try {
-      const rawComps = zpid ? await propertyDataService.getSimilarProperties(zpid) : [];
-
-      // Geocode all addresses (subject + comps) before enrichment
-      // so lat/lng are available for per-comp estimation
-      const allAddresses = [
-        { address: property.address, city: property.city, state: property.state, zip: property.zip },
-        ...rawComps.map(c => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
-      ];
+      const { comps: rawComps, status } = await propertyDataService.getSimilarPropertiesWithStatus(zpid);
+      comparablesStatus = status;
 
       try {
-        const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
-
-        // Attach to subject property
-        const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
-        const subjectCoords = coordsMap.get(subjectKey);
-        if (subjectCoords) {
-          property.latitude = subjectCoords.lat;
-          property.longitude = subjectCoords.lng;
-        }
-
-        // Attach to comparable properties before enrichment
-        for (const comp of rawComps) {
-          const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
-          const compCoords = coordsMap.get(compKey);
-          if (compCoords) {
-            comp.latitude = compCoords.lat;
-            comp.longitude = compCoords.lng;
-          }
-        }
-      } catch (err: any) {
-        console.warn('[analyzer/run] Geocoding failed (non-fatal):', err.message);
+        await geocoder.geocodeProperties([property, ...rawComps]);
+      } catch {
+        console.warn('[analyzer/run] Comparable geocoding failed (non-fatal)');
       }
 
       // Enrich comps with calibrated rent estimates using subject's market data
       comparables = enrichComparables(rawComps, property, rentalEstimate, marketStatistics);
-    } catch (err: any) {
-      console.warn('[analyzer/run] Failed to fetch comparables:', err.message);
+      console.info('[analyzer:comparables]', JSON.stringify({
+        requestId: getProviderUsageRequestId(), stage: 'ready',
+        hasZpid: !!zpid, fetchedCount: rawComps.length, enrichedCount: comparables.length,
+        mappedCount: comparables.filter(geocodingService.hasValidCoordinates).length,
+      }));
+    } catch {
+      console.warn('[analyzer:comparables]', JSON.stringify({
+        requestId: getProviderUsageRequestId(), stage: 'failed', hasZpid: !!zpid,
+      }));
     }
 
     // Attach comparables to results
     results.comparables = comparables;
+    results.datasetStatus = { comparables: comparablesStatus, ...marketDatasetStatuses(property) };
 
     // Finalize: compute the single-source-of-truth strategy comparison now that
     // all estimates and data sources are attached.
@@ -421,6 +410,7 @@ async function propertyRecordsHandler(req: AuthRequest, res: Response, refresh: 
       return res.status(404).json({ error: 'Analysis not found.' });
     }
     if (!refresh && analysis.property_records) {
+      recordProviderCache('rentcast', 'property-records', 'saved-analysis', 'hit');
       return res.json(analysis.property_records);
     }
     const records = await rentCastService.getPropertyRecords(analysis.property_data, { refresh });
@@ -520,6 +510,11 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     }
 
     const property = row.property_data;
+
+    // Targeted recovery: refetch only area market data the original run lost
+    // (shared weekly DB cache), falling back to stored RentCast ZIP statistics.
+    await backfillAreaMarket(property, row.analysis_results?.marketStatistics);
+
     const newParams: AnalysisParams = {
       ...DEFAULT_ANALYSIS_PARAMS,
       ...row.analysis_params,
@@ -577,7 +572,8 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     let rentalEstimate = rentalEstimationService.combineEstimates(apiComps, algorithmic, property);
 
     // No comps? Anchor to Zillow's area rental-market median (real data, high confidence).
-    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent;
+    const usedZillowRent = apiComps.length === 0 && !!property.rentalMarketTrends?.medianRent
+    && property.rentalMarketTrends.source !== 'rentcast';
     if (usedZillowRent) {
       rentalEstimate = rentalEstimationService.applyZillowMarketRent(rentalEstimate, property.rentalMarketTrends);
     }
@@ -622,39 +618,31 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
       insurance: insuranceSource,
     };
 
-    // Carry over stored comparables from the original analysis
+    // Carry over stored comparables from the original analysis. When the
+    // original run saved none because of a provider failure (or the status is
+    // unknown), refetch only the similar-properties dataset.
     results.comparables = row.analysis_results?.comparables || [];
+    const previousStatus = row.analysis_results?.datasetStatus;
+    let comparablesStatus: AnalysisDatasetStatus | undefined = previousStatus?.comparables
+      ?? (results.comparables.length ? 'ok' : undefined);
+    if (results.comparables.length === 0 && previousStatus?.comparables !== 'none-found') {
+      const backfill = await backfillComparables(
+        property, property.zpid || row.zpid || '', rentalEstimate, row.analysis_results?.marketStatistics,
+      );
+      results.comparables = backfill.comparables;
+      comparablesStatus = backfill.status;
+    }
+    results.datasetStatus = {
+      ...(comparablesStatus ? { comparables: comparablesStatus } : {}),
+      ...marketDatasetStatuses(property),
+    };
 
     // Geocode if coordinates are missing (backfill for older analyses)
-    const needsGeocode = !property.latitude || !results.comparables?.some((c: ComparableProperty) => c.latitude);
-    if (needsGeocode) {
-      try {
-        const comparables = results.comparables || [];
-        const allAddresses = [
-          { address: property.address, city: property.city, state: property.state, zip: property.zip },
-          ...comparables.map((c: ComparableProperty) => ({ address: c.address, city: c.city, state: c.state, zip: c.zip })),
-        ];
-
-        const coordsMap = await geocodingService.geocodeMultiple(allAddresses);
-
-        const subjectKey = geocodingService.normalizeAddressKey(property.address, property.city, property.state, property.zip);
-        const subjectCoords = coordsMap.get(subjectKey);
-        if (subjectCoords) {
-          property.latitude = subjectCoords.lat;
-          property.longitude = subjectCoords.lng;
-        }
-
-        for (const comp of comparables) {
-          const compKey = geocodingService.normalizeAddressKey(comp.address, comp.city, comp.state, comp.zip);
-          const compCoords = coordsMap.get(compKey);
-          if (compCoords) {
-            comp.latitude = compCoords.lat;
-            comp.longitude = compCoords.lng;
-          }
-        }
-      } catch (err: any) {
-        console.warn('[analyzer/re-analyze] Geocoding failed (non-fatal):', err.message);
-      }
+    try {
+      await geocodingService.createGeocodingSession()
+        .geocodeProperties([property, ...results.comparables]);
+    } catch {
+      console.warn('[analyzer/re-analyze] Geocoding failed (non-fatal)');
     }
 
     // Finalize: recompute the single-source-of-truth strategy comparison.
@@ -690,6 +678,64 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
   } catch (err: any) {
     console.error('[analyzer/re-analyze]', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /history/:slug/refresh-missing ──────────────────────────────────
+// Refetch only provider datasets missing from a saved analysis (sale
+// comparables, Zillow housing/rental market). Financial results, params and
+// overrides are not recomputed. Saved comparables are never refetched; market
+// data is one shared area snapshot, so a miss refreshes housing and rental
+// together while keeping the saved dataset that was already present.
+router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const ownerContext = await buildOwnerContext(req);
+    const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
+    if (row == null) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+
+    const expected = {
+      propertyData: JSON.stringify(row.property_data),
+      analysisResults: JSON.stringify(row.analysis_results),
+    };
+    const property: PropertyData = row.property_data;
+    const results = row.analysis_results;
+    const marketStatistics = results.marketStatistics;
+    await backfillAreaMarket(property, marketStatistics, true);
+
+    let comparablesStatus = results.datasetStatus?.comparables
+      ?? (results.comparables?.length ? 'ok' : undefined);
+    if (!results.comparables?.length && comparablesStatus !== 'none-found') {
+      const backfill = await backfillComparables(
+        property, property.zpid || row.zpid || '', results.rentalEstimate, marketStatistics,
+      );
+      results.comparables = backfill.comparables;
+      comparablesStatus = backfill.status;
+      if (results.comparables.length > 0) {
+        try {
+          await geocodingService.createGeocodingSession().geocodeProperties([property, ...results.comparables]);
+        } catch {
+          console.warn('[analyzer/refresh-missing] Geocoding failed (non-fatal)');
+        }
+      }
+    }
+    results.datasetStatus = {
+      ...(comparablesStatus ? { comparables: comparablesStatus } : {}),
+      ...marketDatasetStatuses(property),
+    };
+
+    if (!await updateAnalysisDatasets(ownerContext, req.params.slug, property, results, expected)) {
+      return res.status(409).json({ error: 'Analysis changed during refresh. Reload it before trying again.' });
+    }
+    const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
+    if (analysis == null) {
+      return res.status(404).json({ error: 'Analysis not found.' });
+    }
+    res.json({ analysis });
+  } catch (err: unknown) {
+    console.error('[analyzer/refresh-missing]', err);
+    res.status(500).json({ error: 'Unable to refresh missing data.' });
   }
 });
 

@@ -15,6 +15,8 @@
  */
 
 import type { PropertyData, STREstimate } from '@deal-platform/shared-types';
+import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
+const fetch = createProviderFetch('airdna');
 
 // ---------- configuration ----------
 
@@ -40,7 +42,11 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — STR metrics change inf
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('airdna', 'estimate-cache', 'memory', 'hit');
+    return entry.data;
+  }
+  recordProviderCache('airdna', 'estimate-cache', 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return null;
 }
@@ -143,7 +149,11 @@ export async function getSTREstimate(
 ): Promise<STREstimate | null> {
   if (!isConfigured()) return null;
 
-  const cacheKey = `airdna:str:${property.zpid}`;
+  const cacheKey = `airdna:str:v2:${JSON.stringify({
+    query: propertyEstimateParams(property).toString(),
+    zip: property.zip,
+    cleaningBedrooms: property.bedrooms || 2,
+  })}`;
   const cached = getCached<STREstimate>(cacheKey);
   if (cached) return cached;
 
@@ -155,6 +165,7 @@ export async function getSTREstimate(
   }
 
   // Fall back to market-level stats by zip
+  recordProviderFallback('airdna', 'market-statistics', 'no-usable-data');
   const marketEstimate = await fetchMarketStats(property);
   if (marketEstimate) {
     setCache(cacheKey, marketEstimate);
@@ -166,18 +177,21 @@ export async function getSTREstimate(
 
 // ---------- internal API calls ----------
 
+function propertyEstimateParams(property: PropertyData): URLSearchParams {
+  const params = new URLSearchParams({
+    address: `${property.address}, ${property.city}, ${property.state} ${property.zip}`,
+  });
+  if (property.bedrooms) params.set('bedrooms', String(property.bedrooms));
+  if (property.bathrooms) params.set('bathrooms', String(property.bathrooms));
+  return params;
+}
+
 /**
  * Try the property-level Rentalizer estimate (most accurate).
  */
 async function fetchPropertyEstimate(property: PropertyData): Promise<STREstimate | null> {
   try {
-    const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
-    const params = new URLSearchParams({
-      address,
-    });
-
-    if (property.bedrooms) params.set('bedrooms', String(property.bedrooms));
-    if (property.bathrooms) params.set('bathrooms', String(property.bathrooms));
+    const params = propertyEstimateParams(property);
 
     const res = await fetch(
       `https://${AIRDNA_HOST}/rentalizer?${params}`,

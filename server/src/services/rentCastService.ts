@@ -6,6 +6,7 @@
  *
  * Endpoints used:
  *   GET /v1/avm/rent/long-term     — algorithmic rent estimate by address
+ *                                    (bundle mode: estimate + recent comps in one request)
  *   GET /v1/listings/rental/long-term — nearby active rental listings (comps)
  *
  * Auth: X-Api-Key header
@@ -14,7 +15,18 @@
  * We cache aggressively to stay well within limits.
  */
 
-import type { RentalComp, PropertyData, PropertyRecords } from '@deal-platform/shared-types';
+import type { RentalComp, PropertyData, PropertyRecords, MarketStatistics } from '@deal-platform/shared-types';
+import { hasValidCoordinates } from './geocodingService.js';
+import { pool } from '../db/pool.js';
+import { Pool } from 'pg';
+import { createPostgresMarketCacheStore, createRentCastMarketCache } from './rentCastMarketCache.js';
+import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+import {
+  createRentCastPropertyCache, isRentEstimateBundleProjection, isRentEstimateProjection, isRentalCompProjection,
+  type RentEstimateBundleProjection, type RentEstimateProjection,
+} from './rentCastPropertyCache.js';
+const fetch = createProviderFetch('rentcast');
+export type { MarketStatistics } from '@deal-platform/shared-types';
 
 // ---------- configuration ----------
 
@@ -35,30 +47,25 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const cache = new Map<string, CacheEntry<any>>();
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — rental data changes infrequently
-const MARKET_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days for market stats
+const cache = new Map<string, CacheEntry<PropertyRecords>>();
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-function getCached<T>(key: string): T | null {
+function getCached(key: string): PropertyRecords | null {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('rentcast', 'property-records', 'memory', 'hit');
+    return entry.data;
+  }
+  recordProviderCache('rentcast', 'property-records', 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return null;
 }
 
-function setCache<T>(key: string, data: T): void {
+function setCache(key: string, data: PropertyRecords): void {
   cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 // ---------- types for RentCast responses ----------
-
-interface RentCastRentEstimate {
-  rent: number;
-  rentRangeLow: number;
-  rentRangeHigh: number;
-  latitude?: number;
-  longitude?: number;
-}
 
 interface RentCastListing {
   formattedAddress?: string;
@@ -74,13 +81,13 @@ interface RentCastListing {
   daysOnMarket?: number;
 }
 
-export interface MarketStatistics {
-  medianRent: number;
-  averageRent: number;
-  rentGrowthPct: number;        // YoY percentage e.g. 3.5 = 3.5%
-  totalListings: number;
-  avgDaysOnMarket: number;
-  rentTrend: 'rising' | 'stable' | 'declining';
+function isRentCastListing(listing: unknown): listing is RentCastListing {
+  return isObject(listing) &&
+    Object.prototype.hasOwnProperty.call(listing, 'price') &&
+    (listing.price == null || (typeof listing.price === 'number' && Number.isFinite(listing.price))) &&
+    ['formattedAddress', 'addressLine1'].every(key => listing[key] == null || typeof listing[key] === 'string') &&
+    ['bedrooms', 'bathrooms', 'squareFootage'].every(key =>
+      listing[key] == null || (typeof listing[key] === 'number' && Number.isFinite(listing[key]) && listing[key] >= 0));
 }
 
 // ---------- public API ----------
@@ -147,8 +154,8 @@ export async function getPropertyRecords(
   }
   const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
   const cacheKey = `rentcast:records:${address}`;
-  const cached = getCached<PropertyRecords>(cacheKey);
-  if (cached && !options.refresh) return cached;
+  const cached = options.refresh ? null : getCached(cacheKey);
+  if (cached) return cached;
 
   const response = await fetch(`${BASE_URL}/properties?${new URLSearchParams({ address, limit: '1' })}`, {
     headers: headers(),
@@ -226,21 +233,16 @@ export async function getRentEstimate(
   if (!isConfigured()) return null;
 
   const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
-  const cacheKey = `rentcast:estimate:${address}`;
-  const cached = getCached<{ mid: number; low: number; high: number }>(cacheKey);
-  if (cached) return cached;
+  const params = propertySearchParams(property);
+  params.set('address', address);
+  return rentEstimateCache.get(params.toString());
+}
 
+async function fetchRentEstimate(query: string): Promise<RentEstimateProjection | null> {
   try {
-    const params = new URLSearchParams({
-      address,
-      propertyType: mapPropertyType(property.propertyType),
-      bedrooms: String(property.bedrooms || 3),
-      bathrooms: String(property.bathrooms || 2),
-      squareFootage: String(property.sqft || 1500),
-    });
-
-    const res = await fetch(`${BASE_URL}/avm/rent/long-term?${params}`, {
+    const res = await fetch(`${BASE_URL}/avm/rent/long-term?${query}`, {
       headers: headers(),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
@@ -248,20 +250,135 @@ export async function getRentEstimate(
       return null;
     }
 
-    const data = await res.json() as RentCastRentEstimate;
-
-    if (!data.rent) return null;
-
-    const result = {
-      mid: Math.round(data.rent),
-      low: Math.round(data.rentRangeLow || data.rent * 0.9),
-      high: Math.round(data.rentRangeHigh || data.rent * 1.1),
-    };
-
-    setCache(cacheKey, result);
+    const result = parseRentEstimate(await res.json());
+    if (!result) console.warn('[RentCast] Invalid rent estimate; not caching');
     return result;
   } catch (err: any) {
     console.warn('[RentCast] Rent estimate error:', err.message);
+    return null;
+  }
+}
+
+function parseRentEstimate(data: unknown): RentEstimateProjection | null {
+  if (!isObject(data) || typeof data.rent !== 'number' || !positiveRent(data.rent) ||
+    (data.rentRangeLow != null && !positiveRent(data.rentRangeLow)) ||
+    (data.rentRangeHigh != null && !positiveRent(data.rentRangeHigh))) {
+    return null;
+  }
+  return {
+    mid: Math.round(data.rent),
+    low: Math.round(typeof data.rentRangeLow === 'number' ? data.rentRangeLow : data.rent * 0.9),
+    high: Math.round(typeof data.rentRangeHigh === 'number' ? data.rentRangeHigh : data.rent * 1.1),
+  };
+}
+
+// ---------- bundle mode (estimate-first) ----------
+
+export const BUNDLE_MAX_RADIUS_MILES = 2;
+/** Recently seen inactive comps count toward the estimate; older listings are dropped. */
+export const BUNDLE_MAX_DAYS_OLD = 180;
+export const BUNDLE_COMP_COUNT = 15;
+/** Fewer plausible bundle comps than this triggers one supplemental active-listings request. */
+export const BUNDLE_MIN_COMPS = 3;
+
+export type RentCastRentMode = 'compatibility' | 'bundle';
+
+export function rentCastRentMode(): RentCastRentMode {
+  return process.env.RENTCAST_RENT_MODE?.trim().toLowerCase() === 'bundle' ? 'bundle' : 'compatibility';
+}
+
+export type RentEstimateBundle = RentEstimateBundleProjection;
+
+/**
+ * Bundle mode: one rent-estimate request returns RentCast's estimate plus its
+ * comparable listings (active and recently inactive), replacing the separate
+ * listings request whenever the comps are sufficient.
+ */
+export async function getRentEstimateBundle(property: PropertyData): Promise<RentEstimateBundle | null> {
+  if (!isConfigured()) return null;
+
+  const params = propertySearchParams(property);
+  params.set('address', `${property.address}, ${property.city}, ${property.state} ${property.zip}`);
+  if (hasValidCoordinates(property)) {
+    params.set('latitude', String(property.latitude));
+    params.set('longitude', String(property.longitude));
+  }
+  params.set('maxRadius', String(BUNDLE_MAX_RADIUS_MILES));
+  params.set('daysOld', String(BUNDLE_MAX_DAYS_OLD));
+  params.set('compCount', String(BUNDLE_COMP_COUNT));
+  return rentEstimateBundleCache.get(params.toString());
+}
+
+function optionalFiniteNumber(value: unknown): boolean {
+  return value == null || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isRentCastBundleComparable(value: unknown): value is RentCastListing & Record<string, unknown> {
+  return isRentCastListing(value) && isObject(value) &&
+    ['distance', 'daysOld', 'correlation', 'latitude', 'longitude'].every(key => optionalFiniteNumber(value[key])) &&
+    (value.status == null || typeof value.status === 'string');
+}
+
+function roundTo(value: number, places: number): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
+export function parseRentEstimateBundle(data: unknown): RentEstimateBundle | null {
+  const estimate = parseRentEstimate(data);
+  if (!estimate || !isObject(data)) return null;
+  const rows = data.comparables ?? [];
+  if (!Array.isArray(rows) || !rows.every(isRentCastBundleComparable)) return null;
+
+  const comps: RentalComp[] = [];
+  for (const row of rows) {
+    if (!row.price || row.price <= 0) continue;
+    const status = row.status === 'Active' ? 'active' : 'inactive';
+    const daysOld = nonnegativeNumber(row.daysOld);
+    if (daysOld !== undefined ? daysOld > BUNDLE_MAX_DAYS_OLD : status !== 'active') continue;
+    const distance = nonnegativeNumber(row.distance);
+    const correlation = nonnegativeNumber(row.correlation);
+    const coordinates = typeof row.latitude === 'number' && typeof row.longitude === 'number' &&
+      Math.abs(row.latitude) <= 90 && Math.abs(row.longitude) <= 180
+      ? { latitude: row.latitude, longitude: row.longitude } : {};
+    comps.push({
+      ...(row.formattedAddress || row.addressLine1 ? { address: row.formattedAddress || row.addressLine1 } : {}),
+      rent: row.price,
+      ...(row.bedrooms != null ? { bedrooms: row.bedrooms } : {}),
+      ...(row.bathrooms != null ? { bathrooms: row.bathrooms } : {}),
+      ...(row.squareFootage != null ? { sqft: row.squareFootage } : {}),
+      source: 'api',
+      status,
+      ...(daysOld !== undefined ? { daysOld: Math.round(daysOld) } : {}),
+      ...(distance !== undefined ? { distance: roundTo(distance, 2) } : {}),
+      ...(correlation !== undefined ? { correlation: roundTo(correlation, 4) } : {}),
+      ...coordinates,
+    });
+  }
+  return { estimate, comps };
+}
+
+async function fetchRentEstimateBundle(query: string): Promise<RentEstimateBundle | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/avm/rent/long-term?${query}`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      console.warn(`[RentCast] Rent estimate bundle failed: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const result = parseRentEstimateBundle(await res.json());
+    if (!result) {
+      console.warn('[RentCast] Invalid rent estimate bundle; not caching');
+      return null;
+    }
+    console.log(`[RentCast] Rent estimate bundle with ${result.comps.length} recent comps`);
+    return result;
+  } catch (err: any) {
+    console.warn('[RentCast] Rent estimate bundle error:', err.message);
     return null;
   }
 }
@@ -277,84 +394,111 @@ export async function getRentalComps(
 ): Promise<RentalComp[]> {
   if (!isConfigured()) return [];
 
-  const address = `${property.address}, ${property.city}, ${property.state} ${property.zip}`;
-  const cacheKey = `rentcast:comps:${address}:${radiusMiles}`;
-  const cached = getCached<RentalComp[]>(cacheKey);
-  if (cached) return cached;
+  const params = propertySearchParams(property);
+  params.delete('propertyType');
+  params.delete('squareFootage');
+  params.set('status', 'Active');
+  params.set('limit', String(limit));
+  if (hasValidCoordinates(property)) {
+    params.set('latitude', String(property.latitude));
+    params.set('longitude', String(property.longitude));
+    params.set('radius', String(radiusMiles));
+  } else {
+    params.set('city', property.city);
+    params.set('state', property.state);
+    params.set('zipCode', property.zip);
+  }
+  return await rentalCompsCache.get(params.toString()) ?? [];
+}
 
+async function fetchRentalComps(query: string): Promise<RentalComp[] | null> {
   try {
-    // Prefer lat/lng for radius search; fall back to address
-    const params = new URLSearchParams({
-      bedrooms: String(property.bedrooms || 3),
-      bathrooms: String(property.bathrooms || 2),
-      status: 'Active',
-      limit: String(limit),
-    });
-
-    if (property.latitude && property.longitude) {
-      params.set('latitude', String(property.latitude));
-      params.set('longitude', String(property.longitude));
-      params.set('radius', String(radiusMiles));
-    } else {
-      params.set('city', property.city);
-      params.set('state', property.state);
-      params.set('zipCode', property.zip);
-    }
-
-    const res = await fetch(`${BASE_URL}/listings/rental/long-term?${params}`, {
+    const res = await fetch(`${BASE_URL}/listings/rental/long-term?${query}`, {
       headers: headers(),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
       console.warn(`[RentCast] Rental comps failed: ${res.status} ${res.statusText}`);
-      return [];
+      return null;
     }
 
-    const listings = await res.json() as RentCastListing[];
-
-    if (!Array.isArray(listings)) return [];
+    const data: unknown = await res.json();
+    if (!Array.isArray(data) || !data.every(isRentCastListing)) {
+      console.warn('[RentCast] Invalid rental listings; not caching');
+      return null;
+    }
+    const listings = data;
 
     const comps: RentalComp[] = listings
       .filter(l => l.price && l.price > 0)
       .map(l => ({
-        address: l.formattedAddress || l.addressLine1,
+        address: l.formattedAddress || l.addressLine1 || undefined,
         rent: l.price!,
-        bedrooms: l.bedrooms,
-        bathrooms: l.bathrooms,
-        sqft: l.squareFootage,
+        bedrooms: l.bedrooms ?? undefined,
+        bathrooms: l.bathrooms ?? undefined,
+        sqft: l.squareFootage ?? undefined,
         source: 'api' as const,
       }));
 
-    setCache(cacheKey, comps);
-    console.log(`[RentCast] Found ${comps.length} rental comps for ${address}`);
+    console.log(`[RentCast] Found ${comps.length} rental comps`);
     return comps;
   } catch (err: any) {
     console.warn('[RentCast] Rental comps error:', err.message);
-    return [];
+    return null;
   }
 }
 
 /**
  * Fetch market-level rental statistics for a ZIP code from RentCast.
- * Cached for 7 days (market-level data is slow-moving).
+ * Seven-day cache; PostgreSQL sharing is opt-in after deploying the cache schema.
  */
 export async function getMarketStatistics(
   zip: string,
 ): Promise<MarketStatistics | null> {
   if (!isConfigured() || !zip) return null;
+  return marketCache.get(zip);
+}
 
-  const cacheKey = `rentcast:market:${zip}`;
-  const cached = getCached<MarketStatistics>(cacheKey);
-  if (cached) return cached;
+const marketCachePool = new Pool({
+  ...pool.options,
+  max: 2,
+  connectionTimeoutMillis: 2000,
+  statement_timeout: 2000,
+  query_timeout: 2000,
+  allowExitOnIdle: true,
+});
+marketCachePool.on('error', () => {
+  console.warn('[RentCast:market-cache] Idle database connection failed');
+});
 
+const marketCache = createRentCastMarketCache({
+  store: createPostgresMarketCacheStore(marketCachePool),
+  enabled: () => process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED === 'true',
+  load: fetchMarketStatistics,
+});
+
+const rentEstimateCache = createRentCastPropertyCache(
+  marketCachePool, 'rent-avm', isRentEstimateProjection, fetchRentEstimate,
+);
+const rentalCompsCache = createRentCastPropertyCache(
+  marketCachePool, 'rental-listings', isRentalCompProjection, fetchRentalComps,
+);
+const rentEstimateBundleCache = createRentCastPropertyCache(
+  marketCachePool, 'rent-avm-bundle', isRentEstimateBundleProjection, fetchRentEstimateBundle,
+);
+
+async function fetchMarketStatistics(zip: string): Promise<MarketStatistics | null> {
   try {
     const params = new URLSearchParams({
       zipCode: zip,
-      historyRange: '12',
+      historyRange: '13',
+      dataType: 'All',
     });
 
     const res = await fetch(`${BASE_URL}/markets?${params}`, {
       headers: headers(),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
@@ -362,61 +506,103 @@ export async function getMarketStatistics(
       return null;
     }
 
-    const data = await res.json() as Record<string, any>;
-
-    const medianRent = data.medianRent ?? data.averageRent ?? 0;
-    const averageRent = data.averageRent ?? data.medianRent ?? 0;
-
-    // Compute rent growth from history if available
-    let rentGrowthPct = 0;
-    if (data.history && Array.isArray(data.history) && data.history.length >= 2) {
-      const latest = data.history[data.history.length - 1];
-      const oldest = data.history[0];
-      const latestRent = latest?.medianRent ?? latest?.averageRent ?? 0;
-      const oldestRent = oldest?.medianRent ?? oldest?.averageRent ?? 0;
-      if (oldestRent > 0) {
-        rentGrowthPct = Math.round(((latestRent - oldestRent) / oldestRent) * 1000) / 10;
-      }
-    } else if (data.rentGrowth != null) {
-      rentGrowthPct = typeof data.rentGrowth === 'number'
-        ? Math.round(data.rentGrowth * (Math.abs(data.rentGrowth) < 1 ? 1000 : 10)) / 10
-        : 0;
+    const data: unknown = await res.json();
+    const result = normalizeMarketStatistics(data);
+    if (!result) {
+      console.warn('[RentCast] Rental market statistics unavailable or invalid');
+      return null;
     }
 
-    // Determine trend
-    let rentTrend: 'rising' | 'stable' | 'declining';
-    if (rentGrowthPct > 2) rentTrend = 'rising';
-    else if (rentGrowthPct < -2) rentTrend = 'declining';
-    else rentTrend = 'stable';
-
-    const result: MarketStatistics = {
-      medianRent: Math.round(medianRent),
-      averageRent: Math.round(averageRent),
-      rentGrowthPct,
-      totalListings: data.totalListings ?? data.count ?? 0,
-      avgDaysOnMarket: data.averageDaysOnMarket ?? data.avgDaysOnMarket ?? 0,
-      rentTrend,
-    };
-
-    // Cache with longer TTL for market stats
-    cache.set(cacheKey, { data: result, expiresAt: Date.now() + MARKET_CACHE_TTL_MS });
-    console.log(`[RentCast] Market stats for ${zip}: median=${result.medianRent}, trend=${result.rentTrend}`);
     return result;
-  } catch (err: any) {
-    console.warn('[RentCast] Market stats error:', err.message);
+  } catch {
+    console.warn('[RentCast] Market stats request failed');
     return null;
   }
+}
+
+function nonnegativeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function positiveRent(value: unknown): number | undefined {
+  const number = nonnegativeNumber(value);
+  return number !== undefined && number > 0 ? number : undefined;
+}
+
+export function normalizeMarketStatistics(data: unknown): MarketStatistics | null {
+  if (!isObject(data) || !isObject(data.rentalData)) return null;
+  const rental = data.rentalData;
+  const medianRent = positiveRent(rental.medianRent);
+  const averageRent = positiveRent(rental.averageRent);
+  const totalListings = nonnegativeNumber(rental.totalListings);
+  const avgDaysOnMarket = nonnegativeNumber(rental.averageDaysOnMarket);
+  if ([medianRent, averageRent, totalListings, avgDaysOnMarket].every(value => value === undefined)) {
+    return null;
+  }
+
+  let rentGrowthPct: number | undefined;
+  if (isObject(rental.history)) {
+    const months = Object.keys(rental.history).filter(key => /^\d{4}-(0[1-9]|1[0-2])$/.test(key)).sort();
+    const latestMonth = months[months.length - 1];
+    if (latestMonth) {
+      const previousMonth = `${Number(latestMonth.slice(0, 4)) - 1}-${latestMonth.slice(5)}`;
+      const latest = rental.history[latestMonth];
+      const previous = rental.history[previousMonth];
+      if (isObject(latest) && isObject(previous)) {
+        // Compare the same statistic across exactly twelve months, never median to average.
+        for (const metric of ['medianRent', 'averageRent'] as const) {
+          const currentRent = positiveRent(latest[metric]);
+          const previousRent = positiveRent(previous[metric]);
+          if (currentRent !== undefined && previousRent !== undefined) {
+            rentGrowthPct = Math.round(((currentRent - previousRent) / previousRent) * 1000) / 10;
+            break;
+          }
+        }
+      }
+    }
+  }
+  return {
+    ...(medianRent !== undefined ? { medianRent: Math.round(medianRent) } : {}),
+    ...(averageRent !== undefined ? { averageRent: Math.round(averageRent) } : {}),
+    ...(totalListings !== undefined ? { totalListings } : {}),
+    ...(avgDaysOnMarket !== undefined ? { avgDaysOnMarket } : {}),
+    ...(rentGrowthPct !== undefined ? {
+      rentGrowthPct,
+      rentTrend: rentGrowthPct > 2 ? 'rising' : rentGrowthPct < -2 ? 'declining' : 'stable',
+    } : {}),
+  };
 }
 
 // ---------- helpers ----------
 
 /** Map our propertyType strings to RentCast's expected values */
-function mapPropertyType(type?: string): string {
-  if (!type) return 'Single Family';
+function mapPropertyType(type?: string): string | undefined {
+  if (!type) return undefined;
   const t = type.toLowerCase();
   if (t.includes('condo')) return 'Condo';
   if (t.includes('townhouse') || t.includes('town')) return 'Townhouse';
   if (t.includes('multi') || t.includes('duplex') || t.includes('triplex')) return 'Multi-Family';
   if (t.includes('apartment')) return 'Apartment';
-  return 'Single Family';
+  if (t.includes('single') || t === 'house') return 'Single Family';
+  if (t.includes('manufactured') || t.includes('mobile')) return 'Manufactured';
+  return undefined;
+}
+
+function propertySearchParams(property: PropertyData): URLSearchParams {
+  const params = new URLSearchParams();
+  const type = mapPropertyType(property.propertyType);
+  if (type) params.set('propertyType', type);
+  // Whole-building attributes must not masquerade as per-unit rental filters.
+  if (type !== 'Multi-Family') {
+    if (Number.isInteger(property.bedrooms) && property.bedrooms >= 0) {
+      params.set('bedrooms', String(property.bedrooms));
+    }
+    if (Number.isFinite(property.bathrooms) && property.bathrooms > 0) {
+      params.set('bathrooms', String(property.bathrooms));
+    }
+    if (Number.isFinite(property.sqft) && property.sqft > 0) {
+      params.set('squareFootage', String(property.sqft));
+    }
+  }
+  return params;
 }

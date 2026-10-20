@@ -16,6 +16,7 @@ import {
   PropertyDataProviderError,
 } from './propertyDataService.js';
 import { getForSaleProperty } from './realtyInUsService.js';
+import { recordProviderFallback } from './providerUsageService.js';
 
 export type PropertySource = 'zillow' | 'redfin' | 'realtor' | 'trulia' | 'address';
 
@@ -176,6 +177,7 @@ export async function resolvePropertyInput(input: string): Promise<ResolvedPrope
   } catch (err) {
     if (!(err instanceof PropertyDataProviderError)) throw err;
 
+    recordProviderFallback('realtor', 'listings', 'provider-failed');
     const fallbackProperty = await getForSaleProperty(trimmed);
     if (!fallbackProperty) throw err;
 

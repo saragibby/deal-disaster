@@ -30,6 +30,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PropertyData, MTRComp } from '@deal-platform/shared-types';
+import { createProviderFetch, recordProviderCache, recordProviderFallback } from './providerUsageService.js';
+const fetch = createProviderFetch('furnished-finder');
 
 // ---------- configuration ----------
 
@@ -69,7 +71,11 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — furnished inventory mo
 
 function getCached(key: string): { hit: boolean; value: MTRMarketData | null } {
   const entry = cache.get(key);
-  if (entry && Date.now() < entry.expiresAt) return { hit: true, value: entry.data };
+  if (entry && Date.now() < entry.expiresAt) {
+    recordProviderCache('furnished-finder', 'search', 'memory', 'hit');
+    return { hit: true, value: entry.data };
+  }
+  recordProviderCache('furnished-finder', 'search', 'memory', entry ? 'stale' : 'miss');
   cache.delete(key);
   return { hit: false, value: null };
 }
@@ -176,7 +182,19 @@ async function fetchListings(location: { viewport: unknown }): Promise<FFListing
       return null;
     }
 
-    return json.data?.search?.results ?? [];
+    const results = json.data?.search?.results;
+    if (!Array.isArray(results) || results.some(listing =>
+      !listing || typeof listing !== 'object' ||
+      !(listing.bedroomCount === null || Number.isFinite(listing.bedroomCount)) ||
+      !(listing.bathroomCount === null || Number.isFinite(listing.bathroomCount)) ||
+      !(listing.propertyType === null || typeof listing.propertyType === 'string') ||
+      !(listing.rentAmount === null || (typeof listing.rentAmount === 'object' &&
+        listing.rentAmount !== undefined &&
+        (listing.rentAmount.amount === null || typeof listing.rentAmount.amount === 'string'))))) {
+      console.warn('[FurnishedFinder] Invalid search results; not caching failure');
+      return null;
+    }
+    return results;
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       console.warn('[FurnishedFinder] Search timed out');
@@ -263,12 +281,15 @@ export async function getMtrMarketData(property: PropertyData): Promise<MTRMarke
 
   // Primary (~6mi) box.
   let listings = await fetchListings(viewportFromRadius(latitude, longitude, PRIMARY_RADIUS_MILES));
-  let market = listings ? reduceToMarketData(listings, beds, PRIMARY_RADIUS_MILES) : null;
+  if (listings === null) return null;
+  let market = reduceToMarketData(listings, beds, PRIMARY_RADIUS_MILES);
 
   // Thin market? Widen the box once (~15mi).
   if (!market) {
+    recordProviderFallback('furnished-finder', 'search', 'widen-search');
     listings = await fetchListings(viewportFromRadius(latitude, longitude, WIDE_RADIUS_MILES));
-    market = listings ? reduceToMarketData(listings, beds, WIDE_RADIUS_MILES) : null;
+    if (listings === null) return null;
+    market = reduceToMarketData(listings, beds, WIDE_RADIUS_MILES);
   }
 
   setCache(cacheKey, market);
