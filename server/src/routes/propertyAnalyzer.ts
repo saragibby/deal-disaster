@@ -695,14 +695,18 @@ router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthReque
       return res.status(404).json({ error: 'Analysis not found.' });
     }
 
+    const expected = {
+      propertyData: JSON.stringify(row.property_data),
+      analysisResults: JSON.stringify(row.analysis_results),
+    };
     const property: PropertyData = row.property_data;
     const results = row.analysis_results;
     const marketStatistics = results.marketStatistics;
-    await backfillAreaMarket(property, marketStatistics);
+    await backfillAreaMarket(property, marketStatistics, true);
 
     let comparablesStatus = results.datasetStatus?.comparables
       ?? (results.comparables?.length ? 'ok' : undefined);
-    if (!results.comparables?.length) {
+    if (!results.comparables?.length && comparablesStatus !== 'none-found') {
       const backfill = await backfillComparables(
         property, property.zpid || row.zpid || '', results.rentalEstimate, marketStatistics,
       );
@@ -721,8 +725,8 @@ router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthReque
       ...marketDatasetStatuses(property),
     };
 
-    if (!await updateAnalysisDatasets(ownerContext, req.params.slug, property, results)) {
-      return res.status(404).json({ error: 'Analysis not found.' });
+    if (!await updateAnalysisDatasets(ownerContext, req.params.slug, property, results, expected)) {
+      return res.status(409).json({ error: 'Analysis changed during refresh. Reload it before trying again.' });
     }
     const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
     if (analysis == null) {

@@ -234,20 +234,22 @@ export interface AreaMarketData {
  * Get housing + rental market data for an area.
  *
  * Resolution order:
- *   1. In-memory hot cache (1 hour TTL; 5 minutes when no data was found)
+ *   1. In-memory hot cache (1 hour TTL; 5 minutes for partial/empty data)
  *   2. PostgreSQL (latest row for this area_key)
- *   3. RapidAPI — only if no row exists or row is >7 days old
+ *   3. RapidAPI — missing datasets, or both when the row is >7 days old
  *
  * New API results are inserted as a new row (snapshot) so historical
  * data accumulates for long-term analysis.
  */
-export async function getAreaMarketData(city: string, state: string, zip?: string): Promise<AreaMarketData> {
+export async function getAreaMarketData(
+  city: string, state: string, zip?: string, retryMissing = false,
+): Promise<AreaMarketData> {
   const areaKey = normalizeAreaKey(city, state);
   const searchQuery = `${city} ${state}`;
 
   // 1. Memory cache
   const memHit = memGet<AreaMarketData>(`area:${areaKey}`);
-  if (memHit) {
+  if (memHit && (!retryMissing || (memHit.housingMarket && memHit.rentalMarket))) {
     recordProviderCache('zillow', 'housing_market', 'memory', 'hit');
     recordProviderCache('zillow', 'rental_market', 'memory', 'hit');
     return memHit;
@@ -267,23 +269,24 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
     console.warn('[areaMarketService] Cache read failed; fetching once:', (err as Error).message);
   }
 
-  if (row && !isStale(row.fetched_at)) {
+  const freshRow = row && !isStale(row.fetched_at) ? row : null;
+  if (freshRow?.housing_market && freshRow.rental_market) {
     recordProviderCache('zillow', 'housing_market', 'postgres', 'hit');
     recordProviderCache('zillow', 'rental_market', 'postgres', 'hit');
     const result: AreaMarketData = {
-      housingMarket: row.housing_market ?? undefined,
-      rentalMarket: row.rental_market ?? undefined,
+      housingMarket: freshRow.housing_market,
+      rentalMarket: freshRow.rental_market,
     };
     memSet(`area:${areaKey}`, result);
     return result;
   }
 
-  // 3. Stale or missing — fetch fresh from API (both in parallel)
-  recordProviderCache('zillow', 'housing_market', 'postgres', row ? 'stale' : 'miss');
-  recordProviderCache('zillow', 'rental_market', 'postgres', row ? 'stale' : 'miss');
+  // Keep fresh datasets; retry only the missing half of a partial snapshot.
+  recordProviderCache('zillow', 'housing_market', 'postgres', freshRow?.housing_market ? 'hit' : row ? 'stale' : 'miss');
+  recordProviderCache('zillow', 'rental_market', 'postgres', freshRow?.rental_market ? 'hit' : row ? 'stale' : 'miss');
   let [housing, rental] = await Promise.all([
-    fetchHousingMarketFromApi(searchQuery),
-    fetchRentalMarketFromApi(searchQuery),
+    freshRow?.housing_market ?? fetchHousingMarketFromApi(searchQuery),
+    freshRow?.rental_market ?? fetchRentalMarketFromApi(searchQuery),
   ]);
 
   // 3b. Retry each dataset the city+state query could not resolve (e.g. rental
@@ -302,7 +305,8 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
 
   // Persist as new snapshot row
   const areaName = housing?.areaName || rental?.areaName || searchQuery;
-  if (housing || rental) {
+  const recoveredDataset = (!freshRow?.housing_market && housing) || (!freshRow?.rental_market && rental);
+  if ((housing || rental) && (!freshRow || recoveredDataset)) {
     try {
       await insertRow(areaKey, areaName, housing, rental);
     } catch (err) {
@@ -317,6 +321,6 @@ export async function getAreaMarketData(city: string, state: string, zip?: strin
     rentalMarket: rental ?? row?.rental_market ?? undefined,
   };
   memSet(`area:${areaKey}`, result,
-    result.housingMarket || result.rentalMarket ? MEM_CACHE_TTL_MS : EMPTY_MEM_CACHE_TTL_MS);
+    result.housingMarket && result.rentalMarket ? MEM_CACHE_TTL_MS : EMPTY_MEM_CACHE_TTL_MS);
   return result;
 }

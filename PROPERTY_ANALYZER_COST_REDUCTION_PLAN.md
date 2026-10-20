@@ -632,6 +632,20 @@ server build, and the analyzer-core guardrails pass. The notices, button and
 RentCast card were checked visually in the reference SaaS harness with fixture
 data. No live calls.
 
+### Pre-merge recovery corrections
+
+- Partial area-market snapshots are retried after a five-minute memory hold,
+  fetching only their missing dataset. Explicit **Refresh missing data** bypasses
+  a partial/empty memory hold. Failed recovery does not renew a partial DB
+  snapshot's age; complete cached snapshots still avoid provider calls.
+- Dataset refresh uses an optimistic comparison of the original saved property
+  and results. If another operation changed either while providers were loading,
+  the endpoint returns HTTP 409 instead of overwriting the newer analysis.
+- Explicit refresh, like re-analysis, does not retry provider-confirmed empty
+  comparable sets (`none-found`).
+- Regression tests cover partial memory/DB recovery, preserved cached housing,
+  original-snapshot comparisons, HTTP 409, and confirmed-empty comparables.
+
 ## Implementation update - RentCast bundle mode
 
 Production plan confirmed as RentCast **Foundation**: $74/month for 1,000

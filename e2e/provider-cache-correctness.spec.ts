@@ -119,6 +119,36 @@ test('Zillow area lookup without a ZIP does not retry', async () => {
   expect(calls).toBe(2);
 });
 
+test('Zillow refresh bypasses a partial memory/DB snapshot and fetches only its missing dataset', async () => {
+  const housing = { typicalHomeValue: 190000 };
+  Object.defineProperty(pool, 'query', {
+    configurable: true, writable: true,
+    value: async (sql: string) => ({
+      rows: sql.includes('SELECT') ? [{
+        housing_market: housing, rental_market: null, fetched_at: new Date(),
+      }] : [],
+    }),
+  });
+  const city = `Fresh Partial ${++sequence}`;
+  const paths: string[] = [];
+  let outage = true;
+  globalThis.fetch = async input => {
+    paths.push(new URL(String(input)).pathname);
+    return outage ? Response.json({}) : areaResponse(input);
+  };
+  const partial = await getAreaMarketData(city, 'NC', '27500');
+  expect(partial.housingMarket).toEqual(housing);
+  expect(partial.rentalMarket).toBeUndefined();
+  expect(paths).toEqual(['/rental_market', '/rental_market']);
+  await getAreaMarketData(city, 'NC', '27500');
+  expect(paths).toHaveLength(2);
+  outage = false;
+  const recovered = await getAreaMarketData(city, 'NC', '27500', true);
+  expect(recovered.rentalMarket?.medianRent).toBe(1800);
+  expect(recovered.housingMarket).toEqual(housing);
+  expect(paths).toEqual(['/rental_market', '/rental_market', '/rental_market']);
+});
+
 test('Zillow city miss permits one ZIP fallback without repeating it on write failure', async () => {
   Object.defineProperty(pool, 'query', {
     configurable: true, writable: true,

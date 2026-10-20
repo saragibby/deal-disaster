@@ -46,12 +46,13 @@ export function needsZillowRentalMarket(property: PropertyData): boolean {
 export async function backfillAreaMarket(
   property: PropertyData,
   marketStatistics: MarketStatistics | null | undefined,
+  retryMissing = false,
 ): Promise<PropertyData> {
   const needsHousing = !property.housingMarket;
   const needsRental = needsZillowRentalMarket(property);
   if ((needsHousing || needsRental) && property.city && property.state) {
     try {
-      const area = await getAreaMarketData(property.city, property.state, property.zip);
+      const area = await getAreaMarketData(property.city, property.state, property.zip, retryMissing);
       if (needsHousing && area.housingMarket) property.housingMarket = area.housingMarket;
       if (needsRental && area.rentalMarket) property.rentalMarketTrends = area.rentalMarket;
     } catch {

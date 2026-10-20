@@ -47,6 +47,7 @@ interface CallOptions {
   path?: string;
   results?: Record<string, unknown>;
   rentalRegionNotFound?: boolean;
+  concurrentUpdate?: boolean;
 }
 
 function savedRow(property: PropertyData, comparables: unknown[], extraResults: Record<string, unknown> = {}) {
@@ -78,7 +79,7 @@ async function reanalyze(property: PropertyData, comparables: unknown[], options
         updates.push(params);
         updateSql.push(sql);
         return {
-          rowCount: 1,
+          rowCount: options.concurrentUpdate ? 0 : 1,
           rows: [{ slug: 'fixture-slug', public_share_id: null, created_at: new Date(0).toISOString() }],
         };
       }
@@ -239,6 +240,10 @@ test('refresh-missing refetches only missing datasets and leaves financial resul
   });
   expect(analysis.property_data.housingMarket.typicalHomeValue).toBe(250000);
   expect(analysis.property_data.rentalMarketTrends.medianRent).toBe(1750);
+  expect(updateSql[0]).toContain('property_data::jsonb = $7::jsonb');
+  expect(updateSql[0]).toContain('analysis_results::jsonb = $8::jsonb');
+  expect(JSON.parse(String(updates[0][6])).housingMarket).toBeUndefined();
+  expect(JSON.parse(String(updates[0][7])).comparables).toEqual([]);
   expect(reports[0]).toMatchObject({ workflow: 'dataset-refresh' });
 });
 
@@ -250,4 +255,24 @@ test('refresh-missing with nothing missing makes no provider call', async () => 
   });
   expect(status).toBe(200);
   expect(calls).toEqual([]);
+});
+
+test('refresh-missing does not retry provider-confirmed empty comparables', async () => {
+  const { status, calls } = await reanalyze(subject(), [], {
+    path: '/analyzer/history/fixture-slug/refresh-missing',
+    results: { datasetStatus: { comparables: 'none-found' } },
+  });
+  expect(status).toBe(200);
+  expect(calls).toEqual([]);
+});
+
+test('refresh-missing reports a concurrent update instead of overwriting newer results', async () => {
+  const { status, body, updates, updateSql } = await reanalyze(subject(), [], {
+    path: '/analyzer/history/fixture-slug/refresh-missing',
+    concurrentUpdate: true,
+  });
+  expect(status).toBe(409);
+  expect(body.error).toContain('Analysis changed during refresh');
+  expect(updates).toHaveLength(1);
+  expect(updateSql[0]).toContain('analysis_results::jsonb = $8::jsonb');
 });

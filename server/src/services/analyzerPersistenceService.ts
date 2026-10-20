@@ -369,17 +369,22 @@ export async function updateAnalysisDatasets(
   slug: string,
   propertyData: unknown,
   analysisResults: unknown,
+  expected: { propertyData: string; analysisResults: string },
 ): Promise<boolean> {
-  // Backfills provider datasets only; params, overrides and created_at are untouched.
+  // Compare the original snapshots so slow provider calls cannot undo a newer re-analysis.
   const result = await pool.query(
     `UPDATE property_analyses
      SET property_data = $4, analysis_results = $5
-     WHERE ${OWNER_PREDICATE} AND slug = $6`,
+     WHERE ${OWNER_PREDICATE} AND slug = $6
+       AND property_data::jsonb = $7::jsonb
+       AND analysis_results::jsonb = $8::jsonb`,
     [
       ...ownerPredicateValues(ownerContext),
       JSON.stringify(propertyData),
       JSON.stringify(analysisResults),
       slug,
+      expected.propertyData,
+      expected.analysisResults,
     ],
   );
   return (result.rowCount ?? 0) > 0;
