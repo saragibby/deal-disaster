@@ -701,6 +701,71 @@ responses, the cache validator, request parameters, cache reuse, and usage
 labels. The comp-table columns were checked visually in the reference SaaS
 harness with fixture data. No live calls.
 
+## Implementation update - durable usage reporting
+
+The dashboard's **Admin > API Usage** tab adds date/workflow-filtered reports
+for both analyzer wrappers. It defaults to new analyses (`analysis`), not a mix
+of saved views and analyses. UTC daily rows show requests, attempts per request,
+estimated cost per request, failures, and unknown charges. A second table
+breaks down provider/endpoint attempts, estimated cost, unknown charges, HTTP
+and network errors, fallback events, memory/DB cache hits, misses and errors.
+Requests with no external calls still count toward the workflow denominator.
+Failed/aborted request costs are included when calculating cost per completed
+request. Cache counters are events across layers, not a unique-lookup hit rate
+or a claim of incremental savings.
+
+Request-start timestamps and rollout configuration (market/property cache
+flags, compatibility/bundle mode, RentCast scenario rate) are captured with each
+summary. Compare daily rows only for like workflows/configurations. Reports
+aggregate the selected window; change its dates to compare periods. There is
+no historical backfill or automatic baseline/savings attribution.
+
+**Storage and reliability:** `provider_usage_events` stores allowlisted
+structured summaries with opaque request IDs; no addresses, user IDs, headers,
+tokens, full URLs or raw provider payloads. Existing `[provider:usage]` logs
+continue. The default reporter asynchronously writes through a dedicated
+one-connection pool with deadlines and a bounded 100-record queue. Storage
+failures and queue overflow log explicit `[provider:reporting]` errors without
+failing an analysis. This is best-effort operational telemetry: abrupt process
+termination, outages or saturation can leave gaps, so it is not an invoice
+ledger. HTTP 503 is returned if the reporting store cannot be read; the UI does
+not turn failures into zero-usage results.
+
+**Retention:** the user selected 90 days. Queries always exclude older records.
+Successful writes trigger bounded expiry cleanup at most hourly (10,000 rows
+per pass). Physical deletion during idle periods or large backlogs requires the
+scheduled `cd server && npm run usage:prune` command; configure it daily in the
+deployment scheduler and monitor failures. No scheduler is provisioned by this
+code change. Subscription allocations/free quotas and billing reconciliation
+remain separate from scenario costs; unknown charges stay visible.
+
+### Deploy and enable reporting
+
+1. Deploy the code. Apply
+   [add_provider_usage_events.sql](server/src/db/migrations/add_provider_usage_events.sql),
+   or run the existing database setup. The schema is additive and idempotent.
+2. Set `PROVIDER_USAGE_REPORTING_ENABLED=true` on Heroku (default false). This
+   enables collection, not provider traffic. Existing usage flags/rates are
+   unchanged.
+3. Schedule `cd server && npm run usage:prune` daily for retention during idle
+   periods. Verify that expired records are removed and monitor reporting
+   errors. The command deletes only usage records older than 90 days.
+4. As a platform administrator, open `/admin` and select **API Usage**.
+   `GET /api/portal/admin/provider-usage` uses existing JWT and database-backed
+   admin checks. Non-admin users cannot query the report.
+5. Filter by UTC `from` (inclusive) and `to` (exclusive), with a maximum 90-day
+   span and an optional workflow. The UI's **Through** date is inclusive.
+   Collection starts at enablement; empty periods do not prove no prior usage.
+6. Roll back collection with `PROVIDER_USAGE_REPORTING_ENABLED=false`. Existing
+   retained reports remain readable; schema/data are not destroyed.
+
+Verification includes mocked recorder disablement/overflow/write-failure and
+privacy projection tests; admin authentication/date validation/error responses;
+isolated PostgreSQL schema idempotence, deduplication, restart persistence,
+aggregation, date/workflow/configuration separation and retention; and an
+isolated mocked browser suite for admin/denied/empty/error/filter states. No
+live provider calls or production database changes are required.
+
 ## 1. Goals and boundaries
 
 Reduce external requests, duplicate work, and provider cost without silently changing investment assumptions, reducing data completeness, or exposing private data.

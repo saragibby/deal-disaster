@@ -277,7 +277,7 @@ Google subtotal     = $0.265
 
 Allowances apply monthly per SKU, not per analysis. Other account traffic consumes them. Higher-volume tiers, regional pricing, taxes, or negotiated terms can change actual costs.
 
-### RentCast API: separate, unconfirmed production plan
+### RentCast API: confirmed Foundation production plan
 
 | Plan | Monthly fee | Included requests | Overage | Three overage requests |
 | --- | ---: | ---: | ---: | ---: |

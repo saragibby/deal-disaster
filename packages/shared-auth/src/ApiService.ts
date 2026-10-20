@@ -1,3 +1,5 @@
+import type { ProviderUsageReport } from '@deal-platform/shared-types';
+
 // Shared API service for all apps in the platform
 // In production (same-origin), use ''. In dev, use localhost:3002.
 
@@ -5,6 +7,13 @@ const isProduction = typeof window !== 'undefined' && window.location.hostname !
 const API_BASE_URL = isProduction ? '' : 'http://localhost:3002';
 
 export class ApiService {
+  async getProviderUsageReport(from: string, to: string, workflow?: string) {
+    const query = new URLSearchParams({ from, to });
+    if (workflow) query.set('workflow', workflow);
+    return this.fetchJson<ProviderUsageReport>(`/api/portal/admin/provider-usage?${query}`, {
+      headers: this.getHeaders(true),
+    });
+  }
   private onUnauthorized?: () => void;
 
   setUnauthorizedHandler(handler: () => void) {

@@ -17,6 +17,8 @@ import {
 import { RENTCAST_MARKET_CACHE_SCHEMA } from '../server/src/db/rentCastMarketCacheSchema';
 import { withProviderUsage, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
 import { PROVIDER_DATA_CACHE_SCHEMA } from '../server/src/db/providerDataCacheSchema';
+import { PROVIDER_USAGE_SCHEMA } from '../server/src/db/providerUsageSchema';
+import { createUsageRecorder, getProviderUsageReport, pruneProviderUsage } from '../server/src/services/providerUsageReportingService';
 import { createPostgresGeocodingCache } from '../server/src/services/geocodingCache';
 import {
   rentCastPropertyCacheKey, isRentEstimateProjection, isRentalCompProjection,
@@ -300,13 +302,79 @@ test.describe('isolated real PostgreSQL market cache', () => {
       'server/src/db/migrations/add_provider_data_cache.sql'), 'utf8'));
     await db.query(PROVIDER_DATA_CACHE_SCHEMA);
     await db.query(await readFile(path.join(process.cwd(),
+      'server/src/db/migrations/add_provider_usage_events.sql'), 'utf8'));
+    await db.query(PROVIDER_USAGE_SCHEMA);
+    await db.query(await readFile(path.join(process.cwd(),
       'server/src/db/migrations/add_geocoding_cache.sql'), 'utf8'));
   });
-  test.beforeEach(async () => { await db.query('TRUNCATE rentcast_market_cache, provider_data_cache, geocoding_cache'); });
+  test.beforeEach(async () => { await db.query('TRUNCATE rentcast_market_cache, provider_data_cache, geocoding_cache, provider_usage_events'); });
   test.afterAll(async () => {
     await db?.end();
     if (started) await exec('pg_ctl', ['-D', path.join(directory, 'data'), '-m', 'immediate', '-w', 'stop']);
     if (directory) await rm(directory, { recursive: true, force: true });
+  });
+
+  test('durable usage survives recorder restarts, deduplicates requests, and aggregates without multiplying counts', async () => {
+    const summaries: ProviderUsageSummary[] = [];
+    await withProviderUsage('analysis', async () => {}, row => summaries.push(row));
+    const base = summaries[0];
+    base.configuration = { marketCache: true, propertyCache: true, rentMode: 'compatibility', rentCastRate: 0.074 };
+    base.attempts = 2;
+    base.estimatedCostUsd = 0.084;
+    base.endpoints = [
+      { provider: 'rentcast', operation: 'rental-listings', attempts: 1, estimatedCostUsd: 0.074,
+        unknownCostAttempts: 0, networkErrors: 0, pendingAttempts: 0, headerLatencyMs: 10,
+        cache: { 'memory:miss': 1, 'postgres:hit': 2 }, fallbacks: {}, httpResponses: { '200': 1 }, rentCastBillableCandidates: 1 },
+      { provider: 'zillow', operation: 'similar', attempts: 1, estimatedCostUsd: 0.01,
+        unknownCostAttempts: 0, networkErrors: 0, pendingAttempts: 0, headerLatencyMs: 10,
+        cache: {}, fallbacks: { 'no-usable-data': 1 }, httpResponses: { '500': 1 }, rentCastBillableCandidates: 0 },
+    ];
+    const recorder = createUsageRecorder(db, () => true);
+    recorder.record(base);
+    recorder.record(base);
+    await recorder.flush();
+    const restarted = createUsageRecorder(db, () => true);
+    restarted.record({ ...base, requestId: randomUUID(), workflow: 'saved-view', attempts: 0, estimatedCostUsd: 0, endpoints: [] });
+    restarted.record({
+      ...base, requestId: randomUUID(), outcome: 'failed', attempts: 0, estimatedCostUsd: 0, endpoints: [],
+      configuration: { ...base.configuration, rentMode: 'bundle' },
+    });
+    await restarted.flush();
+    const from = new Date(Date.now() - 86400000).toISOString();
+    const to = new Date(Date.now() + 86400000).toISOString();
+    const report = await getProviderUsageReport(from, to, undefined, db);
+    expect(report.totals).toMatchObject({ requests: 3, failedRequests: 1, attempts: 2, estimatedCostUsd: 0.084 });
+    expect(report.workflows).toHaveLength(3);
+    expect(report.endpoints.find(row => row.provider === 'rentcast')).toMatchObject({
+      attempts: 1, estimatedCostUsd: 0.074, postgresHits: 2, memoryHits: 0, cacheMisses: 1,
+    });
+    expect(report.endpoints.find(row => row.provider === 'zillow')).toMatchObject({ httpErrors: 1, fallbacks: 1 });
+    const analysis = await getProviderUsageReport(from, to, 'analysis', db);
+    expect(analysis.totals.requests).toBe(2);
+    expect(analysis.workflows.map(row => row.configuration.rentMode).sort()).toEqual(['bundle', 'compatibility']);
+    // Exclusive upper bound excludes all rows at exactly the request start time.
+    expect((await getProviderUsageReport(from, base.occurredAt, undefined, db)).totals.requests).toBe(0);
+  });
+
+  test('usage retention hides and removes expired events, preserving current records', async () => {
+    const summaries: ProviderUsageSummary[] = [];
+    await withProviderUsage('analysis', async () => {}, row => summaries.push(row));
+    const base = summaries[0];
+    const insert = async (summary: ProviderUsageSummary) => db.query(
+      `INSERT INTO provider_usage_events(request_id,occurred_at,workflow,outcome,summary) VALUES ($1,$2,$3,$4,$5)`,
+      [summary.requestId, summary.occurredAt, summary.workflow, summary.outcome, JSON.stringify(summary)],
+    );
+    await insert(base);
+    await insert({ ...base, requestId: randomUUID(), occurredAt: new Date(Date.now() - 91 * 86400000).toISOString() });
+    const report = await getProviderUsageReport(new Date(Date.now() - 100 * 86400000).toISOString(),
+      new Date(Date.now() + 86400000).toISOString(), undefined, db);
+    expect(report.totals.requests).toBe(1);
+    expect(await pruneProviderUsage(db)).toBe(1);
+    expect((await db.query('SELECT request_id FROM provider_usage_events')).rows).toEqual([{ request_id: base.requestId }]);
+    const empty = await getProviderUsageReport(new Date(Date.now() - 2 * 86400000).toISOString(),
+      new Date(Date.now() - 86400000).toISOString(), undefined, db);
+    expect(empty.totals.requests).toBe(0);
+    expect(empty.endpoints).toEqual([]);
   });
 
   test('two independent Node processes share one provider fill, then a restarted client reuses it', async () => {

@@ -1,0 +1,15 @@
+.provider-usage { display: grid; gap: 1rem; }
+.provider-usage p { line-height: 1.5; }
+.provider-usage__filters { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; }
+.provider-usage__filters label { display: grid; gap: 0.4rem; }
+.provider-usage__filters input, .provider-usage__filters select {
+  padding: 0.6rem; border: 1px solid #9ca3af; border-radius: 0.35rem;
+  background: inherit; color: inherit;
+}
+.provider-usage__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.provider-usage__metrics div { padding: 1rem; border: 1px solid #9ca3af; border-radius: 0.5rem; }
+.provider-usage__metrics strong { display: block; font-size: 1.4rem; margin-bottom: 0.4rem; }
+.provider-usage__table { overflow-x: auto; }
+.provider-usage table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.provider-usage caption { text-align: left; margin-bottom: 0.5rem; }
+.provider-usage th, .provider-usage td { text-align: left; padding: 0.7rem; border-bottom: 1px solid #9ca3af; }
