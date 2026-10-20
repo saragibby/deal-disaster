@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Save, X, BookOpen, Wrench, Megaphone, Eye, EyeOff } from 'lucide-react';
 import { useAuth, api } from '@deal-platform/shared-auth';
 import type { Resource, Tool, Announcement } from '@deal-platform/shared-types';
+import ProviderUsageReport from '../components/ProviderUsageReport';
 
-type Tab = 'resources' | 'tools' | 'announcements';
+type Tab = 'resources' | 'tools' | 'announcements' | 'usage';
 
 interface ResourceFormData {
   title: string;
@@ -279,6 +280,10 @@ export default function AdminManage() {
       {error && <div className="admin-error">{error}</div>}
 
       <div className="admin-tabs">
+        <button className={`admin-tab ${tab === 'usage' ? 'admin-tab--active' : ''}`}
+          onClick={() => { setTab('usage'); cancelEdit(); }}>
+          API Usage
+        </button>
         <button
           className={`admin-tab ${tab === 'resources' ? 'admin-tab--active' : ''}`}
           onClick={() => { setTab('resources'); cancelEdit(); }}
@@ -298,6 +303,7 @@ export default function AdminManage() {
           <Megaphone size={16} /> Announcements ({announcements.length})
         </button>
       </div>
+      {tab === 'usage' && <ProviderUsageReport />}
 
       {/* ==================== Resources Tab ==================== */}
       {tab === 'resources' && (

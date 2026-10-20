@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
+import { persistProviderUsage } from './providerUsageReportingService.js';
 
 export type DataProvider = 'zillow' | 'airdna' | 'rentcast' | 'google' | 'geocoding' | 'census' | 'nominatim' | 'realtor' | 'furnished-finder' | 'xome';
 export type UsageWorkflow = 'analysis' | 'reanalysis' | 'dataset-refresh' | 'saved-view' | 'property-records'
@@ -45,10 +46,19 @@ interface UsageContext {
   parentRequestId?: string;
   workflow: UsageWorkflow;
   startedAt: number;
+  occurredAt: string;
+  configuration: ProviderUsageSummary['configuration'];
   endpoints: Map<string, EndpointUsage>;
 }
 
 export interface ProviderUsageSummary {
+  occurredAt: string;
+  configuration: {
+    marketCache: boolean;
+    propertyCache: boolean;
+    rentMode: 'bundle' | 'compatibility';
+    rentCastRate: number | null;
+  };
   schemaVersion: 1;
   pricingVersion: '2026-10-16-scenario-v2';
   requestId: string;
@@ -65,7 +75,10 @@ export interface ProviderUsageSummary {
 }
 
 const storage = new AsyncLocalStorage<UsageContext>();
-const defaultReporter = (summary: ProviderUsageSummary) => console.info('[provider:usage]', JSON.stringify(summary));
+const defaultReporter = (summary: ProviderUsageSummary) => {
+  console.info('[provider:usage]', JSON.stringify(summary));
+  persistProviderUsage(summary);
+};
 
 export function getProviderUsageRequestId(): string | undefined {
   return storage.getStore()?.requestId;
@@ -103,8 +116,17 @@ export function recordProviderFallback(provider: DataProvider, operation: string
 }
 
 function context(workflow: UsageWorkflow, parentRequestId?: string): UsageContext {
+  const rawRate = process.env.RENTCAST_ESTIMATED_USD_PER_BILLABLE_REQUEST?.trim();
+  const rate = rawRate ? Number(rawRate) : NaN;
   return {
     requestId: randomUUID(), workflow, startedAt: performance.now(), endpoints: new Map(),
+    occurredAt: new Date().toISOString(),
+    configuration: {
+      marketCache: process.env.RENTCAST_SHARED_MARKET_CACHE_ENABLED === 'true',
+      propertyCache: process.env.RENTCAST_SHARED_PROPERTY_CACHE_ENABLED === 'true',
+      rentMode: process.env.RENTCAST_RENT_MODE?.trim().toLowerCase() === 'bundle' ? 'bundle' : 'compatibility',
+      rentCastRate: Number.isFinite(rate) && rate >= 0 ? rate : null,
+    },
     ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentRequestId ?? '')
       ? { parentRequestId } : {}),
   };
@@ -116,6 +138,7 @@ function summarize(value: UsageContext, outcome: ProviderUsageSummary['outcome']
   }));
   return {
     schemaVersion: 1, pricingVersion: '2026-10-16-scenario-v2',
+    occurredAt: value.occurredAt, configuration: value.configuration,
     requestId: value.requestId,
     ...(value.parentRequestId ? { parentRequestId: value.parentRequestId } : {}),
     workflow: value.workflow, outcome, durationMs: Math.round(performance.now() - value.startedAt),

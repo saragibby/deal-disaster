@@ -113,6 +113,21 @@ heroku open
 
 ## Monitoring & Debugging
 
+### Provider usage reporting
+
+After deploying reporting code, apply
+[the usage migration](server/src/db/migrations/add_provider_usage_events.sql)
+before setting `PROVIDER_USAGE_REPORTING_ENABLED=true`. Platform admins can view
+**Admin > API Usage** for 90-day date/workflow-filtered call counts, scenario
+costs and cache activity. Historical logs are not imported. Reporting is
+best-effort; monitor `[provider:reporting]` errors for collection gaps.
+
+Schedule `cd server && npm run usage:prune` daily to physically remove expired
+records even when the app is idle. Reads always exclude data older than 90 days;
+write-triggered cleanup alone is bounded and does not guarantee timely deletion.
+No scheduler is automatically created. Disable collection with
+`PROVIDER_USAGE_REPORTING_ENABLED=false` without deleting existing reports.
+
 ### View logs
 ```bash
 heroku logs --tail

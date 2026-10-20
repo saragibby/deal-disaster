@@ -313,6 +313,52 @@ export interface PropertySummary {
   photo?: string;
 }
 
+export interface ProviderUsageTotals {
+  requests: number;
+  failedRequests: number;
+  attempts: number;
+  estimatedCostUsd: number;
+  unknownCostAttempts: number;
+  pendingAttempts: number;
+}
+
+export interface ProviderUsageWorkflowRow extends ProviderUsageTotals {
+  day: string;
+  workflow: string;
+  configuration: {
+    marketCache: boolean;
+    propertyCache: boolean;
+    rentMode: 'bundle' | 'compatibility';
+    rentCastRate: number | null;
+  };
+}
+
+export interface ProviderUsageEndpointRow {
+  provider: string;
+  operation: string;
+  workflow: string;
+  attempts: number;
+  estimatedCostUsd: number;
+  unknownCostAttempts: number;
+  networkErrors: number;
+  httpErrors: number;
+  memoryHits: number;
+  postgresHits: number;
+  cacheMisses: number;
+  cacheErrors: number;
+  fallbacks: number;
+}
+
+export interface ProviderUsageReport {
+  enabled: boolean;
+  retentionDays: number;
+  from: string;
+  to: string;
+  totals: ProviderUsageTotals;
+  workflows: ProviderUsageWorkflowRow[];
+  endpoints: ProviderUsageEndpointRow[];
+}
+
 export interface RentalComp {
   address?: string;
   rent: number;

@@ -2,8 +2,10 @@ import { Router, Response } from 'express';
 import { pool } from '../db/pool.js';
 import { authenticateToken, authenticateOptional, AuthRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
+import providerUsageRouter from './providerUsage.js';
 
 const router = Router();
+router.use('/admin/provider-usage', providerUsageRouter);
 
 // ===================================================================
 // PUBLIC / OPTIONAL-AUTH ENDPOINTS

@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import { pool } from './pool.js';
 import { RENTCAST_MARKET_CACHE_SCHEMA } from './rentCastMarketCacheSchema.js';
 import { PROVIDER_DATA_CACHE_SCHEMA } from './providerDataCacheSchema.js';
+import { PROVIDER_USAGE_SCHEMA } from './providerUsageSchema.js';
 
 const ASSET_DASHBOARD_OWNER_TENANT_ID = 'asset-dashboard';
 const ASSET_DASHBOARD_OWNER_PLATFORM = 'asset-dashboard';
@@ -332,6 +333,7 @@ export async function setupDatabase() {
     console.log('✅ Property analyses table created');
     await pool.query(RENTCAST_MARKET_CACHE_SCHEMA);
     await pool.query(PROVIDER_DATA_CACHE_SCHEMA);
+    await pool.query(PROVIDER_USAGE_SCHEMA);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS analysis_scenarios (

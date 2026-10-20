@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+process.env.PROVIDER_USAGE_REPORTING_ENABLED = 'false';
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: 'rentcast-market-cache.spec.ts',
