@@ -4,7 +4,7 @@ import type { ProviderUsageReport as UsageReport } from '@deal-platform/shared-t
 import './ProviderUsageReport.css';
 
 const workflows = [
-  'analysis', 'reanalysis', 'dataset-refresh', 'saved-view', 'property-records',
+  'analysis', 'reanalysis', 'mtr-nearby', 'dataset-refresh', 'saved-view', 'property-records',
   'property-records-refresh', 'xome-widget', 'xome-prewarm', 'property-lookup',
   'comparison', 'other-analyzer', 'background',
 ];

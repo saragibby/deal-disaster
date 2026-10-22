@@ -924,6 +924,11 @@ function createMockApi(): AnalyzerApiClient {
     async refreshMissingData(slug) {
       return findAnalysis(slug);
     },
+    async loadMtrNearby(slug) {
+      const estimate = findAnalysis(slug).analysis_results.mtrEstimate;
+      if (!estimate) throw new Error('Fixture has no MTR estimate.');
+      return estimate;
+    },
     async saveAdjustments() {
       return undefined;
     },
@@ -1085,6 +1090,11 @@ function createInvestorLabApi(token: string): AnalyzerApiClient {
         `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/refresh-missing`, token, { method: 'POST' },
       );
       return response.analysis;
+    },
+    loadMtrNearby(slug) {
+      return investorLabFetch<MTREstimate>(
+        `/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/mtr-nearby`, token, { method: 'POST' },
+      );
     },
     async saveAdjustments(slug, payload) {
       await investorLabFetch<{ success: boolean }>(`/api/investor-lab/analyzer/history/${encodeURIComponent(slug)}/overrides`, token, {

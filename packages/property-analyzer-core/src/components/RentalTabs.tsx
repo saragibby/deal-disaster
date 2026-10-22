@@ -33,6 +33,10 @@ import { usePropertyAnalyzerCore } from '../context.js';
 type TabKey = 'ltr' | 'mtr' | 'str';
 
 interface Props {
+  onMtrOpen?: () => void;
+  nearbyStatus?: 'idle' | 'loading' | 'loaded' | 'error';
+  nearbyError?: string;
+  onNearbyRetry?: () => void;
   property: PropertyData;
   rental: RentalEstimate;
   strEstimate?: STREstimate;
@@ -154,6 +158,7 @@ export function RentalSummaryStrip({
 /*  Main Component                                                     */
 /* ================================================================== */
 export default function RentalTabs({
+  onMtrOpen, nearbyStatus, nearbyError, onNearbyRetry,
   property, rental, strEstimate, mtrEstimate, effectiveRent,
   cashFlow, roi, dataSources,
 }: Props) {
@@ -164,6 +169,9 @@ export default function RentalTabs({
   useEffect(() => {
     setActiveTab('ltr');
   }, [propertyKey]);
+  useEffect(() => {
+    if (activeTab === 'mtr') onMtrOpen?.();
+  }, [activeTab, onMtrOpen]);
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; className: string; show: boolean; confidence?: RentalEstimate['confidence'] }[] = [
     { key: 'ltr', label: 'Long-Term', icon: <Home size={15} />, className: 'rental-tabs__tab--ltr', show: true, confidence: rental.confidence },
@@ -212,13 +220,20 @@ export default function RentalTabs({
           />
         )}
         {activeTab === 'mtr' && mtrEstimate && (
+          <>
+          {nearbyStatus === 'loading' && <p role="status">Loading nearby demand drivers...</p>}
+          {nearbyStatus === 'error' && <p role="alert">
+            {nearbyError} <button type="button" onClick={onNearbyRetry}>Retry nearby places</button>
+          </p>}
           <MTRPanel
+            nearbyStatus={nearbyStatus}
             key={propertyKey}
             mtrEstimate={mtrEstimate}
             ltrRent={effectiveRent}
             cashFlow={cashFlow}
             dataSources={dataSources}
           />
+          </>
         )}
         {activeTab === 'str' && strEstimate && (
           <STRPanel
@@ -332,8 +347,9 @@ function LTRPanel({
 /*  MTR Panel                                                          */
 /* ================================================================== */
 function MTRPanel({
-  mtrEstimate, ltrRent, cashFlow, dataSources,
+  mtrEstimate, ltrRent, cashFlow, dataSources, nearbyStatus,
 }: {
+  nearbyStatus?: Props['nearbyStatus'];
   mtrEstimate: MTREstimate;
   ltrRent: number;
   cashFlow: CashFlowBreakdown;
@@ -444,7 +460,11 @@ function MTRPanel({
                 ))}
               </div>
             ) : (
-              <p className="mtr-demand__note">Nearby institution data is unavailable for this analysis. This does not mean there are no demand drivers nearby.</p>
+              <p className="mtr-demand__note">{nearbyStatus === 'loading' || nearbyStatus === 'idle'
+                ? 'Nearby places have not loaded yet. New analyses use a baseline estimate until this completes.'
+                : nearbyStatus === 'loaded'
+                  ? 'No nearby institutions were returned by the searches.'
+                  : 'Nearby institution data is unavailable for this analysis. This does not mean there are no demand drivers nearby.'}</p>
             )}
           </section>
       </div>

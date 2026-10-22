@@ -239,29 +239,14 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
-    // Mid-term rental — algorithmic estimation with proximity scoring,
-    // calibrated to real furnished comps (Furnished Finder) when available.
-    let proximityBoost = 0;
-    let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
-    if (geocodingService.hasValidCoordinates(property)) {
-      try {
-        const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
-        proximityBoost = proximity.boost;
-        nearbyInstitutions = proximity.nearby;
-      } catch (err: any) {
-        console.warn('[analyzer/run] Proximity scoring failed (non-fatal):', err.message);
-      }
-    }
+    // Nearby demand drivers are loaded separately when the MTR tab opens.
     let mtrMarketData = null;
     try {
       mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
     } catch (err: any) {
       console.warn('[analyzer/run] Furnished Finder MTR fetch failed (non-fatal):', err.message);
     }
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost, mtrMarketData);
-    if (nearbyInstitutions.length > 0) {
-      mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
-    }
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, 0, mtrMarketData);
 
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
@@ -482,6 +467,26 @@ router.delete('/history/:slug', requireAuth, async (req: AuthRequest, res: Respo
   } catch (err: any) {
     console.error('[analyzer/history/:id DELETE]', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/history/:slug/mtr-nearby', requireAuth, async (req: AuthRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const owner = await buildOwnerContext(req);
+    const row = await getAnalysisForReanalysis(owner, req.params.slug);
+    if (!row) return res.status(404).json({ error: 'Analysis not found.' });
+    const property = row.property_data;
+    if (!geocodingService.hasValidCoordinates(property)) {
+      return res.status(422).json({ error: 'Nearby places require valid property coordinates.' });
+    }
+    const estimate = row.analysis_results?.mtrEstimate;
+    if (!estimate) return res.status(422).json({ error: 'This analysis has no mid-term rental estimate.' });
+    const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
+    return res.json(mtrEstimationService.applyMtrProximity(property, estimate, proximity));
+  } catch {
+    console.error('[analyzer/mtr-nearby] Nearby demand lookup failed');
+    return res.status(503).json({ error: 'Nearby places are unavailable. Please retry.' });
   }
 });
 

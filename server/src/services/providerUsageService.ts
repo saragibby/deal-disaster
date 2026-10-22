@@ -5,7 +5,7 @@ import type { AuthRequest } from '../middleware/auth.js';
 import { persistProviderUsage } from './providerUsageReportingService.js';
 
 export type DataProvider = 'zillow' | 'airdna' | 'rentcast' | 'google' | 'geocoding' | 'census' | 'nominatim' | 'realtor' | 'furnished-finder' | 'xome';
-export type UsageWorkflow = 'analysis' | 'reanalysis' | 'dataset-refresh' | 'saved-view' | 'property-records'
+export type UsageWorkflow = 'analysis' | 'reanalysis' | 'mtr-nearby' | 'dataset-refresh' | 'saved-view' | 'property-records'
   | 'property-records-refresh'
   | 'xome-widget' | 'xome-prewarm' | 'property-lookup' | 'comparison' | 'other-analyzer' | 'background';
 type CacheLayer = 'memory' | 'postgres' | 'in-flight' | 'coordinates' | 'session' | 'saved-analysis';
@@ -186,6 +186,7 @@ function workflowFor(rawPath: string, method: string): UsageWorkflow {
   const path = rawPath.replace(/\/+$/, '').toLowerCase();
   if (path === '/analyzer/run' && method === 'POST') return 'analysis';
   if (path.startsWith('/analyzer/re-analyze/')) return 'reanalysis';
+  if (/^\/analyzer\/history\/[^/]+\/mtr-nearby$/.test(path) && method === 'POST') return 'mtr-nearby';
   if (/\/property-records\/refresh$/.test(path)) return 'property-records-refresh';
   if (/^\/analyzer\/history\/[^/]+\/refresh-missing$/.test(path) && method === 'POST') return 'dataset-refresh';
   if (/\/property-records$/.test(path)) return 'property-records';

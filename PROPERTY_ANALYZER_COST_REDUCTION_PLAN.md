@@ -703,6 +703,44 @@ harness with fixture data. No live calls.
 
 ## Implementation update - durable usage reporting
 
+### Oct 22 follow-up - nearby Places only on Mid-Term tab activation
+
+Full analysis runs no longer call Google Places for MTR proximity scoring.
+They still calculate a baseline MTR estimate and fetch furnished-market comps
+as before. Opening the **Mid-Term** deep-dive tab triggers an authenticated,
+owner/tenant/platform-scoped `POST /analyzer/history/:slug/mtr-nearby` request
+(under the wrapper's API prefix). It accepts no client-provided coordinates:
+the server loads the saved property's coordinates and MTR baseline.
+Missing coordinates/estimates return 422, non-owned/missing analyses 404,
+and provider/storage failures 503. Public read-only views do not fetch Places.
+
+The successful response updates the in-view estimate, nearby institutions,
+demand score, occupancy, revenue, seasonality, and strategy comparisons
+together. New analyses are explicitly labeled as baseline estimates until
+nearby drivers are loaded. The existing demand boost cap (15 points) and
+occupancy boost rule remain unchanged. No refreshed institution names or
+enriched MTR response are written to the saved analysis by this endpoint;
+reloads revert to the saved estimate until the tab is opened again.
+Existing historical saved proximity data is not purged by this change.
+
+Client state reuses the successful response across tab switches, deduplicates
+pending requests, discards responses for replaced analyses, and offers an
+explicit retry after failures rather than silently presenting empty data.
+Both the Asset Dashboard adapter and Investor Lab adapter expose this operation.
+The existing seven-day in-memory proximity cache remains unchanged; exact
+in-flight cache-key duplicates share one lookup. Failed/partial searches are
+not cached, and provider searches have 15-second timeouts. No longer-lived
+storage or provider switch is introduced; the prepared Places New transport
+remains policy-gated and is not activated.
+
+Admin reporting uses the distinct `mtr-nearby` workflow, including actor
+attribution and endpoint-level Google counts/cost estimates. Compare **all
+workflows** (or analysis plus mtr-nearby) when measuring end-to-end cost, not
+only the reduced initial-analysis bucket. An uncached activation still makes
+five legacy nearby searches; analyses whose users never open MTR avoid them.
+No paid requests are needed to run the mocked provider regression tests or
+the isolated `playwright.mtr.config.ts` browser suite (build the analyzer first).
+
 The dashboard's **Admin > API Usage** tab adds date/workflow-filtered reports
 and a daily full-analysis bar graph. The graph uses the selected UTC date range
 independently of the workflow filter, combines configuration cohorts per day,

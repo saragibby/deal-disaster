@@ -46,7 +46,19 @@ interface ProximityCacheEntry {
   expiresAt: number;
 }
 const proximityCache = new Map<string, ProximityCacheEntry>();
+const proximityInFlight = new Map<string, Promise<{ boost: number; nearby: NearbyInstitution[] }>>();
 const PROXIMITY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function baseMtrOccupancy(property: PropertyData): number {
+  let occupancy = 0.90;
+  if (property.bedrooms >= 2 && property.bedrooms <= 3) occupancy += 0.03;
+  else if (property.bedrooms <= 1) occupancy += 0.01;
+  else if (property.bedrooms >= 5) occupancy -= 0.05;
+  const type = (property.propertyType || '').toLowerCase();
+  if (type.includes('single') || type.includes('house')) occupancy += 0.02;
+  else if (type.includes('condo') || type.includes('townhouse')) occupancy += 0.01;
+  return Math.min(0.97, Math.max(0.70, occupancy));
+}
 
 // ---------------------------------------------------------------------------
 // Main estimator
@@ -102,21 +114,7 @@ export function estimateMTR(
   //  MTR occupancy is typically 85-95 %.  Higher than STR because stays
   //  are longer (less gap between tenants), but vacancies occur between
   //  tenant rotations.
-  let occupancy = 0.90;
-
-  // 2-3BR sweet spot for MTR demand (families, nurse pairs)
-  if (bedrooms >= 2 && bedrooms <= 3) occupancy += 0.03;
-  else if (bedrooms <= 1) occupancy += 0.01;  // studio/1BR still good
-  else if (bedrooms >= 5) occupancy -= 0.05;  // harder to fill
-
-  // Property-type adjustments
-  if (type.includes('single') || type.includes('house')) {
-    occupancy += 0.02;  // SFH preferred for families / insurance claims
-  } else if (type.includes('condo') || type.includes('townhouse')) {
-    occupancy += 0.01;
-  }
-
-  occupancy = Math.min(0.97, Math.max(0.70, occupancy));
+  let occupancy = baseMtrOccupancy(property);
 
   // --- 3. Average stay and turnovers -------------------------------------
   //  Blended across use cases:
@@ -227,6 +225,29 @@ export function estimateMTR(
 // ---------------------------------------------------------------------------
 // Furnishing cost estimator
 // ---------------------------------------------------------------------------
+
+export function applyMtrProximity(
+  property: PropertyData,
+  estimate: MTREstimate,
+  proximity: { boost: number; nearby: NearbyInstitution[] },
+): MTREstimate {
+  const occupancyRate = Math.min(0.97, baseMtrOccupancy(property) + (proximity.boost > 5 ? 0.02 : 0));
+  const grossMonthlyRevenue = Math.round(estimate.monthlyRate * occupancyRate);
+  const demandFactors = scoreMTRDemand(property, proximity.boost);
+  demandFactors.nearbyInstitutions = proximity.nearby;
+  const ratio = occupancyRate / estimate.occupancyRate;
+  return {
+    ...estimate, occupancyRate, grossMonthlyRevenue, demandFactors,
+    netMonthlyRevenue: grossMonthlyRevenue - estimate.utilityCosts - estimate.turnoverCosts
+      - estimate.platformFees - estimate.managementCosts - estimate.furnishingCosts.amortizedMonthly,
+    seasonality: buildMTRSeasonality(estimate.monthlyRate, occupancyRate),
+    ...(estimate.revenueRange ? { revenueRange: {
+      low: Math.round(estimate.source === 'algorithm' ? grossMonthlyRevenue * 0.85 : estimate.revenueRange.low * ratio),
+      mid: grossMonthlyRevenue,
+      high: Math.round(estimate.source === 'algorithm' ? grossMonthlyRevenue * 1.15 : estimate.revenueRange.high * ratio),
+    } } : {}),
+  };
+}
 
 const FURNISHING_COSTS = {
   budget: {
@@ -388,9 +409,24 @@ export async function getProximityBoost(
     return { boost: cached.boost, nearby: cached.nearby };
   }
 
+  const pending = proximityInFlight.get(cacheKey);
+  if (pending) {
+    recordProviderCache('google', 'places-nearby', 'in-flight', 'hit');
+    return pending;
+  }
+  const work = fetchProximityBoost(lat, lng, cacheKey, !!cached);
+  proximityInFlight.set(cacheKey, work);
+  try {
+    return await work;
+  } finally {
+    proximityInFlight.delete(cacheKey);
+  }
+}
+
+async function fetchProximityBoost(lat: number, lng: number, cacheKey: string, stale: boolean) {
   const apiKey = process.env.GOOGLE_GEOCODING_API_KEY || '';
-  recordProviderCache('google', 'places-nearby', 'memory', cached ? 'stale' : 'miss');
-  if (!apiKey) return { boost: 0, nearby: [] };
+  recordProviderCache('google', 'places-nearby', 'memory', stale ? 'stale' : 'miss');
+  if (!apiKey) throw new Error('Nearby places provider is not configured.');
 
   const nearby: NearbyInstitution[] = [];
   let boost = 0;
@@ -435,7 +471,7 @@ export async function getProximityBoost(
   ];
 
   try {
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       searches.map(async (search) => {
         const params = new URLSearchParams({
           location: `${lat},${lng}`,
@@ -443,9 +479,19 @@ export async function getProximityBoost(
           key: apiKey,
           ...search.params,
         });
-        const res = await fetch(`${GOOGLE_PLACES_URL}?${params}`);
-        if (!res.ok) return { items: [] as NearbyInstitution[], boost: 0 };
-        const data = await res.json() as { results?: NearbyResult[] };
+        const res = await fetch(`${GOOGLE_PLACES_URL}?${params}`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) throw new Error('Nearby places HTTP failure.');
+        const data = await res.json() as { status?: string; results?: NearbyResult[] };
+        if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+          throw new Error('Nearby places provider rejected the query.');
+        }
+        if (data.status === 'OK' && (!Array.isArray(data.results) || !data.results.every(place =>
+          place && typeof place.name === 'string' && place.name.trim() &&
+          (place.geometry === undefined || (Number.isFinite(place.geometry?.location?.lat) &&
+            Number.isFinite(place.geometry?.location?.lng)))))) {
+          throw new Error('Nearby places payload is invalid.');
+        }
+        if (data.status === 'ZERO_RESULTS') return { items: [] as NearbyInstitution[], boost: 0 };
         const places = (data.results || []);
         if (places.length === 0) return { items: [] as NearbyInstitution[], boost: 0 };
         const items = places.slice(0, search.max).map(p => {
@@ -463,14 +509,16 @@ export async function getProximityBoost(
     );
 
     for (const r of results) {
-      nearby.push(...r.items);
-      boost += r.boost;
+      if (r.status === 'rejected') throw new Error('Nearby places category failed.');
+      nearby.push(...r.value.items);
+      boost += r.value.boost;
     }
 
     // Cap total boost at 15
     boost = Math.min(15, boost);
-  } catch (err: any) {
-    console.warn('[MTR] Proximity scoring failed (non-fatal):', err.message);
+  } catch {
+    console.warn('[MTR] Nearby places lookup failed');
+    throw new Error('Nearby places lookup failed.');
   }
 
   // Sort all results by distance

@@ -1226,6 +1226,7 @@ export interface AnalyzerApiAdapter {
   reAnalyze(slug: string, params: Partial<AnalysisParams>): Promise<PropertyAnalysis>;
   /** Optional: refetch only datasets that are missing from a saved analysis. */
   refreshMissingData?(slug: string): Promise<PropertyAnalysis>;
+  loadMtrNearby?(slug: string): Promise<MTREstimate>;
   saveAdjustments(slug: string, payload: SaveAdjustmentsPayload): Promise<void>;
   setShared(slug: string, shared: boolean): Promise<AnalyzerShareState>;
   getSharedAnalysis(slug: string): Promise<PropertyAnalysis>;

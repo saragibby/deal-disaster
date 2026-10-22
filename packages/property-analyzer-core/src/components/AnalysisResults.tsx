@@ -23,6 +23,7 @@ import HousingMarketTrends from './comparison/HousingMarketTrends';
 import RentalMarketTrends from './comparison/RentalMarketTrends';
 import TermExplainer, { findExplainer } from './TermExplainer';
 import useExportAnalysis from '../hooks/useExportAnalysis';
+import { useMtrNearby } from '../hooks/useMtrNearby';
 import { usePropertyAnalyzerCore } from '../context.js';
 import {
   calculateMortgage,
@@ -59,7 +60,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
   const { adapters, features } = usePropertyAnalyzerCore();
   const { api, shareUrls } = adapters;
   const property = analysis.property_data;
-  const results = analysis.analysis_results;
+  const nearby = useMtrNearby(analysis, api, readOnly);
+  const results = nearby.results;
   const rental = results.rentalEstimate;
   const originalParams = analysis.analysis_params;
 
@@ -1096,6 +1098,10 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             )}
           </div>
 
+          {nearby.enabled && nearby.status !== 'loaded' && <p className="mtr-demand__note">
+            Open the Mid-Term tab to load nearby demand drivers. New MTR estimates exclude the
+            nearby-location boost until that lookup succeeds.
+          </p>}
           <StrategyComparison
             ltrRent={effectiveRent}
             mtrEstimate={adjustedMtr}
@@ -1345,6 +1351,10 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       {/* Rental Strategy Tabs — full width */}
       <div id="strategy-tabs" className="results__section">
         <RentalTabs
+          onMtrOpen={nearby.open}
+          nearbyStatus={nearby.enabled ? nearby.status : undefined}
+          nearbyError={nearby.error}
+          onNearbyRetry={nearby.retry}
           property={property}
           rental={rental}
           strEstimate={results.strEstimate}
