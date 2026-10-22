@@ -110,7 +110,7 @@ export function createAnalyzerBackendRouter(options: AnalyzerBackendOptions = {}
     ...options.routes,
   };
 
-  router.use(providerUsageMiddleware());
+  router.use(providerUsageMiddleware(undefined, runtime.config));
   mountLazyRouter(router, '/property', runtime, routeLoaders.property);
   mountLazyRouter(router, '/analyzer', runtime, routeLoaders.analyzer);
   mountLazyRouter(router, '/ai', runtime, routeLoaders.ai);

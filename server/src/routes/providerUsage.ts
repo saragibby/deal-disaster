@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware/adminAuth.js';
 import { getProviderUsageReport, USAGE_RETENTION_DAYS } from '../services/providerUsageReportingService.js';
 
 const workflows = new Set([
-  'analysis', 'reanalysis', 'dataset-refresh', 'saved-view', 'property-records',
+  'analysis', 'reanalysis', 'mtr-nearby', 'dataset-refresh', 'saved-view', 'property-records',
   'property-records-refresh', 'xome-widget', 'xome-prewarm', 'property-lookup',
   'comparison', 'other-analyzer', 'background',
 ]);

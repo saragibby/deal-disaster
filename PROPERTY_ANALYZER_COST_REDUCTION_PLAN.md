@@ -703,8 +703,55 @@ harness with fixture data. No live calls.
 
 ## Implementation update - durable usage reporting
 
+### Oct 22 follow-up - nearby Places only on Mid-Term tab activation
+
+Full analysis runs no longer call Google Places for MTR proximity scoring.
+They still calculate a baseline MTR estimate and fetch furnished-market comps
+as before. Opening the **Mid-Term** deep-dive tab triggers an authenticated,
+owner/tenant/platform-scoped `POST /analyzer/history/:slug/mtr-nearby` request
+(under the wrapper's API prefix). It accepts no client-provided coordinates:
+the server loads the saved property's coordinates and MTR baseline.
+Missing coordinates/estimates return 422, non-owned/missing analyses 404,
+and provider/storage failures 503. Public read-only views do not fetch Places.
+
+The successful response updates the in-view estimate, nearby institutions,
+demand score, occupancy, revenue, seasonality, and strategy comparisons
+together. New analyses are explicitly labeled as baseline estimates until
+nearby drivers are loaded. The existing demand boost cap (15 points) and
+occupancy boost rule remain unchanged. No refreshed institution names or
+enriched MTR response are written to the saved analysis by this endpoint;
+reloads revert to the saved estimate until the tab is opened again.
+Existing historical saved proximity data is not purged by this change.
+
+Client state reuses the successful response across tab switches, deduplicates
+pending requests, discards responses for replaced analyses, and offers an
+explicit retry after failures rather than silently presenting empty data.
+Both the Asset Dashboard adapter and Investor Lab adapter expose this operation.
+The existing seven-day in-memory proximity cache remains unchanged; exact
+in-flight cache-key duplicates share one lookup. Failed/partial searches are
+not cached, and provider searches have 15-second timeouts. No longer-lived
+storage or provider switch is introduced; the prepared Places New transport
+remains policy-gated and is not activated.
+
+Admin reporting uses the distinct `mtr-nearby` workflow, including actor
+attribution and endpoint-level Google counts/cost estimates. Compare **all
+workflows** (or analysis plus mtr-nearby) when measuring end-to-end cost, not
+only the reduced initial-analysis bucket. An uncached activation still makes
+five legacy nearby searches; analyses whose users never open MTR avoid them.
+No paid requests are needed to run the mocked provider regression tests or
+the isolated `playwright.mtr.config.ts` browser suite (build the analyzer first).
+
 The dashboard's **Admin > API Usage** tab adds date/workflow-filtered reports
-for both analyzer wrappers. It defaults to new analyses (`analysis`), not a mix
+and a daily full-analysis bar graph. The graph uses the selected UTC date range
+independently of the workflow filter, combines configuration cohorts per day,
+and separates completed from failed/aborted runs. It excludes re-analysis,
+saved views and dataset refreshes. Missing days display zero recorded runs,
+not verified inactivity; pre-collection periods/outages can have missing events
+and the current UTC day may be partial. Counts represent request runs, not
+unique properties or currently saved analysis rows.
+
+The date/workflow-filtered reports cover both analyzer wrappers.
+The workflow filter defaults to new analyses (`analysis`), not a mix
 of saved views and analyses. UTC daily rows show requests, attempts per request,
 estimated cost per request, failures, and unknown charges. A second table
 breaks down provider/endpoint attempts, estimated cost, unknown charges, HTTP
@@ -721,8 +768,20 @@ aggregate the selected window; change its dates to compare periods. There is
 no historical backfill or automatic baseline/savings attribution.
 
 **Storage and reliability:** `provider_usage_events` stores allowlisted
-structured summaries with opaque request IDs; no addresses, user IDs, headers,
-tokens, full URLs or raw provider payloads. Existing `[provider:usage]` logs
+structured summaries with opaque request IDs; no addresses, headers,
+tokens, full URLs or raw provider payloads. New records include server-authenticated
+platform user IDs with platform/tenant scope for the admin-only **Usage by user**
+table. Anonymous and background requests are separate; older records remain
+unattributed. Actor identity is captured after route authentication, never from
+client identity headers or property ownership. Names are resolved from current
+user records only when an administrator loads the report; names/emails are not
+stored in usage summaries, and actor IDs are omitted from general usage logs.
+Identity shares the same 90-day retention as usage. No schema migration is needed:
+the optional actor projection lives in the existing JSONB summary.
+Per-user rows honor the date/workflow filters and include all-provider attempts,
+known scenario costs, unknown-cost attempts, failures, RentCast attempts and
+billable candidates. Cache-fill cost belongs to the fetching actor, not later
+cache users; this is not a cost-allocation ledger. Existing `[provider:usage]` logs
 continue. The default reporter asynchronously writes through a dedicated
 one-connection pool with deadlines and a bounded 100-record queue. Storage
 failures and queue overflow log explicit `[provider:reporting]` errors without
@@ -739,7 +798,68 @@ deployment scheduler and monitor failures. No scheduler is provisioned by this
 code change. Subscription allocations/free quotas and billing reconciliation
 remain separate from scenario costs; unknown charges stay visible.
 
+### RentCast investigation snapshot - 2026-10-22, approximately 17:35 UTC
+
+Read-only production queries since reporting began returned:
+
+| UTC day | New-analysis requests | RentCast attempts within analyses | Attempts / analysis |
+|---|---:|---:|---:|
+| Oct 20 | 21 | 29 | 1.38 |
+| Oct 21 | 66 | 91 | 1.38 |
+| Oct 22 (partial) | 171 | 188 | 1.10 |
+
+Across all workflows: 309 RentCast attempts: 219 rental listings, 84 ZIP
+markets, 5 rent AVM, and 1 property-record lookup. There were 308 HTTP 200
+billable candidates and one AVM HTTP 400; no recorded RentCast network or
+cache errors. All observed configurations used both shared caches and
+compatibility mode. Saved-view workflows had zero recorded provider attempts.
+
+ZIP markets recorded 128 memory hits and 35 PostgreSQL hits; rental listings
+recorded 3 memory hits and 25 PostgreSQL hits. These are layer events, not
+unique-query hit-rate denominators. Cache state at the later inspection had
+84 fresh ZIP entries and 203 fresh property entries, with no live leases.
+
+The recorded increase accompanies more new-analysis requests, while attempts
+per analysis fell. This is not a before/after savings experiment: Oct 20 is
+the first recorded day, Oct 22 is partial, and data mix/configuration coverage
+must be considered. It does not reconcile earlier usage or other consumers
+of the same API key. Saved analysis rows cannot reconstruct request frequency
+or actor-level provider costs: full runs upsert the same property and refresh
+its timestamp, and rows can be deleted.
+
+At the configured $0.074 scenario rate, 308 candidates represent $22.792;
+if all were overage at the confirmed $0.06 rate, their incremental cost would
+be $18.48. Neither is an invoice calculation: included requests and the fixed
+$74 subscription must be reconciled separately.
+
+Reduction candidates, not enabled by this change:
+
+- Fetch ZIP market statistics only when needed for the market panel. These
+  account for 84/309 attempts (27%); actual savings depend on panel usage and
+  preserving the current display-only rental-market fallback.
+- Investigate demand for repeated full runs instead of reopening saved
+  analyses. Existing usage events cannot be reliably joined back to property
+  owners; user attribution starts with deployment of the new actor projection.
+- Evaluate broader nearby-listings reuse only with accuracy tests and provider
+  policy review. Current cache identities include exact coordinates and bed/
+  bath query filters; silently rounding or dropping filters changes results.
+- Keep bundle mode off: this sample has only five AVM attempts, so forcing an
+  AVM bundle has no demonstrated call-saving advantage over listings-first.
+
 ### Deploy and enable reporting
+
+**Oct 22 follow-up - ZIP statistics paused:** New full analyses no longer call
+RentCast `/v1/markets` or attach its ZIP statistics to results. The Strategy
+Comparison trend strip and Long-Term > Market Statistics block are removed,
+including for saved analyses containing historical statistics. Rental listing
+comps, conditional rent AVM fallback, and on-demand property records remain.
+New comparable rent calibration uses subject rental data/algorithmic fallback
+instead of freshly fetched ZIP statistics. Zillow market datasets remain
+unchanged; new analyses no longer manufacture the RentCast rental-market
+display fallback. Historical stored statistics/caches are not deleted, and
+existing saved-analysis recalculation/backfill can still reuse stored data
+without fetching RentCast ZIP statistics. The cache/service implementation is
+retained for a possible future reintroduction; no production route calls it.
 
 1. Deploy the code. Apply
    [add_provider_usage_events.sql](server/src/db/migrations/add_provider_usage_events.sql),

@@ -33,7 +33,7 @@ import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import * as scenarioService from '../services/analysisScenarioService.js';
 import {
-  applyRentalMarketFallback, backfillAreaMarket, marketDatasetStatuses,
+  backfillAreaMarket, marketDatasetStatuses,
 } from '../services/analysisDatasetService.js';
 import type {
   AnalysisDatasetStatus, AnalysisParams, ComparableProperty, MarketStatistics, PropertyData, RentalEstimate,
@@ -239,40 +239,14 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       strEstimate = strEstimationService.estimateSTR(property, rentalEstimate);
     }
 
-    // Mid-term rental — algorithmic estimation with proximity scoring,
-    // calibrated to real furnished comps (Furnished Finder) when available.
-    let proximityBoost = 0;
-    let nearbyInstitutions: { name: string; emoji: string; miles: number }[] = [];
-    if (geocodingService.hasValidCoordinates(property)) {
-      try {
-        const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
-        proximityBoost = proximity.boost;
-        nearbyInstitutions = proximity.nearby;
-      } catch (err: any) {
-        console.warn('[analyzer/run] Proximity scoring failed (non-fatal):', err.message);
-      }
-    }
+    // Nearby demand drivers are loaded separately when the MTR tab opens.
     let mtrMarketData = null;
     try {
       mtrMarketData = await furnishedFinderService.getMtrMarketData(property);
     } catch (err: any) {
       console.warn('[analyzer/run] Furnished Finder MTR fetch failed (non-fatal):', err.message);
     }
-    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, proximityBoost, mtrMarketData);
-    if (nearbyInstitutions.length > 0) {
-      mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
-    }
-
-    // Market statistics — non-blocking, for rent trend display
-    let marketStatistics = null;
-    try {
-      marketStatistics = await rentCastService.getMarketStatistics(property.zip);
-    } catch (err: any) {
-      console.warn('[analyzer/run] Market stats failed (non-fatal):', err.message);
-    }
-    // Zillow had no rental market data even after the ZIP retry: show the
-    // RentCast ZIP summary already fetched above (display only).
-    applyRentalMarketFallback(property, marketStatistics);
+    const mtrEstimate = mtrEstimationService.estimateMTR(property, rentalEstimate, 0, mtrMarketData);
 
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
@@ -280,7 +254,6 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
     // Attach STR + MTR estimates and data source tracking
     results.strEstimate = strEstimate;
     results.mtrEstimate = mtrEstimate;
-    if (marketStatistics) results.marketStatistics = marketStatistics;
     results.dataSources = {
       rental: apiComps.length > 0
         ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
@@ -308,7 +281,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       }
 
       // Enrich comps with calibrated rent estimates using subject's market data
-      comparables = enrichComparables(rawComps, property, rentalEstimate, marketStatistics);
+      comparables = enrichComparables(rawComps, property, rentalEstimate);
       console.info('[analyzer:comparables]', JSON.stringify({
         requestId: getProviderUsageRequestId(), stage: 'ready',
         hasZpid: !!zpid, fetchedCount: rawComps.length, enrichedCount: comparables.length,
@@ -494,6 +467,26 @@ router.delete('/history/:slug', requireAuth, async (req: AuthRequest, res: Respo
   } catch (err: any) {
     console.error('[analyzer/history/:id DELETE]', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/history/:slug/mtr-nearby', requireAuth, async (req: AuthRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const owner = await buildOwnerContext(req);
+    const row = await getAnalysisForReanalysis(owner, req.params.slug);
+    if (!row) return res.status(404).json({ error: 'Analysis not found.' });
+    const property = row.property_data;
+    if (!geocodingService.hasValidCoordinates(property)) {
+      return res.status(422).json({ error: 'Nearby places require valid property coordinates.' });
+    }
+    const estimate = row.analysis_results?.mtrEstimate;
+    if (!estimate) return res.status(422).json({ error: 'This analysis has no mid-term rental estimate.' });
+    const proximity = await mtrEstimationService.getProximityBoost(property.latitude, property.longitude);
+    return res.json(mtrEstimationService.applyMtrProximity(property, estimate, proximity));
+  } catch {
+    console.error('[analyzer/mtr-nearby] Nearby demand lookup failed');
+    return res.status(503).json({ error: 'Nearby places are unavailable. Please retry.' });
   }
 });
 

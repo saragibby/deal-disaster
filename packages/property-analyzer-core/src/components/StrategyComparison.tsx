@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   MTREstimate, STREstimate, RentalEstimate,
-  FullAnalysisResult, MarketStatistics,
+  FullAnalysisResult,
   StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
-import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, ShieldAlert, TrendingDown, Minus } from 'lucide-react';
+import { Home, Building2, Clock, DollarSign, TrendingUp, Sparkles, Shield, ShieldAlert } from 'lucide-react';
 import { findExplainer } from './TermExplainer';
 import { estimateApplianceCost, estimateFurnitureCost } from '../utils/calculations';
 
@@ -19,7 +19,6 @@ interface Props {
   strEstimate?: STREstimate;
   rentalEstimate?: RentalEstimate;
   dataSources?: FullAnalysisResult['dataSources'];
-  marketStatistics?: MarketStatistics;
   /** Single source of truth for ranking; cards display its net cash flow figures. */
   strategyComparison: StrategyComparisonData;
   /** Currently selected rental type, driven by the rent slider above the cards. */
@@ -172,32 +171,6 @@ function RevenueRange({ range }: { range?: { low: number; mid: number; high: num
   );
 }
 
-function MarketTrendBadge({ stats }: { stats?: MarketStatistics }) {
-  if (!stats) return null;
-  const icon = stats.rentTrend === 'rising' ? <TrendingUp size={13} />
-    : stats.rentTrend === 'declining' ? <TrendingDown size={13} />
-    : <Minus size={13} />;
-  const color = stats.rentTrend === 'rising' ? '#22c55e'
-    : stats.rentTrend === 'declining' ? '#ef4444'
-    : '#eab308';
-  const sign = stats.rentGrowthPct != null && stats.rentGrowthPct > 0 ? '+' : '';
-  return (
-    <div className="strategy-comparison__market-trend">
-      <span className="strategy-comparison__market-trend-badge" style={{ color, borderColor: color }}>
-        {icon} {stats.rentTrend ?? 'Trend unavailable'}
-        {stats.rentGrowthPct != null && ` (${sign}${stats.rentGrowthPct.toFixed(1)}% YoY)`}
-      </span>
-      <span className="strategy-comparison__market-trend-detail">
-        {[
-          stats.medianRent != null ? `Median: ${fmt(stats.medianRent)}/mo` : null,
-          stats.averageRent != null ? `Average: ${fmt(stats.averageRent)}/mo` : null,
-          stats.totalListings != null ? `${stats.totalListings} listings` : null,
-          stats.avgDaysOnMarket != null ? `${stats.avgDaysOnMarket} avg DOM` : null,
-        ].filter(Boolean).join(' · ')}
-      </span>
-    </div>
-  );
-}
 
 function ComparisonBar({ cards }: { cards: StrategyCard[] }) {
   // Scale every bar against the largest income or expense figure so the
@@ -340,7 +313,7 @@ function CostComparisonRow({
 /*  Main Component                                                     */
 /* ================================================================== */
 
-export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, marketStatistics, strategyComparison, selectedKey, onSelectKey, readOnly, bedrooms }: Props) {
+export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, rentalEstimate, dataSources, strategyComparison, selectedKey, onSelectKey, readOnly, bedrooms }: Props) {
   // Render nothing if neither MTR nor STR data is available
   if (!mtrEstimate && !strEstimate) return null;
 
@@ -417,9 +390,6 @@ export default function StrategyComparison({ ltrRent, mtrEstimate, strEstimate, 
         <TrendingUp size={18} />
         Strategy Comparison
       </h3>
-
-      {/* Market trend indicator */}
-      <MarketTrendBadge stats={marketStatistics} />
 
       {/* Cards */}
       <div

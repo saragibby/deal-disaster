@@ -13,3 +13,20 @@
 .provider-usage table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .provider-usage caption { text-align: left; margin-bottom: 0.5rem; }
 .provider-usage th, .provider-usage td { text-align: left; padding: 0.7rem; border-bottom: 1px solid #9ca3af; }
+.provider-usage__chart-scroll { overflow-x: auto; }
+.provider-usage__chart {
+  display: flex; gap: 0.5rem; list-style: none; padding: 0.5rem 0; margin: 0;
+}
+.provider-usage__chart li { flex: 1 0 48px; text-align: center; font-size: 0.8rem; }
+.provider-usage__bar-track {
+  height: 180px; display: flex; flex-direction: column; justify-content: end;
+  border-bottom: 1px solid #9ca3af; margin: 0.4rem 0;
+}
+.provider-usage__bar-completed { background: #2563eb; }
+.provider-usage__bar-failed { background: #d97706; }
+.provider-usage__legend { display: flex; flex-wrap: wrap; gap: 1rem; }
+.provider-usage__legend span::before {
+  content: ''; display: inline-block; width: 0.8rem; height: 0.8rem; margin-right: 0.4rem;
+  background: #2563eb;
+}
+.provider-usage__legend span + span::before { background: #d97706; }

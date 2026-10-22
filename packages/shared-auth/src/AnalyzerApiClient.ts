@@ -13,6 +13,7 @@ import type {
   AnalysisParams,
   AnalysisScenario,
   AnalysisScenarioInput,
+  MTREstimate,
 } from '@deal-platform/shared-types';
 import { api } from './ApiService';
 import type { ApiService } from './ApiService';
@@ -127,6 +128,13 @@ export function createAnalyzerApiClient(apiService: ApiService): AnalyzerApiClie
         { method: 'POST', auth: true },
       );
       return response.analysis;
+    },
+
+    loadMtrNearby(slug: string) {
+      return apiService.fetchJson<MTREstimate>(
+        `/api/analyzer/history/${encodeURIComponent(slug)}/mtr-nearby`,
+        { method: 'POST', auth: true },
+      );
     },
 
     async saveAdjustments(slug: string, payload: SaveAdjustmentsPayload) {

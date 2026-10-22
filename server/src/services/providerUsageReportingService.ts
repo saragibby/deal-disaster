@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import type { ProviderUsageReport, ProviderUsageWorkflowRow, ProviderUsageEndpointRow } from '@deal-platform/shared-types';
+import type { ProviderUsageReport, ProviderUsageWorkflowRow, ProviderUsageEndpointRow, ProviderUsageUserRow } from '@deal-platform/shared-types';
 import { pool } from '../db/pool.js';
 import type { ProviderUsageSummary } from './providerUsageService.js';
 
@@ -51,6 +51,10 @@ export const persistProviderUsage = recorder.record;
 
 export function usageProjection(summary: ProviderUsageSummary): ProviderUsageSummary {
   return {
+    ...(summary.actor ? { actor: {
+      kind: summary.actor.kind, platform: summary.actor.platform,
+      tenantId: summary.actor.tenantId, userId: summary.actor.userId,
+    } } : {}),
     schemaVersion: summary.schemaVersion, pricingVersion: summary.pricingVersion,
     requestId: summary.requestId, parentRequestId: summary.parentRequestId,
     occurredAt: summary.occurredAt, workflow: summary.workflow, outcome: summary.outcome,
@@ -89,13 +93,21 @@ export async function getProviderUsageReport(
   const params = [from, to, workflow ?? null];
   const filtered = `SELECT * FROM provider_usage_events
     WHERE occurred_at >= $1::timestamptz AND occurred_at < $2::timestamptz
-      AND occurred_at >= NOW() - INTERVAL '90 days'
-      AND ($3::text IS NULL OR workflow = $3)`;
+      AND occurred_at >= NOW() - INTERVAL '90 days'`;
   // One statement gives all report sections a consistent snapshot.
   const { rows } = await db.query<{
     workflows: ProviderUsageWorkflowRow[];
     endpoints: ProviderUsageEndpointRow[];
-  }>(`WITH events AS (${filtered}),
+    users: ProviderUsageUserRow[];
+    dailyAnalyses: ProviderUsageReport['dailyAnalyses'];
+  }>(`WITH period_events AS (${filtered}),
+    events AS (SELECT * FROM period_events WHERE $3::text IS NULL OR workflow = $3),
+    daily_analyses AS (
+      SELECT to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+        COUNT(*)::int AS requests,
+        COUNT(*) FILTER (WHERE outcome <> 'complete')::int AS "failedRequests"
+      FROM period_events WHERE workflow = 'analysis' GROUP BY day
+    ),
     workflows AS (
       SELECT to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
         workflow, summary->'configuration' AS configuration,
@@ -106,6 +118,29 @@ export async function getProviderUsageReport(
         COALESCE(SUM((summary->>'unknownCostAttempts')::int), 0)::int AS "unknownCostAttempts",
         COALESCE(SUM((summary->>'pendingAttempts')::int), 0)::int AS "pendingAttempts"
       FROM events GROUP BY day, workflow, summary->'configuration'
+    ), actors AS (
+      SELECT COALESCE(summary->'actor'->>'kind', 'unattributed') AS attribution,
+        summary->'actor'->>'platform' AS platform, summary->'actor'->>'tenantId' AS "tenantId",
+        (summary->'actor'->>'userId')::int AS "userId",
+        COUNT(*)::int AS requests,
+        COUNT(*) FILTER (WHERE outcome <> 'complete')::int AS "failedRequests",
+        SUM((summary->>'attempts')::int)::int AS attempts,
+        SUM((summary->>'estimatedCostUsd')::numeric)::float8 AS "estimatedCostUsd",
+        SUM((summary->>'unknownCostAttempts')::int)::int AS "unknownCostAttempts",
+        SUM((summary->>'pendingAttempts')::int)::int AS "pendingAttempts",
+        SUM(rc.attempts)::int AS "rentCastAttempts",
+        SUM(rc.candidates)::int AS "rentCastBillableCandidates",
+        SUM(rc.cost)::float8 AS "rentCastEstimatedCostUsd"
+      FROM events CROSS JOIN LATERAL (
+        SELECT COALESCE(SUM((p->>'attempts')::int),0) AS attempts,
+          COALESCE(SUM((p->>'rentCastBillableCandidates')::int),0) AS candidates,
+          COALESCE(SUM((p->>'estimatedCostUsd')::numeric),0) AS cost
+        FROM jsonb_array_elements(summary->'endpoints') p WHERE p->>'provider' = 'rentcast'
+      ) rc
+      GROUP BY attribution, platform, "tenantId", "userId"
+    ), actor_names AS (
+      SELECT a.*, u.name FROM actors a LEFT JOIN users u ON a.attribution = 'authenticated'
+        AND a.platform IN ('asset-dashboard', 'investor-lab') AND u.id = a."userId"
     ), endpoints AS (
       SELECT e.workflow, p->>'provider' AS provider, p->>'operation' AS operation,
         SUM((p->>'attempts')::int)::int AS attempts,
@@ -122,7 +157,9 @@ export async function getProviderUsageReport(
       GROUP BY e.workflow, p->>'provider', p->>'operation'
     )
     SELECT COALESCE((SELECT jsonb_agg(w ORDER BY day, workflow) FROM workflows w), '[]'::jsonb) AS workflows,
-      COALESCE((SELECT jsonb_agg(p ORDER BY provider, operation, workflow) FROM endpoints p), '[]'::jsonb) AS endpoints`,
+      COALESCE((SELECT jsonb_agg(p ORDER BY provider, operation, workflow) FROM endpoints p), '[]'::jsonb) AS endpoints,
+      COALESCE((SELECT jsonb_agg(a ORDER BY "rentCastAttempts" DESC, attempts DESC, platform, "tenantId", "userId") FROM actor_names a), '[]'::jsonb) AS users,
+      COALESCE((SELECT jsonb_agg(d ORDER BY day) FROM daily_analyses d), '[]'::jsonb) AS "dailyAnalyses"`,
   params);
   const data = rows[0];
   const totals = data.workflows.reduce((sum, row) => ({

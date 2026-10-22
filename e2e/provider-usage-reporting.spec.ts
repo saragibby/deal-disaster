@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import type { Server } from 'node:http';
-import { withProviderUsage, recordProviderCache, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
+import { withProviderUsage, providerUsageMiddleware, recordProviderCache, type ProviderUsageSummary } from '../server/src/services/providerUsageService';
+import { authenticateOptional, authenticateToken } from '../server/src/middleware/auth';
+import { authenticateInvestorLab } from '../server/src/routes/investorLabAuth';
 import { createUsageRecorder, usageProjection } from '../server/src/services/providerUsageReportingService';
 import { createProviderUsageReportRouter, usageReportRange } from '../server/src/routes/providerUsage';
 import { pool } from '../server/src/db/pool';
@@ -24,11 +26,63 @@ test('usage projection excludes unexpected root, endpoint and configuration fiel
   const summary = await fixture();
   const polluted = {
     ...summary, address: 'private-address',
+    actor: { kind: 'authenticated' as const, userId: 7, platform: 'asset-dashboard', tenantId: 'asset-dashboard', email: 'private-email' },
     configuration: { ...summary.configuration, token: 'private-token' },
     endpoints: summary.endpoints.map(row => ({ ...row, responseBody: 'private-body' })),
   };
   expect(JSON.stringify(usageProjection(polluted))).not.toContain('private-');
   expect(usageProjection(polluted).endpoints[0].cache).toEqual({ 'postgres:hit': 1 });
+  expect(usageProjection(polluted).actor?.userId).toBe(7);
+});
+
+test('attributes verified required, optional and Investor Lab actors, ignoring client identity claims', async () => {
+  const originalSecret = process.env.JWT_SECRET;
+  const originalInvestorSecret = process.env.INVESTOR_LAB_JWT_SECRET;
+  process.env.JWT_SECRET = 'fixture-actor-auth';
+  process.env.INVESTOR_LAB_JWT_SECRET = 'fixture-investor-auth';
+  const reports: ProviderUsageSummary[] = [];
+  const app = express();
+  app.use('/platform', providerUsageMiddleware(row => reports.push(row)));
+  app.use('/investor', providerUsageMiddleware(row => reports.push(row), { platform: 'investor-lab', tenantId: 'investor-lab' }));
+  app.get('/platform/analyzer/required', authenticateToken, (_req, res) => res.json({ ok: true }));
+  app.get('/platform/analyzer/optional', authenticateOptional, (_req, res) => res.json({ ok: true }));
+  app.get('/investor/analyzer/required', authenticateInvestorLab, (_req, res) => res.json({ ok: true }));
+  const server: Server = await new Promise(resolve => {
+    const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+  });
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing fixture address');
+    const url = `http://127.0.0.1:${address.port}`;
+    const valid = jwt.sign({ userId: 7 }, 'fixture-actor-auth');
+    const forged = jwt.sign({ userId: 999 }, 'wrong-fixture-secret');
+    const investor = jwt.sign({ investorLabUserId: 88, platformUserId: 7, aud: 'investor-lab' }, 'fixture-investor-auth');
+    for (const [path, token, status] of [
+      ['/platform/analyzer/required', valid, 200],
+      ['/platform/analyzer/optional', valid, 200],
+      ['/platform/analyzer/optional', forged, 200],
+      ['/platform/analyzer/required', forged, 403],
+      ['/platform/analyzer/optional', '', 200],
+      ['/investor/analyzer/required', investor, 200],
+    ] as const) {
+      const response = await fetch(`${url}${path}?userId=999`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'X-User-Id': '999' },
+      });
+      expect(response.status).toBe(status);
+      await response.text();
+    }
+    expect(reports.map(row => row.actor?.userId)).toEqual([7, 7, null, null, null, 7]);
+    expect(reports[0].actor).toEqual({ kind: 'authenticated', platform: 'asset-dashboard', tenantId: 'asset-dashboard', userId: 7 });
+    expect(reports[5].actor).toEqual({ kind: 'authenticated', platform: 'investor-lab', tenantId: 'investor-lab', userId: 7 });
+    expect(reports[3].actor?.kind).toBe('anonymous');
+    expect((await fixture()).actor?.kind).toBe('background');
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
+    if (originalInvestorSecret === undefined) delete process.env.INVESTOR_LAB_JWT_SECRET;
+    else process.env.INVESTOR_LAB_JWT_SECRET = originalInvestorSecret;
+  }
 });
 
 test('recorder is disabled by default, immutable, bounded and logs failed writes', async () => {
@@ -93,7 +147,7 @@ test('usage report requires a valid authenticated administrator and surfaces sto
     return {
       enabled: true, retentionDays: 90, from, to,
       totals: { requests: 0, failedRequests: 0, attempts: 0, estimatedCostUsd: 0, unknownCostAttempts: 0, pendingAttempts: 0 },
-      workflows: [], endpoints: [],
+      workflows: [], endpoints: [], users: [], dailyAnalyses: [],
     };
   }));
   const server: Server = await new Promise(resolve => {
