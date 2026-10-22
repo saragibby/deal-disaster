@@ -12,7 +12,6 @@ import type {
   CashFlowBreakdown,
   ROIMetrics,
   FullAnalysisResult,
-  MarketStatistics,
   StrategyComparison as StrategyComparisonData,
 } from '@deal-platform/shared-types';
 import {
@@ -43,7 +42,6 @@ interface Props {
   cashFlow: CashFlowBreakdown;
   roi: ROIMetrics;
   dataSources?: FullAnalysisResult['dataSources'];
-  marketStatistics?: MarketStatistics;
 }
 
 /* ================================================================== */
@@ -157,7 +155,7 @@ export function RentalSummaryStrip({
 /* ================================================================== */
 export default function RentalTabs({
   property, rental, strEstimate, mtrEstimate, effectiveRent,
-  cashFlow, roi, dataSources, marketStatistics,
+  cashFlow, roi, dataSources,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('ltr');
 
@@ -211,7 +209,6 @@ export default function RentalTabs({
             cashFlow={cashFlow}
             roi={roi}
             dataSources={dataSources}
-            marketStatistics={marketStatistics}
           />
         )}
         {activeTab === 'mtr' && mtrEstimate && (
@@ -259,14 +256,13 @@ export { MarketTrendChart };
 /*  LTR Panel                                                          */
 /* ================================================================== */
 function LTRPanel({
-  rental, effectiveRent, cashFlow, roi, dataSources, marketStatistics,
+  rental, effectiveRent, cashFlow, roi, dataSources,
 }: {
   rental: RentalEstimate;
   effectiveRent: number;
   cashFlow: CashFlowBreakdown;
   roi: ROIMetrics;
   dataSources?: FullAnalysisResult['dataSources'];
-  marketStatistics?: MarketStatistics;
 }) {
   return (
     <>
@@ -283,11 +279,6 @@ function LTRPanel({
         <StatBox label="Range Low" value={fmt(rental.low)} />
         <StatBox label="Range High" value={fmt(rental.high)} />
       </div>
-
-      {/* Market statistics */}
-      {marketStatistics && (
-        <MarketStatsSection stats={marketStatistics} />
-      )}
 
       {/* Rental comps table */}
       {rental.comps && rental.comps.length > 0 && (
@@ -729,46 +720,6 @@ function DataSourceBadge({ source, confidence }: { source?: string; confidence?:
         document.body,
       )}
     </span>
-  );
-}
-
-function MarketStatsSection({ stats }: { stats: MarketStatistics }) {
-  const trendIcon = stats.rentTrend === 'rising'
-    ? <TrendingUp size={13} style={{ color: '#22c55e' }} />
-    : stats.rentTrend === 'declining'
-      ? <TrendingDown size={13} style={{ color: '#ef4444' }} />
-      : <CircleMinus size={13} style={{ color: '#94a3b8' }} />;
-  const trendLabel = stats.rentTrend === 'rising' ? 'Rising' : stats.rentTrend === 'declining' ? 'Declining'
-    : stats.rentTrend === 'stable' ? 'Stable' : 'Unavailable';
-
-  return (
-    <div className="rental-insights__deep-section" style={{ marginTop: '1rem' }}>
-      <h5 className="rental-insights__deep-heading">
-        <BarChart3 size={13} /> Market Statistics
-      </h5>
-      <div className="rental-insights__context-pills">
-        <span className="rental-insights__pill">
-          {trendIcon} Rent trend: {trendLabel}
-        </span>
-        {stats.medianRent != null && (
-          <span className="rental-insights__pill">Median rent: {fmt(stats.medianRent)}</span>
-        )}
-        {stats.averageRent != null && (
-          <span className="rental-insights__pill">Average rent: {fmt(stats.averageRent)}</span>
-        )}
-        {stats.rentGrowthPct != null && (
-          <span className="rental-insights__pill">
-            {stats.rentGrowthPct >= 0 ? '+' : ''}{stats.rentGrowthPct.toFixed(1)}% YoY
-          </span>
-        )}
-        {stats.totalListings != null && (
-          <span className="rental-insights__pill">{stats.totalListings.toLocaleString()} listings</span>
-        )}
-        {stats.avgDaysOnMarket != null && (
-          <span className="rental-insights__pill">{stats.avgDaysOnMarket}d avg on market</span>
-        )}
-      </div>
-    </div>
   );
 }
 

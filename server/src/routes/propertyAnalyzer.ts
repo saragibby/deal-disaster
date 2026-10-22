@@ -33,7 +33,7 @@ import * as furnishedFinderService from '../services/furnishedFinderService.js';
 import * as expenseDefaultsService from '../services/expenseDefaultsService.js';
 import * as scenarioService from '../services/analysisScenarioService.js';
 import {
-  applyRentalMarketFallback, backfillAreaMarket, marketDatasetStatuses,
+  backfillAreaMarket, marketDatasetStatuses,
 } from '../services/analysisDatasetService.js';
 import type {
   AnalysisDatasetStatus, AnalysisParams, ComparableProperty, MarketStatistics, PropertyData, RentalEstimate,
@@ -263,24 +263,12 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       mtrEstimate.demandFactors.nearbyInstitutions = nearbyInstitutions;
     }
 
-    // Market statistics — non-blocking, for rent trend display
-    let marketStatistics = null;
-    try {
-      marketStatistics = await rentCastService.getMarketStatistics(property.zip);
-    } catch (err: any) {
-      console.warn('[analyzer/run] Market stats failed (non-fatal):', err.message);
-    }
-    // Zillow had no rental market data even after the ZIP retry: show the
-    // RentCast ZIP summary already fetched above (display only).
-    applyRentalMarketFallback(property, marketStatistics);
-
     // Financial analysis
     const results = investmentAnalysisService.runFullAnalysis(property, rentalEstimate, params);
 
     // Attach STR + MTR estimates and data source tracking
     results.strEstimate = strEstimate;
     results.mtrEstimate = mtrEstimate;
-    if (marketStatistics) results.marketStatistics = marketStatistics;
     results.dataSources = {
       rental: apiComps.length > 0
         ? (compSource === 'realtor' ? 'realtor' : 'rentcast')
@@ -308,7 +296,7 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       }
 
       // Enrich comps with calibrated rent estimates using subject's market data
-      comparables = enrichComparables(rawComps, property, rentalEstimate, marketStatistics);
+      comparables = enrichComparables(rawComps, property, rentalEstimate);
       console.info('[analyzer:comparables]', JSON.stringify({
         requestId: getProviderUsageRequestId(), stage: 'ready',
         hasZpid: !!zpid, fetchedCount: rawComps.length, enrichedCount: comparables.length,

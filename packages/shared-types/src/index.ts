@@ -349,7 +349,19 @@ export interface ProviderUsageEndpointRow {
   fallbacks: number;
 }
 
+export interface ProviderUsageUserRow extends ProviderUsageTotals {
+  attribution: 'authenticated' | 'anonymous' | 'background' | 'unattributed';
+  platform: string | null;
+  tenantId: string | null;
+  userId: number | null;
+  name: string | null;
+  rentCastAttempts: number;
+  rentCastBillableCandidates: number;
+  rentCastEstimatedCostUsd: number;
+}
+
 export interface ProviderUsageReport {
+  dailyAnalyses: { day: string; requests: number; failedRequests: number }[];
   enabled: boolean;
   retentionDays: number;
   from: string;
@@ -357,6 +369,7 @@ export interface ProviderUsageReport {
   totals: ProviderUsageTotals;
   workflows: ProviderUsageWorkflowRow[];
   endpoints: ProviderUsageEndpointRow[];
+  users: ProviderUsageUserRow[];
 }
 
 export interface RentalComp {

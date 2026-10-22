@@ -1102,7 +1102,6 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
             strEstimate={adjustedStr}
             rentalEstimate={rental}
             dataSources={results.dataSources}
-            marketStatistics={results.marketStatistics}
             strategyComparison={strategyComparison}
             selectedKey={selectedKey}
             onSelectKey={readOnly ? undefined : setSelectedStrategy}
@@ -1355,7 +1354,6 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
           cashFlow={cashFlow}
           roi={roi}
           dataSources={results.dataSources}
-          marketStatistics={results.marketStatistics}
         />
       </div>
 

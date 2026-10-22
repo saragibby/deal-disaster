@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from 'express';
+import type { AuthRequest } from '../middleware/auth.js';
 import { persistProviderUsage } from './providerUsageReportingService.js';
 
 export type DataProvider = 'zillow' | 'airdna' | 'rentcast' | 'google' | 'geocoding' | 'census' | 'nominatim' | 'realtor' | 'furnished-finder' | 'xome';
@@ -12,7 +13,7 @@ type CacheOutcome = 'hit' | 'miss' | 'stale' | 'error' | 'wait' | 'wait-timeout'
 type FallbackReason = 'no-usable-data' | 'insufficient-comps' | 'provider-failed' | 'widen-search'
   | 'cache-unavailable';
 
-// Static labels only: no URL, query, header, address, user ID, or response body enters the ledger.
+// Endpoint labels never include URLs, queries, headers, addresses, user IDs, or response bodies.
 const operations = {
   zillow: ['byzpid', 'byaddress', 'pricehistory', 'similar', 'housing_market', 'rental_market', 'property-cache'],
   airdna: ['rentalizer', 'market-statistics', 'estimate-cache'],
@@ -42,6 +43,7 @@ interface EndpointUsage {
 }
 
 interface UsageContext {
+  actor?: ProviderUsageActor;
   requestId: string;
   parentRequestId?: string;
   workflow: UsageWorkflow;
@@ -51,7 +53,15 @@ interface UsageContext {
   endpoints: Map<string, EndpointUsage>;
 }
 
+export interface ProviderUsageActor {
+  kind: 'authenticated' | 'anonymous' | 'background';
+  platform: string | null;
+  tenantId: string | null;
+  userId: number | null;
+}
+
 export interface ProviderUsageSummary {
+  actor?: ProviderUsageActor;
   occurredAt: string;
   configuration: {
     marketCache: boolean;
@@ -76,7 +86,8 @@ export interface ProviderUsageSummary {
 
 const storage = new AsyncLocalStorage<UsageContext>();
 const defaultReporter = (summary: ProviderUsageSummary) => {
-  console.info('[provider:usage]', JSON.stringify(summary));
+  const { actor: _actor, ...logSummary } = summary;
+  console.info('[provider:usage]', JSON.stringify(logSummary));
   persistProviderUsage(summary);
 };
 
@@ -138,6 +149,7 @@ function summarize(value: UsageContext, outcome: ProviderUsageSummary['outcome']
   }));
   return {
     schemaVersion: 1, pricingVersion: '2026-10-16-scenario-v2',
+    actor: value.actor,
     occurredAt: value.occurredAt, configuration: value.configuration,
     requestId: value.requestId,
     ...(value.parentRequestId ? { parentRequestId: value.parentRequestId } : {}),
@@ -156,6 +168,7 @@ export async function withProviderUsage<T>(
   report = defaultReporter,
 ): Promise<T> {
   const value = context(workflow);
+  value.actor = { kind: 'background', platform: null, tenantId: null, userId: null };
   return storage.run(value, async () => {
     let outcome: ProviderUsageSummary['outcome'] = 'complete';
     try {
@@ -183,8 +196,11 @@ function workflowFor(rawPath: string, method: string): UsageWorkflow {
   return 'other-analyzer';
 }
 
-export function providerUsageMiddleware(report = defaultReporter): RequestHandler {
-  return (req, res, next) => {
+export function providerUsageMiddleware(
+  report = defaultReporter,
+  scope = { platform: 'asset-dashboard', tenantId: 'asset-dashboard' },
+): RequestHandler {
+  return (req: AuthRequest, res, next) => {
     if (!/^\/(analyzer|property|xome|comparisons|ai)(\/|$)/i.test(req.path)) {
       next();
       return;
@@ -196,6 +212,13 @@ export function providerUsageMiddleware(report = defaultReporter): RequestHandle
     const finish = (aborted: boolean) => {
       if (reported) return;
       reported = true;
+      // Read only server-populated identity after downstream authentication has run.
+      const userId = req.userId ?? req.user?.id;
+      const authenticated = typeof userId === 'number' && Number.isSafeInteger(userId) && userId > 0;
+      value.actor = {
+        kind: authenticated ? 'authenticated' : 'anonymous',
+        platform: scope.platform, tenantId: scope.tenantId, userId: authenticated ? userId : null,
+      };
       report(summarize(value, aborted ? 'aborted' : res.statusCode >= 400 ? 'failed' : 'complete'));
     };
     res.once('finish', () => finish(false));

@@ -304,6 +304,8 @@ test.describe('isolated real PostgreSQL market cache', () => {
     await db.query(await readFile(path.join(process.cwd(),
       'server/src/db/migrations/add_provider_usage_events.sql'), 'utf8'));
     await db.query(PROVIDER_USAGE_SCHEMA);
+    await db.query('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)');
+    await db.query("INSERT INTO users VALUES (7, 'Fixture Analyst')");
     await db.query(await readFile(path.join(process.cwd(),
       'server/src/db/migrations/add_geocoding_cache.sql'), 'utf8'));
   });
@@ -351,6 +353,10 @@ test.describe('isolated real PostgreSQL market cache', () => {
     expect(report.endpoints.find(row => row.provider === 'zillow')).toMatchObject({ httpErrors: 1, fallbacks: 1 });
     const analysis = await getProviderUsageReport(from, to, 'analysis', db);
     expect(analysis.totals.requests).toBe(2);
+    expect(analysis.dailyAnalyses).toEqual([{ day: base.occurredAt.slice(0, 10), requests: 2, failedRequests: 1 }]);
+    const savedViews = await getProviderUsageReport(from, to, 'saved-view', db);
+    expect(savedViews.totals.requests).toBe(1);
+    expect(savedViews.dailyAnalyses).toEqual(analysis.dailyAnalyses);
     expect(analysis.workflows.map(row => row.configuration.rentMode).sort()).toEqual(['bundle', 'compatibility']);
     // Exclusive upper bound excludes all rows at exactly the request start time.
     expect((await getProviderUsageReport(from, base.occurredAt, undefined, db)).totals.requests).toBe(0);
@@ -375,6 +381,50 @@ test.describe('isolated real PostgreSQL market cache', () => {
       new Date(Date.now() - 86400000).toISOString(), undefined, db);
     expect(empty.totals.requests).toBe(0);
     expect(empty.endpoints).toEqual([]);
+    expect(report.users[0].attribution).toBe('background');
+    expect(empty.users).toEqual([]);
+    expect(empty.dailyAnalyses).toEqual([]);
+  });
+
+  test('user usage separates wrapper and tenant identities, historical and anonymous traffic without endpoint fanout', async () => {
+    const summaries: ProviderUsageSummary[] = [];
+    await withProviderUsage('analysis', async () => {}, row => summaries.push(row));
+    const base = summaries[0];
+    base.attempts = 3;
+    base.estimatedCostUsd = 0.158;
+    base.endpoints = [
+      { provider: 'rentcast', operation: 'markets', attempts: 1, estimatedCostUsd: 0.074,
+        unknownCostAttempts: 0, networkErrors: 0, pendingAttempts: 0, headerLatencyMs: 0,
+        cache: {}, fallbacks: {}, httpResponses: { '200': 1 }, rentCastBillableCandidates: 1 },
+      { provider: 'rentcast', operation: 'rental-listings', attempts: 1, estimatedCostUsd: 0.074,
+        unknownCostAttempts: 0, networkErrors: 0, pendingAttempts: 0, headerLatencyMs: 0,
+        cache: {}, fallbacks: {}, httpResponses: { '200': 1 }, rentCastBillableCandidates: 1 },
+      { provider: 'zillow', operation: 'similar', attempts: 1, estimatedCostUsd: 0.01,
+        unknownCostAttempts: 0, networkErrors: 0, pendingAttempts: 0, headerLatencyMs: 0,
+        cache: {}, fallbacks: {}, httpResponses: { '200': 1 }, rentCastBillableCandidates: 0 },
+    ];
+    const recorder = createUsageRecorder(db, () => true);
+    const actor = { kind: 'authenticated' as const, platform: 'asset-dashboard', tenantId: 'asset-dashboard', userId: 7 };
+    recorder.record({ ...base, actor });
+    recorder.record({ ...base, actor, requestId: randomUUID(), workflow: 'saved-view', attempts: 0, estimatedCostUsd: 0, endpoints: [] });
+    recorder.record({ ...base, actor: { ...actor, platform: 'investor-lab', tenantId: 'investor-lab' }, requestId: randomUUID() });
+    recorder.record({ ...base, actor: { ...actor, tenantId: 'separate' }, requestId: randomUUID() });
+    recorder.record({ ...base, actor: undefined, requestId: randomUUID() });
+    recorder.record({ ...base, actor: { ...actor, kind: 'anonymous', userId: null }, requestId: randomUUID() });
+    recorder.record({ ...base, actor: { ...actor, userId: 999 }, requestId: randomUUID() });
+    await recorder.flush();
+    const report = await getProviderUsageReport(new Date(Date.now() - 86400000).toISOString(),
+      new Date(Date.now() + 86400000).toISOString(), undefined, db);
+    expect(report.users).toHaveLength(6);
+    const user = report.users.find(row => row.userId === 7 && row.platform === 'asset-dashboard' && row.tenantId === 'asset-dashboard');
+    expect(user).toMatchObject({ requests: 2, attempts: 3, name: 'Fixture Analyst',
+      rentCastAttempts: 2, rentCastBillableCandidates: 2, rentCastEstimatedCostUsd: 0.148, estimatedCostUsd: 0.158 });
+    expect(report.users.find(row => row.attribution === 'unattributed')).toMatchObject({ userId: null, name: null, requests: 1 });
+    expect(report.users.find(row => row.attribution === 'anonymous')).toMatchObject({ userId: null, name: null });
+    expect(report.users.find(row => row.userId === 999)?.name).toBeNull();
+    expect(report.users.reduce((sum, row) => sum + row.requests, 0)).toBe(report.totals.requests);
+    const analysis = await getProviderUsageReport(report.from, report.to, 'analysis', db);
+    expect(analysis.users.find(row => row.userId === 7 && row.tenantId === 'asset-dashboard')?.requests).toBe(1);
   });
 
   test('two independent Node processes share one provider fill, then a restarted client reuses it', async () => {

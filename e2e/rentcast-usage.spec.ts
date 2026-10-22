@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test';
 import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFile } from 'node:fs/promises';
 import StrategyComparison from '../packages/property-analyzer-core/dist/components/StrategyComparison.js';
+import RentalTabs from '../packages/property-analyzer-core/dist/components/RentalTabs.js';
+import { runFullAnalysis } from '../server/src/services/investmentAnalysisService';
+import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
 import { estimateSTR } from '../server/src/services/strEstimationService';
 import {
   getMarketStatistics, normalizeMarketStatistics, getRentalComps, getRentEstimate,
@@ -147,18 +151,42 @@ test('rejects absent or malformed rental sections without manufacturing zero-dol
   });
 });
 
-test('renders average-only market data without a fabricated median, stable trend, or YoY', async () => {
-  const markup = renderToStaticMarkup(createElement(StrategyComparison, {
+test('strategy comparison ignores ZIP market statistics retained in saved analyses', async () => {
+  const props = {
     ltrRent: 2000, bedrooms: 3, readOnly: true,
     strEstimate: estimateSTR(property, estimateRent(property)),
-    marketStatistics: { averageRent: 2100 },
-    strategyComparison: { strategies: [], bestKey: 'LTR', bestNetCashFlow: 500 },
-  }));
-  expect(markup).toContain('Trend unavailable');
-  expect(markup).toContain('Average: $2,100/mo');
+    marketStatistics: { medianRent: 1200, averageRent: 2350, totalListings: 2, avgDaysOnMarket: 4, rentGrowthPct: 0, rentTrend: 'stable' },
+    strategyComparison: { strategies: [], bestKey: 'LTR' as const, bestNetCashFlow: 500 },
+  };
+  const markup = renderToStaticMarkup(createElement(StrategyComparison, props));
+  expect(markup).toContain('Strategy Comparison');
+  expect(markup).not.toContain('strategy-comparison__market-trend');
   expect(markup).not.toContain('Median:');
+  expect(markup).not.toContain('Average:');
   expect(markup).not.toContain('% YoY');
-  expect(markup).not.toContain('stable');
+});
+
+test('long-term deep dive retains estimates and comps without ZIP market statistics', () => {
+  const rental = combineEstimates([comp], estimateRent(property), property);
+  const results = runFullAnalysis(property, rental, DEFAULT_ANALYSIS_PARAMS);
+  const props = {
+    property, rental, effectiveRent: rental.mid, cashFlow: results.cashFlow, roi: results.roi,
+    marketStatistics: { medianRent: 1200, averageRent: 2350, totalListings: 2, rentTrend: 'stable' },
+  };
+  const markup = renderToStaticMarkup(createElement(RentalTabs, props));
+  expect(markup).toContain('Long-Term Rental');
+  expect(markup).toContain('Rental Comp');
+  expect(markup).not.toContain('Market Statistics');
+  expect(markup).not.toContain('Median rent:');
+  expect(markup).not.toContain('Rent trend:');
+});
+
+test('analysis routes do not invoke the RentCast ZIP market endpoint or persist new market statistics', async () => {
+  const source = await readFile(new URL('../server/src/routes/propertyAnalyzer.ts', import.meta.url), 'utf8');
+  expect(source).not.toMatch(/\bgetMarketStatistics\s*\(/);
+  expect(source).not.toMatch(/results\.marketStatistics\s*=/);
+  expect(source).toContain('getLongTermRentalEstimate(property)');
+  expect(source).toContain('rentCastService.getPropertyRecords(');
 });
 
 test.describe('RentCast HTTP queries and cache behavior', () => {
