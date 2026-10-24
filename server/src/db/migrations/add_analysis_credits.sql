@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS credit_lots (
   stripe_payment_intent_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Cumulative Stripe refund amount already processed for this lot (refund webhooks are cumulative).
+ALTER TABLE credit_lots ADD COLUMN IF NOT EXISTS refunded_cents INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_credit_lots_stripe_payment_intent_id
+  ON credit_lots(stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_credit_lots_user_id
   ON credit_lots(user_id, expires_at) WHERE remaining_cents > 0;
 

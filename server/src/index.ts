@@ -10,7 +10,7 @@ import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
 import feedbackRoutes from './routes/feedback.js';
 import portalRoutes from './routes/portal.js';
-import billingRoutes from './routes/billing.js';
+import billingRoutes, { stripeWebhookRoutes } from './routes/billing.js';
 import investorLabAuthRoutes, { authenticateInvestorLab } from './routes/investorLabAuth.js';
 import { createAnalyzerBackendRouter, createAssetDashboardAnalyzerBackendRouter } from './analyzer/backend.js';
 import { initializeScheduledTasks } from './scheduler.js';
@@ -76,6 +76,8 @@ app.use(cors({
     : ['http://localhost:5200', 'http://localhost:5201', 'http://localhost:5202', 'http://localhost:5203'],
   credentials: true,
 }));
+// Stripe verifies the raw request body, so its webhook must be mounted before express.json().
+app.use('/api/billing/webhook', stripeWebhookRoutes);
 app.use(express.json());
 app.use(passport.initialize());
 

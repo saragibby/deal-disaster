@@ -437,6 +437,61 @@ export async function grantCredits(userId: number, input: GrantCreditsInput): Pr
   });
 }
 
+export async function findCreditLotByCheckoutSession(
+  sessionId: string,
+): Promise<{ lotId: string; userId: number; amountCents: number } | null> {
+  const { rows } = await pool.query<{ id: string; user_id: number; original_cents: number }>(
+    'SELECT id, user_id, original_cents FROM credit_lots WHERE stripe_checkout_session_id = $1',
+    [sessionId],
+  );
+  return rows[0] ? { lotId: rows[0].id, userId: rows[0].user_id, amountCents: rows[0].original_cents } : null;
+}
+
+/**
+ * Removes unused purchased credit after a Stripe refund. `totalRefundedCents` is
+ * the cumulative refunded amount reported by Stripe, so replays are no-ops.
+ * Credit already spent on analyses is not clawed back.
+ */
+export async function clawbackStripeRefund(
+  paymentIntentId: string, totalRefundedCents: number,
+): Promise<{ userId: number; clawedBackCents: number } | null> {
+  const { rows } = await pool.query<{ user_id: number }>(
+    'SELECT user_id FROM credit_lots WHERE stripe_payment_intent_id = $1 ORDER BY id LIMIT 1',
+    [paymentIntentId],
+  );
+  if (!rows[0]) return null;
+
+  return withUserLock(rows[0].user_id, async (client, user) => {
+    const lots = await client.query<{ id: string; remaining_cents: number; refunded_cents: number }>(
+      `SELECT id, remaining_cents, refunded_cents FROM credit_lots
+        WHERE stripe_payment_intent_id = $1 AND user_id = $2
+        ORDER BY id FOR UPDATE`,
+      [paymentIntentId, user.id],
+    );
+    const lot = lots.rows[0];
+    if (!lot) return { userId: user.id, clawedBackCents: 0 };
+
+    const newlyRefunded = totalRefundedCents - lot.refunded_cents;
+    if (newlyRefunded <= 0) return { userId: user.id, clawedBackCents: 0 };
+
+    const clawback = Math.min(newlyRefunded, lot.remaining_cents);
+    await client.query(
+      `UPDATE credit_lots
+          SET refunded_cents = $2, remaining_cents = remaining_cents - $3
+        WHERE id = $1`,
+      [lot.id, totalRefundedCents, clawback],
+    );
+    if (clawback > 0) {
+      await client.query(
+        `INSERT INTO credit_ledger (user_id, lot_id, entry_type, amount_cents, description)
+         VALUES ($1, $2, 'stripe_refund', $3, 'Purchase refunded')`,
+        [user.id, lot.id, -clawback],
+      );
+    }
+    return { userId: user.id, clawedBackCents: clawback };
+  });
+}
+
 // ── History ──────────────────────────────────────────────────────────────
 
 export async function getUsageHistory(

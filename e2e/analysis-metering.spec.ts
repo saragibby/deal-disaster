@@ -61,7 +61,6 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (createdUsers.length) await pool.query('DELETE FROM users WHERE id = ANY($1::int[])', [createdUsers]);
-  await pool.end();
 });
 
 test('reads metering configuration from the environment with safe defaults', () => {

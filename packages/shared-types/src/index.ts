@@ -1831,3 +1831,41 @@ export interface CreditTransactionPage {
   items: CreditTransaction[];
   nextCursor?: string;
 }
+
+export type CreditPackageId = 'credits_6' | 'credits_15' | 'credits_30';
+
+export interface CreditPackage {
+  id: CreditPackageId;
+  label: string;
+  priceCents: number;
+  creditCents: number;
+  /** Paid analyses this package covers at the current per-run price. */
+  runs: number;
+}
+
+export interface CreditPackageList {
+  packages: CreditPackage[];
+  pricePerRunCents: number;
+  creditExpiryMonths: number;
+  /** False when Stripe isn't configured on the server. */
+  purchasesEnabled: boolean;
+}
+
+export interface CreditCheckoutSession {
+  sessionId: string;
+  url: string;
+}
+
+export type CreditCheckoutState = 'pending' | 'credited' | 'failed' | 'expired';
+
+export interface CreditCheckoutStatus {
+  status: CreditCheckoutState;
+  creditCents?: number;
+}
+
+export interface AdminUserBilling {
+  userId: number;
+  email: string;
+  usage: AnalysisUsageSummary;
+  transactions: CreditTransaction[];
+}
