@@ -6,7 +6,7 @@ import type StripeType from 'stripe';
 import { pool } from '../server/src/db/pool';
 import { ANALYSIS_CREDITS_SCHEMA } from '../server/src/db/analysisCreditsSchema';
 import { getUsageSummary, reserveAnalysis, type MeteringConfig } from '../server/src/services/analysisMeteringService';
-import { getCreditPackages } from '../server/src/services/billingService';
+import { getCreditPackages, STRIPE_METADATA_SOURCE } from '../server/src/services/billingService';
 import { createBillingRouter, createStripeWebhookRouter } from '../server/src/routes/billing';
 import { resetRateLimits } from '../server/src/middleware/rateLimit';
 
@@ -54,7 +54,7 @@ function checkoutSession(userId: number, overrides: Record<string, unknown> = {}
     payment_status: 'paid',
     client_reference_id: String(userId),
     payment_intent: `pi_${randomUUID().replace(/-/g, '')}`,
-    metadata: { userId: String(userId), packageId: 'credits_6', creditCents: '600' },
+    metadata: { source: STRIPE_METADATA_SOURCE, userId: String(userId), packageId: 'credits_6', creditCents: '600' },
     ...overrides,
   };
 }
@@ -162,13 +162,14 @@ test('creates a checkout session for a valid package and reuses the Stripe custo
   }
 
   expect(customerCalls).toHaveLength(1);
+  expect(customerCalls[0]).toMatchObject({ metadata: { userId: String(userId), source: STRIPE_METADATA_SOURCE } });
   const { rows } = await pool.query<{ stripe_customer_id: string }>('SELECT stripe_customer_id FROM users WHERE id = $1', [userId]);
   expect(rows[0].stripe_customer_id).toMatch(/^cus_/);
   expect(sessionCalls[0]).toMatchObject({
     mode: 'payment',
     customer: rows[0].stripe_customer_id,
     client_reference_id: String(userId),
-    metadata: { userId: String(userId), packageId: 'credits_15', creditCents: '1500' },
+    metadata: { source: STRIPE_METADATA_SOURCE, userId: String(userId), packageId: 'credits_15', creditCents: '1500' },
     invoice_creation: { enabled: true },
   });
   expect(sessionCalls[0].line_items[0].price_data.unit_amount).toBe(1500);
@@ -190,7 +191,7 @@ test('rejects webhooks with an invalid signature', async () => {
 test('grants purchased credits exactly once per checkout session', async () => {
   const baseUrl = await webhookServer();
   const userId = await createUser();
-  const session = checkoutSession(userId, { metadata: { userId: String(userId), packageId: 'credits_15', creditCents: '1500' } });
+  const session = checkoutSession(userId, { metadata: { source: STRIPE_METADATA_SOURCE, userId: String(userId), packageId: 'credits_15', creditCents: '1500' } });
   const event = stripeEvent('checkout.session.completed', session);
 
   const first = await sendWebhook(baseUrl, event);
@@ -229,6 +230,26 @@ test('ignores sessions whose metadata does not match the purchaser', async () =>
   expect(await response.json()).toMatchObject({ outcome: 'ignored' });
   expect(await purchaseLots(userId)).toEqual([]);
   expect(await purchaseLots(otherUserId)).toEqual([]);
+});
+
+test('ignores payments from other products sharing the Stripe account', async () => {
+  const baseUrl = await webhookServer();
+  const userId = await createUser();
+  // Same shape as our checkout, but created by another product on the account.
+  const foreign = checkoutSession(userId, { metadata: { userId: String(userId), packageId: 'credits_6', creditCents: '600' } });
+  for (const type of ['checkout.session.completed', 'checkout.session.async_payment_failed'] as const) {
+    const response = await sendWebhook(baseUrl, stripeEvent(type, foreign));
+    expect(await response.json()).toMatchObject({ outcome: 'ignored' });
+  }
+  const refund = await sendWebhook(baseUrl, stripeEvent('charge.refunded', {
+    id: `ch_${randomUUID()}`, object: 'charge', payment_intent: `pi_${randomUUID()}`, amount_refunded: 600,
+  }));
+  expect(await refund.json()).toMatchObject({ outcome: 'ignored' });
+  const dispute = await sendWebhook(baseUrl, stripeEvent('charge.dispute.created', {
+    id: `dp_${randomUUID()}`, object: 'dispute', charge: `ch_${randomUUID()}`, payment_intent: `pi_${randomUUID()}`,
+  }));
+  expect(await dispute.json()).toMatchObject({ outcome: 'ignored' });
+  expect(await purchaseLots(userId)).toEqual([]);
 });
 
 test('claws back only unused credit when a purchase is refunded', async () => {

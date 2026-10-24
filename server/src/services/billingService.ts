@@ -81,6 +81,12 @@ function idOf(value: string | { id: string } | null | undefined): string | undef
 
 // ── Customers & checkout ─────────────────────────────────────────────────
 
+/**
+ * Tags every Stripe object this app creates. The Stripe account may be shared
+ * with other products, so webhook handling ignores anything without this tag.
+ */
+export const STRIPE_METADATA_SOURCE = 'asset-dashboard-analysis-credits';
+
 async function getOrCreateCustomer(stripe: Stripe, userId: number): Promise<string> {
   const { rows } = await pool.query<{ email: string; name: string | null; stripe_customer_id: string | null }>(
     'SELECT email, name, stripe_customer_id FROM users WHERE id = $1',
@@ -94,7 +100,7 @@ async function getOrCreateCustomer(stripe: Stripe, userId: number): Promise<stri
     {
       email: user.email,
       ...(user.name ? { name: user.name } : {}),
-      metadata: { userId: String(userId) },
+      metadata: { userId: String(userId), source: STRIPE_METADATA_SOURCE },
     },
     { idempotencyKey: `deal-platform-customer-${userId}` },
   );
@@ -111,6 +117,7 @@ export async function createCreditCheckout(
 ): Promise<CreditCheckoutSession> {
   const customer = await getOrCreateCustomer(stripe, userId);
   const metadata = {
+    source: STRIPE_METADATA_SOURCE,
     userId: String(userId),
     packageId: pkg.id,
     creditCents: String(pkg.creditCents),
@@ -149,7 +156,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 /** Grants credits for a paid Checkout Session. Safe to call repeatedly. */
 export async function fulfillCheckoutSession(session: Stripe.Checkout.Session): Promise<'credited' | 'pending' | 'ignored'> {
-  if (session.mode !== 'payment') return 'ignored';
+  if (session.mode !== 'payment' || session.metadata?.source !== STRIPE_METADATA_SOURCE) return 'ignored';
   const userId = Number(session.metadata?.userId);
   const pkg = findCreditPackage(session.metadata?.packageId);
   if (!Number.isSafeInteger(userId) || userId <= 0 || !pkg || session.client_reference_id !== String(userId)) {
@@ -204,6 +211,11 @@ export async function getCheckoutStatus(
 
 // ── Webhooks ─────────────────────────────────────────────────────────────
 
+async function hasCreditLotForPaymentIntent(paymentIntentId: string): Promise<boolean> {
+  const { rowCount } = await pool.query('SELECT 1 FROM credit_lots WHERE stripe_payment_intent_id = $1 LIMIT 1', [paymentIntentId]);
+  return (rowCount ?? 0) > 0;
+}
+
 export function constructStripeEvent(
   stripe: Stripe, payload: Buffer | string, signature: string, secret: string,
 ): Stripe.Event {
@@ -238,7 +250,8 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<'processed
       break;
     }
     case 'checkout.session.async_payment_failed':
-      console.warn(`[billing:webhook] async payment failed for session ${event.data.object.id}`);
+      if (event.data.object.metadata?.source !== STRIPE_METADATA_SOURCE) outcome = 'ignored';
+      else console.warn(`[billing:webhook] async payment failed for session ${event.data.object.id}`);
       break;
     case 'charge.refunded': {
       const charge = event.data.object;
@@ -252,7 +265,9 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<'processed
     }
     case 'charge.dispute.created': {
       const dispute = event.data.object;
-      console.warn(`[billing:webhook] dispute ${dispute.id} opened for charge ${idOf(dispute.charge)}`);
+      const paymentIntentId = idOf(dispute.payment_intent);
+      if (!paymentIntentId || !await hasCreditLotForPaymentIntent(paymentIntentId)) outcome = 'ignored';
+      else console.warn(`[billing:webhook] dispute ${dispute.id} opened for charge ${idOf(dispute.charge)}`);
       break;
     }
     default:
