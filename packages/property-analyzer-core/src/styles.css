@@ -7692,10 +7692,6 @@ a:hover { color: var(--primary-dark); }
 .usage-meter svg { flex-shrink: 0; color: var(--primary); }
 .usage-meter--blocked svg, .usage-meter--blocked .usage-meter__status { color: var(--danger); }
 .usage-meter__status { font-weight: 600; }
-.usage-meter__credits {
-  padding: 0.15rem 0.6rem; border-radius: 999px;
-  background: #eff6ff; color: var(--primary-dark); font-weight: 600;
-}
 .usage-meter__buy {
   padding: 0.3rem 0.85rem; border-radius: 8px; cursor: pointer;
   background: var(--primary); border: 1px solid var(--primary); color: #fff;

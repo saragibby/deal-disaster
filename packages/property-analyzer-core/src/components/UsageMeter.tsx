@@ -24,22 +24,22 @@ interface UsageMeterProps {
 
 export default function UsageMeter({ usage, onBuyCredits, children }: UsageMeterProps) {
   const { freeRemaining, freeLimit } = usage.today;
-  const { balanceCents, runsAvailable } = usage.credits;
+  const { runsAvailable } = usage.credits;
   const blocked = usage.nextRunChargeCents < 0;
 
-  const status = freeRemaining > 0
-    ? `${freeRemaining} of ${freeLimit} free ${freeLimit === 1 ? 'analysis' : 'analyses'} left today`
-    : 'Free analyses used for today. Add credits or come back tomorrow.';
+  let status: string;
+  if (freeRemaining > 0) {
+    status = `${freeRemaining} of ${freeLimit} free ${freeLimit === 1 ? 'analysis' : 'analyses'} left today`;
+  } else if (runsAvailable > 0) {
+    status = `Free analyses used for today. You have credits for ${runsAvailable} more ${runsAvailable === 1 ? 'analysis' : 'analyses'}.`;
+  } else {
+    status = 'Free analyses used for today. Add credits or come back tomorrow.';
+  }
 
   return (
     <div className={`usage-meter${blocked ? ' usage-meter--blocked' : ''}`} data-testid="usage-meter">
       <Gauge size={16} />
       <span className="usage-meter__status">{status}</span>
-      {balanceCents > 0 && (
-        <span className="usage-meter__credits">
-          {formatCents(balanceCents)} credit (≈{runsAvailable} {runsAvailable === 1 ? 'analysis' : 'analyses'})
-        </span>
-      )}
       <button type="button" className="usage-meter__buy" onClick={onBuyCredits}>
         Add credits
       </button>

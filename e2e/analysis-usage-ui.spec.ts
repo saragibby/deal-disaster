@@ -74,8 +74,8 @@ test('tells users when the next analysis will use credit', async ({ page }) => {
   await mockApi(page, usage({ credits: { balanceCents: 450, runsAvailable: 6 }, nextRunChargeCents: 75 }), () => undefined);
   await page.goto('/property-analyzer/');
   const meter = page.getByTestId('usage-meter');
-  await expect(meter).toContainText('Free analyses used for today. Add credits or come back tomorrow.');
-  await expect(meter).toContainText('$4.50 credit (≈6 analyses)');
+  await expect(meter).toContainText('Free analyses used for today. You have credits for 6 more analyses.');
+  await expect(meter).not.toContainText('$');
   await expect(meter.getByRole('button', { name: 'Add credits' })).toBeVisible();
 });
 
