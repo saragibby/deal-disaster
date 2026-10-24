@@ -2,8 +2,9 @@ import type { PropertyData, RentalComp } from '@deal-platform/shared-types';
 import * as rentCastService from './rentCastService.js';
 import * as realtyInUsService from './realtyInUsService.js';
 import { recordProviderFallback } from './providerUsageService.js';
+import { recordAnalyzerDiagnostic } from './analyzerDiagnostics.js';
 import {
-  applyZillowMarketRent, combineEstimates, estimateRent, filterPlausibleRentalComps,
+  applyZillowMarketRent, combineEstimates, estimateRent, filterPlausibleRentalComps, rentalCompRejectionReason,
 } from './rentalEstimationService.js';
 
 type RentEstimate = { mid: number; low: number; high: number };
@@ -39,6 +40,25 @@ function mergeComps(primary: RentalComp[], supplement: RentalComp[]): RentalComp
   })];
 }
 
+function selectRentCastComps(comps: RentalComp[], property: PropertyData, stage: 'listings' | 'bundle') {
+  const rejected = { 'invalid-rent': 0, 'below-minimum': 0, 'above-maximum': 0, 'above-price-ratio': 0 };
+  const accepted = comps.filter(comp => {
+    const reason = rentalCompRejectionReason(comp.rent, property);
+    if (reason === null) return true;
+    rejected[reason]++;
+    return false;
+  });
+  recordAnalyzerDiagnostic('comp-selection', {
+    stage, inputCount: comps.length,
+    acceptedCount: accepted.length,
+    invalidRentCount: rejected['invalid-rent'], belowMinimumCount: rejected['below-minimum'],
+    aboveMaximumCount: rejected['above-maximum'], abovePriceRatioCount: rejected['above-price-ratio'],
+    propertyTypePresent: !!property.propertyType,
+    sixPlusBedrooms: property.bedrooms >= 6, sixPlusBathrooms: property.bathrooms >= 6,
+  });
+  return accepted;
+}
+
 /**
  * Bundle mode: one RentCast estimate request supplies both the estimate and
  * recent comps. Active listings are requested only when fewer than
@@ -47,13 +67,13 @@ function mergeComps(primary: RentalComp[], supplement: RentalComp[]): RentalComp
  */
 async function getRentCastComps(property: PropertyData, providers: RentalProviders) {
   if (providers.mode?.() !== 'bundle' || !providers.rentCastBundle) {
-    return { comps: filterPlausibleRentalComps(await providers.rentCastComps(property), property), avm: undefined };
+    return { comps: selectRentCastComps(await providers.rentCastComps(property), property, 'listings'), avm: undefined };
   }
   const bundle = await providers.rentCastBundle(property);
-  let comps = filterPlausibleRentalComps(bundle?.comps ?? [], property);
+  let comps = selectRentCastComps(bundle?.comps ?? [], property, 'bundle');
   if (comps.length < rentCastService.BUNDLE_MIN_COMPS) {
     recordProviderFallback('rentcast', 'rental-listings', bundle ? 'insufficient-comps' : 'provider-failed');
-    comps = mergeComps(comps, filterPlausibleRentalComps(await providers.rentCastComps(property), property));
+    comps = mergeComps(comps, selectRentCastComps(await providers.rentCastComps(property), property, 'listings'));
   }
   return { comps, avm: bundle ? bundle.estimate : null };
 }

@@ -21,6 +21,7 @@ import { pool } from '../db/pool.js';
 import { Pool } from 'pg';
 import { createPostgresMarketCacheStore, createRentCastMarketCache } from './rentCastMarketCache.js';
 import { createProviderFetch, recordProviderCache } from './providerUsageService.js';
+import { recordAnalyzerDiagnostic } from './analyzerDiagnostics.js';
 import {
   createRentCastPropertyCache, isRentEstimateBundleProjection, isRentEstimateProjection, isRentalCompProjection,
   type RentEstimateBundleProjection, type RentEstimateProjection,
@@ -408,6 +409,12 @@ export async function getRentalComps(
     params.set('state', property.state);
     params.set('zipCode', property.zip);
   }
+  recordAnalyzerDiagnostic('listings-query', {
+    locationMode: hasValidCoordinates(property) ? 'coordinates' : 'city-state-zip',
+    propertyTypePresent: !!property.propertyType,
+    recognizedPropertyType: mapPropertyType(property.propertyType) !== undefined,
+    bedroomFilterApplied: params.has('bedrooms'), bathroomFilterApplied: params.has('bathrooms'),
+  });
   return await rentalCompsCache.get(params.toString()) ?? [];
 }
 
@@ -425,6 +432,11 @@ async function fetchRentalComps(query: string): Promise<RentalComp[] | null> {
 
     const data: unknown = await res.json();
     if (!Array.isArray(data) || !data.every(isRentCastListing)) {
+      recordAnalyzerDiagnostic('listings-response', {
+        outcome: 'invalid-schema',
+        rawRowCount: Array.isArray(data) ? data.length : null,
+        invalidRowCount: Array.isArray(data) ? data.filter(row => !isRentCastListing(row)).length : null,
+      });
       console.warn('[RentCast] Invalid rental listings; not caching');
       return null;
     }
@@ -441,7 +453,11 @@ async function fetchRentalComps(query: string): Promise<RentalComp[] | null> {
         source: 'api' as const,
       }));
 
-    console.log(`[RentCast] Found ${comps.length} rental comps`);
+    recordAnalyzerDiagnostic('listings-response', {
+      outcome: 'valid',
+      rawRowCount: listings.length, positivePriceRowCount: comps.length,
+      excludedPriceRowCount: listings.length - comps.length,
+    });
     return comps;
   } catch (err: any) {
     console.warn('[RentCast] Rental comps error:', err.message);

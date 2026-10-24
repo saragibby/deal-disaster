@@ -4,6 +4,121 @@
 **Status:** RentCast shared-property caching and Census coordinate-only Google avoidance committed; targeted recovery for missing comparables/market data (bounded `/similar` retry, re-analysis backfill, dataset status with a provider-unavailable notice and Refresh button, per-dataset ZIP retry, RentCast display-only rental fallback) committed; RentCast bundle mode (flagged, default off) implemented locally. The user chose to preserve historical data and existing Google institution enrichment. Full retention remediation, Places compatibility, production Places migration, and broader area caching remain deferred.
 **Baseline:** [Usage and cost analysis](PROPERTY_ANALYZER_USAGE_AND_COST_ANALYSIS.md), source revision `b6ba990`
 
+## Production investigation - RentCast comp yield (October 23, 2026)
+
+Read-only investigation of the October 23 Eastern-day usage snapshot: 218 full
+analysis requests, 215 completed, and 213 current saved properties. The saved
+rows are a separate population from request summaries: saves can overwrite
+earlier runs. No live provider requests, configuration changes, or production
+writes were made for this investigation.
+
+### Measured results
+
+- Today's 189 successful rental-listings HTTP attempts correspond to 189
+  persisted cache projections fetched today: **163 empty and 26 nonempty**.
+- Reconstructing the current production listings query from each of the 213
+  saved properties matched an existing cache entry for **all 213**. This includes
+  entries fetched before today and repeated use of the same entry.
+- Of those 213 matched lookups, **186 had zero normalized comps**, 27 had
+  nonempty comps, six had all comps rejected by the existing plausibility
+  filter, and **21 retained usable RentCast comps**. Six of the 21 retained
+  some comps while rejecting others.
+- Across these matched lookups, the filter retained 68 of 102 normalized comp
+  observations. Today's distinct fetched projections contained 101 comps,
+  with rents from $825 to $6,495, all within the absolute $300-$50,000 bounds.
+  The filter also caps monthly rent at 3% of the subject's price. Per-comp
+  rejection diagnostics would distinguish that ceiling from absolute-bound
+  rejections in older cached entries used by the matched population.
+- **All 213 saved properties lacked `propertyType`**. Of these, **138 had six or
+  more bedrooms** and 54 had six or more bathrooms. All 35 properties with
+  eight bedrooms and four bathrooms matched empty projections; the 33
+  three-bedroom/two-bathroom properties matched ten empty projections, four
+  entirely rejected projections, and 19 usable projections.
+- 208 reconstructed queries used coordinates and a two-mile radius; five
+  used city/state/ZIP.
+
+### Interpretation and limitations
+
+The dominant problem is **empty normalized provider results, not our
+plausibility filter discarding otherwise populated results**. An empty stored
+projection does not distinguish an actually empty provider array from an array
+whose rows all lacked positive prices; raw provider responses are not retained.
+The 189 successful attempts produced persisted validated projections, so these
+are not explained by transport failures or whole-response schema rejection.
+
+[Listings query construction](server/src/services/rentCastService.ts) applies
+exact bedroom and bathroom values, active status, and a limit of ten. It omits
+whole-building attributes only when the supplied property type maps to
+Multi-Family. With property type missing, that protection does not apply,
+including for very large bedroom/bathroom counts. These counts are consistent
+with a potential building-versus-unit mismatch, but do not prove a property is
+multifamily or establish that broader searches would return suitable comps.
+
+[Property normalization](server/src/services/propertyDataService.ts) reads type
+only from `homeType` or `propertyType`. Missing type in saved data does not prove
+an upstream field was dropped: confirming an alternative provider field
+requires a sanitized response or documented schema, not guessed aliases.
+
+### Recommended next work
+
+1. Add sanitized raw-row, positive-price-row, and accepted-comp counts with
+   explicit rejection reasons so future empty outcomes can be distinguished.
+   Do not log addresses, query URLs, raw payloads, or credentials.
+2. Verify the upstream property-type contract and whether bed/bath counts refer
+   to a unit or a whole building before changing query semantics. Preserve known
+   types; do not infer multifamily from bedroom count alone.
+3. Evaluate a unit-aware strategy for building-level properties. Broadening the
+   query blindly can return unit rents that must not be blended into a
+   whole-building estimate as though they were equivalent.
+4. Separately review the 3%-of-price plausibility policy for low-price properties.
+   Only six matched results were entirely rejected by the plausibility filter,
+   regardless of rejection reason; relaxing it is not the primary solution.
+
+No estimate of savings from broader queries is established by this
+investigation. Shared caching is returning empty results as designed; increasing
+cache duration alone will not improve the yield of first-time property queries.
+
+### Follow-up implementation - development-only diagnostics
+
+The user chose to preserve current estimates, provider ordering, query filters,
+cache keys/retention, and fallback behavior while gathering evidence.
+The new diagnostics emit via `console.debug` **only when `NODE_ENV=development`**.
+Production, test, and unset environments emit none of these diagnostics. They
+are not persisted with usage summaries. Existing warnings/errors and the
+pre-existing usage reporting are unchanged.
+
+- The `listings-query` diagnostic records location mode, property-type
+  presence/recognition, and whether bed/bath filters were applied, including on
+  cache-served lookups. It does not record their values or location.
+- The `listings-response` diagnostic distinguishes valid empty arrays, rows excluded
+  for nonpositive/missing prices, and schema-invalid responses. Counts describe
+  fresh HTTP responses only; cached projections cannot recover original row
+  counts. Invalid responses still fail validation and are not cached.
+- The `comp-selection` diagnostic records normalized input and accepted counts plus
+  mutually exclusive rejection counts: nonfinite rent, below $300, above
+  $50,000, and above 3% of subject price (evaluated in that order). Bundle and
+  supplemental listings stages are labeled separately. Only type presence and
+  six-plus bed/bath booleans describe the subject.
+- The `property-type-schema` diagnostic records presence and string-type checks for the two
+  existing supported fields, `homeType` and `propertyType`, on normalized Zillow
+  address/ZPID lookups. It never records field values or arbitrary payload keys.
+  Process-cache hits do not repeat normalization diagnostics.
+- All four diagnostics use the `[analyzer:diagnostic]` prefix and include the existing request correlation ID when
+  available; no addresses, property IDs, actors, payloads, URLs, or credentials
+  are added. These are development debugging output, **not production collection
+  or new durable admin-report fields**.
+
+The public RapidAPI listing and endpoint documentation were inspected without
+executing an endpoint. They did not establish an accessible response-field
+contract for property type. Alternative field names and unit-versus-building
+semantics remain **unverified**; no guessed aliases or bedroom-based type
+inference were introduced. A provider-confirmed schema or sanitized response
+shape is still required to close that investigation.
+
+Validation: mocked diagnostic, existing RentCast usage, and bundle regression
+tests; backend TypeScript build. No live provider calls are needed by these
+tests.
+
 ## Implementation update - coordinate reuse
 
 The first recommended slice is committed as `8cfef67` on `saragibby-analyzer-cost-reduction`:

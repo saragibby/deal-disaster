@@ -14,15 +14,19 @@ const MAX_RENT_TO_PRICE_RATIO = 0.03;
 type RentConfidence = RentalEstimate['confidence'];
 
 export function isPlausibleMonthlyRent(rent: number, property?: PropertyData): boolean {
-  if (!Number.isFinite(rent) || rent < MIN_MONTHLY_RENT || rent > MAX_MONTHLY_RENT) {
-    return false;
-  }
+  return rentalCompRejectionReason(rent, property) === null;
+}
 
+export function rentalCompRejectionReason(
+  rent: number, property?: PropertyData,
+): 'invalid-rent' | 'below-minimum' | 'above-maximum' | 'above-price-ratio' | null {
+  if (!Number.isFinite(rent)) return 'invalid-rent';
+  if (rent < MIN_MONTHLY_RENT) return 'below-minimum';
+  if (rent > MAX_MONTHLY_RENT) return 'above-maximum';
   if (property?.price && rent > property.price * MAX_RENT_TO_PRICE_RATIO) {
-    return false;
+    return 'above-price-ratio';
   }
-
-  return true;
+  return null;
 }
 
 export function filterPlausibleRentalComps(

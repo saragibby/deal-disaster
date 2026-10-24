@@ -25,6 +25,7 @@ import type {
 import { getAreaMarketData } from './areaMarketService.js';
 import { hasValidCoordinates } from './geocodingService.js';
 import { createProviderFetch, getProviderUsageRequestId, recordProviderCache } from './providerUsageService.js';
+import { recordAnalyzerDiagnostic } from './analyzerDiagnostics.js';
 const fetch = createProviderFetch('zillow');
 
 // ---------- configuration ----------
@@ -537,6 +538,13 @@ function normalizePriceHistory(raw: any): Array<{ date: string; price: number; e
  * }
  */
 function normalizePropertyData(raw: any, zpid: string): PropertyData {
+  recordAnalyzerDiagnostic('property-type-schema', {
+    homeTypePresent: raw.homeType != null,
+    homeTypeIsString: typeof raw.homeType === 'string',
+    propertyTypePresent: raw.propertyType != null,
+    propertyTypeIsString: typeof raw.propertyType === 'string',
+    resolvedTypePresent: !!(raw.homeType || raw.propertyType),
+  });
   const addr = raw.PropertyAddress || {};
   const resolvedZpid = zpid || String(raw.PropertyZPID || '');
 
