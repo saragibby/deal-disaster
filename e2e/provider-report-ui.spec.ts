@@ -19,6 +19,7 @@ const report: ProviderUsageReport = {
 };
 
 test('admin report shows costs, configuration, cache counts and explicit empty/error states', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-20T12:00:00Z'));
   const user = { id: 1, email: 'fixture@example.test', name: 'Fixture Admin', is_admin: true };
   await page.addInitScript(({ user }) => {
     localStorage.setItem('token', 'fixture-not-a-credential');
@@ -26,15 +27,21 @@ test('admin report shows costs, configuration, cache counts and explicit empty/e
   }, { user });
   let state: 'data' | 'empty' | 'error' = 'data';
   const workflows: string[] = [];
+  const ranges: { from: string | null; to: string | null }[] = [];
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname.endsWith('/provider-usage')) {
         workflows.push(url.searchParams.get('workflow') ?? '');
+        ranges.push({ from: url.searchParams.get('from'), to: url.searchParams.get('to') });
         if (state === 'error') return route.fulfill({ status: 503, json: { error: 'Fixture reporting database unavailable' } });
         const data = state === 'empty'
           ? { ...report, totals: { ...totals, requests: 0, attempts: 0, estimatedCostUsd: 0, failedRequests: 0, unknownCostAttempts: 0 }, workflows: [], endpoints: [], users: [], dailyAnalyses: [] }
-          : report;
+          : url.searchParams.get('from') === '2026-10-18'
+            ? { ...report, from: '2026-10-18', to: '2026-10-19',
+              users: [{ ...report.users[0], name: 'Date-filtered Analyst', requests: 1 }],
+              dailyAnalyses: [{ day: '2026-10-18', requests: 1, failedRequests: 0 }] }
+            : report;
         return route.fulfill({ json: data });
       }
       return route.fulfill({ json: { user, resources: [], tools: [], announcements: [] } });
@@ -56,8 +63,17 @@ test('admin report shows costs, configuration, cache counts and explicit empty/e
   await expect(chart.getByRole('listitem', { name: '2026-10-19: 5 runs, 3 completed, 2 failed or aborted', exact: true })).toBeVisible();
   await expect(chart.getByRole('listitem', { name: '2026-10-18: 0 runs, 0 completed, 0 failed or aborted', exact: true })).toBeVisible();
   expect(workflows[0]).toBe('analysis');
+  await page.getByLabel('From', { exact: true }).fill('2026-10-18');
+  await expect(users).toContainText('Date-filtered Analyst');
+  await expect(users).not.toContainText('Fixture Analyst');
+  expect(ranges.at(-1)?.from).toBe('2026-10-18');
+  await page.getByLabel('Through', { exact: true }).fill('2026-10-18');
+  await expect.poll(() => ranges.at(-1)?.to).toBe('2026-10-19T00:00:00.000Z');
+  await expect(chart).toContainText('1 recorded full-analysis runs');
+  await page.getByLabel('From', { exact: true }).fill('2026-10-01');
+  await expect(users).toContainText('Fixture Analyst');
   await page.getByLabel('Workflow', { exact: true }).selectOption('saved-view');
-  await page.getByRole('button', { name: 'Load report' }).click();
+  await expect.poll(() => workflows.at(-1)).toBe('saved-view');
   await expect(chart).toContainText('5 recorded full-analysis runs');
   expect(workflows.at(-1)).toBe('saved-view');
   state = 'empty';

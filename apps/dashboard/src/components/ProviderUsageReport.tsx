@@ -58,7 +58,7 @@ export default function ProviderUsageReport() {
   const [from, setFrom] = useState(() => dateInput(new Date(Date.now() - 6 * 86400000)));
   const [to, setTo] = useState(() => dateInput(new Date()));
   const [workflow, setWorkflow] = useState('analysis');
-  const [selection, setSelection] = useState({ from, to, workflow, refresh: 0 });
+  const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState<UsageReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -67,19 +67,20 @@ export default function ProviderUsageReport() {
     setLoading(true);
     setError('');
     setReport(null);
-    const end = new Date(`${selection.to}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
     end.setUTCDate(end.getUTCDate() + 1);
-    if (!Number.isFinite(end.getTime())) {
+    const start = new Date(`${from}T00:00:00Z`);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start >= end) {
       setError('Select a valid report date range.');
       setLoading(false);
       return;
     }
-    api.getProviderUsageReport(selection.from, end.toISOString(), selection.workflow || undefined)
+    api.getProviderUsageReport(from, end.toISOString(), workflow || undefined)
       .then(data => { if (active) setReport(data); })
       .catch((reason: unknown) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load usage.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [selection]);
+  }, [from, to, workflow, refresh]);
   const totals = report?.totals;
   return (
     <section className="provider-usage" aria-label="Provider usage report">
@@ -90,7 +91,7 @@ export default function ProviderUsageReport() {
       </p>
       <form className="provider-usage__filters" onSubmit={event => {
         event.preventDefault();
-        setSelection({ from, to, workflow, refresh: selection.refresh + 1 });
+        setRefresh(value => value + 1);
       }}>
         <label>From<input type="date" required value={from} onChange={e => setFrom(e.target.value)} /></label>
         <label>Through<input type="date" required value={to} onChange={e => setTo(e.target.value)} /></label>
