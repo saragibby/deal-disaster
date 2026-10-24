@@ -1,20 +1,22 @@
 import { useState, useCallback, useEffect } from 'react';
 import type {
-  AnalyzerAssistantContext,
+  AnalysisUsageSummary,
   PropertyAnalysis,
   AnalysisParams,
 } from '@deal-platform/shared-types';
-import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
+import { DEFAULT_ANALYSIS_PARAMS, getAnalysisLimitUsage } from '@deal-platform/shared-types';
 import { Search } from 'lucide-react';
 import AnalysisResults from './AnalysisResults.js';
 import AnalysisSkeleton from './AnalysisSkeleton.js';
 import AnalysisHistory from './AnalysisHistory.js';
 import PropertyComparison from './PropertyComparison.js';
+import UsageMeter from './UsageMeter.js';
+import UsageLimitDialog from './UsageLimitDialog.js';
 import { usePropertyAnalyzerCore } from '../context.js';
 
 export default function PropertyAnalyzer() {
-  const { adapters, branding, route, activeTab, setAssistantContext } = usePropertyAnalyzerCore();
-  const { api, navigation } = adapters;
+  const { adapters, branding, route, activeTab, setAssistantContext, changeTab } = usePropertyAnalyzerCore();
+  const { api, navigation, usage: usageAdapter } = adapters;
   const analysisSlug = route.kind === 'analyze' ? route.slug : undefined;
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +25,21 @@ export default function PropertyAnalyzer() {
   const [wasLoading, setWasLoading] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [inputExpanded, setInputExpanded] = useState(false);
+  const [usage, setUsage] = useState<AnalysisUsageSummary | null>(null);
+  const [limitDialogUsage, setLimitDialogUsage] = useState<AnalysisUsageSummary | null>(null);
+
+  const refreshUsage = useCallback(() => {
+    if (!usageAdapter) return;
+    usageAdapter.getSummary().then(setUsage).catch(() => undefined);
+  }, [usageAdapter]);
+
+  // Refresh on mount and when the user returns (e.g. after buying credits in another tab).
+  useEffect(() => {
+    if (!usageAdapter) return;
+    refreshUsage();
+    window.addEventListener('focus', refreshUsage);
+    return () => window.removeEventListener('focus', refreshUsage);
+  }, [refreshUsage, usageAdapter]);
 
   // Analysis params — use defaults (adjustable in Loan Calculator after results)
   const [params] = useState<AnalysisParams>({ ...DEFAULT_ANALYSIS_PARAMS });
@@ -95,7 +112,10 @@ export default function PropertyAnalyzer() {
       const { annualPropertyTax, annualInsurance, repairsPct, capexPct, costSegPct, ...autoParams } = params;
       void annualPropertyTax; void annualInsurance; void repairsPct; void capexPct; void costSegPct;
       const response = await api.runAnalysis({ url: url.trim(), params: autoParams });
-      setResult(response);
+      const { usage: runUsage, ...analysis } = response as PropertyAnalysis & { usage?: AnalysisUsageSummary };
+      setResult(analysis as PropertyAnalysis);
+      if (runUsage) setUsage(runUsage);
+      else refreshUsage();
       setHistoryRefreshKey(k => k + 1);
       setInputExpanded(false);
       // Navigate to the analysis URL so it's shareable
@@ -103,11 +123,24 @@ export default function PropertyAnalyzer() {
         navigation.navigate({ kind: 'analyze', slug: response.slug }, { replace: true });
       }
     } catch (err: any) {
-      setError(err.message || 'Analysis failed. Please check the URL and try again.');
+      const limitUsage = getAnalysisLimitUsage(err);
+      if (limitUsage) {
+        setUsage(limitUsage);
+        setLimitDialogUsage(limitUsage);
+      } else {
+        setError(err.message || 'Analysis failed. Please check the URL and try again.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [api, navigation, url, params]);
+  }, [api, navigation, url, params, refreshUsage]);
+
+  const handleBuyCredits = useCallback(() => {
+    setLimitDialogUsage(null);
+    usageAdapter?.openBilling();
+  }, [usageAdapter]);
+
+  const showUsage = Boolean(usageAdapter && usage && usage.mode === 'enforce' && !usage.exempt);
 
   const handleResultUpdate = useCallback((updated: PropertyAnalysis) => {
     setResult(updated);
@@ -160,6 +193,7 @@ export default function PropertyAnalyzer() {
                   )}
                 </button>
               </div>
+              {showUsage && usage && <UsageMeter usage={usage} onBuyCredits={handleBuyCredits} />}
               {result && !loading && (
                 <button
                   type="button"
@@ -202,7 +236,16 @@ export default function PropertyAnalyzer() {
       )}
 
       {activeTab === 'compare' && (
-        <PropertyComparison onNewAnalysis={() => setHistoryRefreshKey(k => k + 1)} />
+        <PropertyComparison onNewAnalysis={() => { setHistoryRefreshKey(k => k + 1); refreshUsage(); }} />
+      )}
+
+      {limitDialogUsage && (
+        <UsageLimitDialog
+          usage={limitDialogUsage}
+          onBuyCredits={handleBuyCredits}
+          onViewHistory={() => { setLimitDialogUsage(null); changeTab('history'); }}
+          onClose={() => setLimitDialogUsage(null)}
+        />
       )}
     </div>
   );

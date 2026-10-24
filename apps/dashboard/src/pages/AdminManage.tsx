@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Save, X, BookOpen, Wrench, Megaphone, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, X, BookOpen, Wrench, Megaphone, Eye, EyeOff, Wallet } from 'lucide-react';
 import { useAuth, api } from '@deal-platform/shared-auth';
 import type { Resource, Tool, Announcement } from '@deal-platform/shared-types';
 import ProviderUsageReport from '../components/ProviderUsageReport';
+import AdminCreditGrant from '../components/AdminCreditGrant';
 
-type Tab = 'resources' | 'tools' | 'announcements' | 'usage';
+type Tab = 'resources' | 'tools' | 'announcements' | 'usage' | 'credits';
 
 interface ResourceFormData {
   title: string;
@@ -284,6 +285,10 @@ export default function AdminManage() {
           onClick={() => { setTab('usage'); cancelEdit(); }}>
           API Usage
         </button>
+        <button className={`admin-tab ${tab === 'credits' ? 'admin-tab--active' : ''}`}
+          onClick={() => { setTab('credits'); cancelEdit(); }}>
+          <Wallet size={16} /> Credits
+        </button>
         <button
           className={`admin-tab ${tab === 'resources' ? 'admin-tab--active' : ''}`}
           onClick={() => { setTab('resources'); cancelEdit(); }}
@@ -304,6 +309,7 @@ export default function AdminManage() {
         </button>
       </div>
       {tab === 'usage' && <ProviderUsageReport />}
+      {tab === 'credits' && <AdminCreditGrant />}
 
       {/* ==================== Resources Tab ==================== */}
       {tab === 'resources' && (

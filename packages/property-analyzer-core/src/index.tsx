@@ -41,6 +41,8 @@ export type {
   AnalyzerShareState,
   AnalyzerShareUrlBuilder,
   AnalyzerStorageAdapter,
+  AnalyzerUsageAdapter,
+  AnalysisUsageSummary,
   OwnerContext,
   PageInput,
   PagedResult,

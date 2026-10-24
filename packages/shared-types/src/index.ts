@@ -1148,6 +1148,7 @@ export interface PropertyAnalyzerAdapters {
   storage: AnalyzerStorageAdapter;
   shareUrls: AnalyzerShareUrlBuilder;
   events?: Partial<PropertyAnalyzerCoreEvents>;
+  usage?: AnalyzerUsageAdapter;
 }
 
 export type AnalyzerExportKind =
@@ -1868,4 +1869,24 @@ export interface AdminUserBilling {
   email: string;
   usage: AnalysisUsageSummary;
   transactions: CreditTransaction[];
+}
+
+/**
+ * Optional Property Analyzer adapter for platforms that meter new analyses.
+ * When omitted, the analyzer shows no usage UI.
+ */
+export interface AnalyzerUsageAdapter {
+  getSummary(): Promise<AnalysisUsageSummary>;
+  /** Opens the platform page where users can buy credits and review usage. */
+  openBilling(): void;
+}
+
+/** Returns the usage summary attached to an "analysis limit reached" API error, if any. */
+export function getAnalysisLimitUsage(error: unknown): AnalysisUsageSummary | null {
+  if (!error || typeof error !== 'object') return null;
+  const candidate = error as { code?: unknown; usage?: unknown; data?: { code?: unknown; usage?: unknown } };
+  const code = candidate.code ?? candidate.data?.code;
+  const usage = candidate.usage ?? candidate.data?.usage;
+  if (code !== ANALYSIS_LIMIT_REACHED || !usage || typeof usage !== 'object') return null;
+  return usage as AnalysisUsageSummary;
 }

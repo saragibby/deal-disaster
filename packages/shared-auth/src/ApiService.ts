@@ -1,10 +1,35 @@
-import type { ProviderUsageReport } from '@deal-platform/shared-types';
+import type {
+  AdminUserBilling,
+  AnalysisUsageHistory,
+  AnalysisUsageSummary,
+  CreditCheckoutSession,
+  CreditCheckoutStatus,
+  CreditPackageId,
+  CreditPackageList,
+  CreditTransactionPage,
+  ProviderUsageReport,
+} from '@deal-platform/shared-types';
 
 // Shared API service for all apps in the platform
 // In production (same-origin), use ''. In dev, use localhost:3002.
 
 const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
 const API_BASE_URL = isProduction ? '' : 'http://localhost:3002';
+
+/** Error thrown for non-2xx API responses; keeps the status and parsed JSON body. */
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly data: Record<string, unknown>;
+
+  constructor(status: number, data: Record<string, unknown>, fallbackMessage = 'Request failed') {
+    super(typeof data.error === 'string' && data.error ? data.error : fallbackMessage);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.data = data;
+    if (typeof data.code === 'string') this.code = data.code;
+  }
+}
 
 export class ApiService {
   async getProviderUsageReport(from: string, to: string, workflow?: string) {
@@ -475,10 +500,61 @@ export class ApiService {
     });
     await this.handleResponse(response);
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      const data = await response.json().catch(() => ({}));
+      throw new ApiRequestError(response.status, data && typeof data === 'object' ? data : {});
     }
     return response.json();
+  }
+
+  // ===== Billing & analysis usage =====
+
+  getBillingSummary() {
+    return this.fetchJson<AnalysisUsageSummary>('/api/billing/summary', { auth: true });
+  }
+
+  getUsageHistory(days = 30) {
+    return this.fetchJson<AnalysisUsageHistory>(`/api/billing/usage?days=${days}`, { auth: true });
+  }
+
+  getCreditTransactions(cursor?: string, limit = 25) {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (cursor) query.set('cursor', cursor);
+    return this.fetchJson<CreditTransactionPage>(`/api/billing/transactions?${query}`, { auth: true });
+  }
+
+  getCreditPackages() {
+    return this.fetchJson<CreditPackageList>('/api/billing/packages');
+  }
+
+  createCreditCheckout(packageId: CreditPackageId) {
+    return this.fetchJson<CreditCheckoutSession>('/api/billing/checkout', {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ packageId }),
+    });
+  }
+
+  getCheckoutStatus(sessionId: string) {
+    return this.fetchJson<CreditCheckoutStatus>(`/api/billing/checkout/${encodeURIComponent(sessionId)}`, { auth: true });
+  }
+
+  updateBillingTimezone(timezone: string) {
+    return this.fetchJson<{ timezone: string }>('/api/billing/timezone', {
+      method: 'PUT',
+      auth: true,
+      body: JSON.stringify({ timezone }),
+    });
+  }
+
+  getAdminUserBilling(userId: number) {
+    return this.fetchJson<AdminUserBilling>(`/api/billing/admin/users/${userId}`, { auth: true });
+  }
+
+  grantUserCredits(userId: number, input: { amountCents: number; reason: string; expiresInMonths?: number }) {
+    return this.fetchJson<{ lotId: string; expiresAt: string; usage: AnalysisUsageSummary }>(
+      `/api/billing/admin/users/${userId}/credits`,
+      { method: 'POST', auth: true, body: JSON.stringify(input) },
+    );
   }
 
   // ===== Property Data endpoints (general-purpose, reusable) =====

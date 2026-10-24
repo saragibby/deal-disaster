@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, api, buildAppUrl } from '@deal-platform/shared-auth';
 import type { UserStats } from '@deal-platform/shared-types';
 import { useTheme } from '../contexts/ThemeContext';
-import { User, Mail, Trophy, Flame, Target, TrendingUp, Sun, Moon, Settings, Bell, Shield, Pencil, Check, X, Lock } from 'lucide-react';
+import { User, Mail, Trophy, Flame, Target, TrendingUp, Sun, Moon, Settings, Bell, Shield, Pencil, Check, X, Lock, Wallet, ChevronRight } from 'lucide-react';
 
 export default function Profile() {
   const { isAuthenticated, user, updateUser, loading } = useAuth();
@@ -182,6 +182,20 @@ export default function Profile() {
               </span>
             </button>
           </div>
+        </div>
+
+        <div className="settings-group">
+          <h3 className="settings-group__title">Billing &amp; Usage</h3>
+          <Link to="/account/billing" className="settings-row settings-row--link">
+            <div className="settings-row__label">
+              <Wallet size={18} />
+              <div>
+                <span className="settings-row__name">Property analyses &amp; credits</span>
+                <span className="settings-row__desc">See daily usage, buy credits, and review credit history</span>
+              </div>
+            </div>
+            <ChevronRight size={18} />
+          </Link>
         </div>
 
         <div className="settings-group settings-group--disabled">

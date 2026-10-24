@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
+import type { AnalysisUsageSummary, PropertyAnalysis, SavedComparison } from '@deal-platform/shared-types';
+import { getAnalysisLimitUsage } from '@deal-platform/shared-types';
 import { Search, X, ChevronLeft, ChevronRight, ChevronDown, Plus, GitCompareArrows, Building2, FolderOpen, Trash2, PlusCircle } from 'lucide-react';
 import { usePropertyAnalyzerCore } from '../context.js';
+import UsageLimitDialog from './UsageLimitDialog.js';
 
 const MAX_PROPERTIES = 6;
 
@@ -26,8 +28,9 @@ function shortAddress(address: string): string {
 }
 
 export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadComparison, savedRefreshKey }: Props) {
-  const { adapters, features } = usePropertyAnalyzerCore();
+  const { adapters, features, changeTab } = usePropertyAnalyzerCore();
   const { api } = adapters;
+  const [limitUsage, setLimitUsage] = useState<AnalysisUsageSummary | null>(null);
   const [selected, setSelected] = useState<PropertyAnalysis[]>([]);
   const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
 
@@ -132,7 +135,9 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
       // Refresh history to show the new entry
       fetchHistory();
     } catch (err: any) {
-      setUrlError(err.message || 'Analysis failed. Check the URL and try again.');
+      const usage = getAnalysisLimitUsage(err);
+      if (usage) setLimitUsage(usage);
+      else setUrlError(err.message || 'Analysis failed. Check the URL and try again.');
     } finally {
       setUrlLoading(false);
     }
@@ -493,6 +498,15 @@ export default function ComparisonSelector({ onCompare, onNewAnalysis, onLoadCom
           <GitCompareArrows size={32} strokeWidth={1.5} />
           <p>Select at least <strong>2 properties</strong> to start comparing</p>
         </div>
+      )}
+
+      {limitUsage && (
+        <UsageLimitDialog
+          usage={limitUsage}
+          onBuyCredits={() => { setLimitUsage(null); adapters.usage?.openBilling(); }}
+          onViewHistory={() => { setLimitUsage(null); changeTab('history'); }}
+          onClose={() => setLimitUsage(null)}
+        />
       )}
     </div>
   );

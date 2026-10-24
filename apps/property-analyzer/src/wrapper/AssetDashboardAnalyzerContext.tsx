@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   analyzerApi,
+  api,
   buildAppUrl,
   useAuth,
 } from '@deal-platform/shared-auth';
@@ -18,6 +19,7 @@ import type {
   AnalyzerSessionRequirement,
   AnalyzerShareUrlBuilder,
   AnalyzerStorageAdapter,
+  AnalyzerUsageAdapter,
   PropertyAnalyzerBranding,
   PropertyAnalyzerCoreProps,
   PropertyAnalyzerFeatureFlags,
@@ -198,6 +200,13 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
     },
   }), [navigate]);
 
+  const usage = useMemo<AnalyzerUsageAdapter | undefined>(() => (session ? {
+    getSummary: () => api.getBillingSummary(),
+    openBilling() {
+      window.location.href = buildAppUrl('/account/billing');
+    },
+  } : undefined), [session]);
+
   const shareUrls = useMemo<AnalyzerShareUrlBuilder>(() => ({
     analysis(slug) {
       return buildAbsoluteAppUrl(`/analysis/${encodeURIComponent(slug)}`);
@@ -237,6 +246,7 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
       navigation,
       storage: createStorageAdapter(),
       shareUrls,
+      usage,
       events: {
         navigate: navigation.navigate,
         shareLinkCopied: (url: string) => dispatchAnalyzerEvent('property-analyzer:share-link-copied', { url }),
@@ -250,7 +260,7 @@ export function AssetDashboardAnalyzerProvider({ children }: { children: ReactNo
     onAnalysisContextChange: setAssistantContext,
     assistantContext,
     setAssistantContext,
-  }), [assistantContext, authAdapter, branding, features, location, navigation, shareUrls, shellSlots]);
+  }), [assistantContext, authAdapter, branding, features, location, navigation, shareUrls, shellSlots, usage]);
 
   return (
     <AssetDashboardAnalyzerContext.Provider value={value}>

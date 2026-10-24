@@ -12,6 +12,7 @@ import Leaderboard from './pages/Leaderboard';
 import News from './pages/News';
 import Profile from './pages/Profile';
 import AdminManage from './pages/AdminManage';
+import Billing from './pages/Billing';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/news" element={<News />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/account/billing" element={<Billing />} />
             <Route path="/admin" element={<AdminManage />} />
           </Route>
           <Route path="/login" element={<Login />} />
