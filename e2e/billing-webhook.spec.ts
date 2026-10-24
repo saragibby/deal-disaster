@@ -173,6 +173,7 @@ test('creates a checkout session for a valid package and reuses the Stripe custo
     invoice_creation: { enabled: true },
   });
   expect(sessionCalls[0].line_items[0].price_data.unit_amount).toBe(1500);
+  expect(sessionCalls[0].line_items[0].price_data.product_data.tax_code).toBe('txcd_10103001');
   expect(sessionCalls[0].success_url).toContain('/account/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}');
   expect(sessionCalls[1].customer).toBe(rows[0].stripe_customer_id);
 });

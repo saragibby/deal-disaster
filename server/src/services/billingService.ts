@@ -70,6 +70,15 @@ export function getCreditPackageList(stripe: Stripe | null): CreditPackageList {
   };
 }
 
+/**
+ * Stripe product tax code for credit packs. Required when the account uses
+ * Managed Payments (Stripe as merchant of record). Defaults to SaaS, business use.
+ */
+export function creditTaxCode(env: NodeJS.ProcessEnv = process.env): string {
+  const code = env.STRIPE_CREDIT_TAX_CODE?.trim();
+  return code && /^txcd_\d{8}$/.test(code) ? code : 'txcd_10103001';
+}
+
 function clientUrl(env: NodeJS.ProcessEnv = process.env): string {
   return (env.CLIENT_URL || 'http://localhost:5200').replace(/\/+$/, '');
 }
@@ -133,6 +142,7 @@ export async function createCreditCheckout(
         currency: 'usd',
         unit_amount: pkg.priceCents,
         product_data: {
+          tax_code: creditTaxCode(),
           name: `Property analysis credits – $${(pkg.creditCents / 100).toFixed(0)}`,
           description: `About ${pkg.runs} property analyses. Credits expire ${getMeteringConfig().creditExpiryMonths} months after purchase.`,
         },
