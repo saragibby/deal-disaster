@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { foreclosureGenerator } from './services/foreclosureGenerator.js';
 import { pool } from './db/pool.js';
 import { getTodayInTimezone, getServerTimezone } from './utils/dateUtils.js';
+import { runCreditMaintenance } from './services/analysisMeteringService.js';
 
 /**
  * Scheduled task to generate daily foreclosure challenges
@@ -23,6 +24,25 @@ export function initializeScheduledTasks() {
 
   // Also run on startup if no challenge exists for today
   checkAndGenerateTodaysChallenge();
+
+  const creditCron = process.env.ANALYZER_CREDIT_MAINTENANCE_CRON || '17 * * * *';
+  console.log(`Initializing analysis credit maintenance: ${creditCron}`);
+  cron.schedule(creditCron, () => { void runScheduledCreditMaintenance(); });
+  void runScheduledCreditMaintenance();
+}
+
+async function runScheduledCreditMaintenance(): Promise<void> {
+  try {
+    const result = await runCreditMaintenance();
+    if (result.staleRefunded || result.expiredLots) {
+      console.log(
+        `Credit maintenance: refunded ${result.staleRefunded} stale reservation(s), `
+        + `expired ${result.expiredLots} lot(s) totaling ${result.expiredCents}¢`,
+      );
+    }
+  } catch (error) {
+    console.error('Credit maintenance failed:', error);
+  }
 }
 
 async function generateDailyChallenge(date?: string): Promise<void> {

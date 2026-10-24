@@ -11,6 +11,8 @@
     "db:setup": "tsx src/db/setup.ts",
     "db:setup:prod": "node dist/db/setup.js",
     "usage:prune": "node dist/scripts/pruneProviderUsage.js",
+    "credits:maintain": "tsx src/scripts/creditMaintenance.ts",
+    "credits:maintain:prod": "node dist/scripts/creditMaintenance.js",
     "check-data-images": "tsx src/scripts/checkDataImages.ts",
     "check-data-images:prod": "node dist/scripts/checkDataImages.js",
     "regenerate-images": "tsx src/scripts/regenerateImages.ts",

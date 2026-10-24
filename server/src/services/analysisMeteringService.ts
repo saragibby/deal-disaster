@@ -492,6 +492,50 @@ export async function clawbackStripeRefund(
   });
 }
 
+/**
+ * Zeroes out unused credit on lots past their expiry and records an
+ * `expiration` ledger entry for each. Safe to re-run. Returns totals expired.
+ */
+export async function expireCreditLots(now: Date = new Date()): Promise<{ lots: number; cents: number }> {
+  const { rows } = await pool.query<{ user_id: number }>(
+    'SELECT DISTINCT user_id FROM credit_lots WHERE remaining_cents > 0 AND expires_at <= $1',
+    [now],
+  );
+  let lots = 0;
+  let cents = 0;
+  for (const { user_id } of rows) {
+    const result = await withUserLock(user_id, async (client, user) => {
+      const expired = await client.query<{ id: string; remaining_cents: number }>(
+        `SELECT id, remaining_cents FROM credit_lots
+          WHERE user_id = $1 AND remaining_cents > 0 AND expires_at <= $2
+          ORDER BY id FOR UPDATE`,
+        [user.id, now],
+      );
+      for (const lot of expired.rows) {
+        await client.query('UPDATE credit_lots SET remaining_cents = 0 WHERE id = $1', [lot.id]);
+        await client.query(
+          `INSERT INTO credit_ledger (user_id, lot_id, entry_type, amount_cents, description)
+           VALUES ($1, $2, 'expiration', $3, 'Unused credit expired')`,
+          [user.id, lot.id, -lot.remaining_cents],
+        );
+      }
+      return expired.rows;
+    });
+    lots += result.length;
+    cents += result.reduce((sum, lot) => sum + lot.remaining_cents, 0);
+  }
+  return { lots, cents };
+}
+
+/** Periodic maintenance: refund abandoned reservations and expire old credit. */
+export async function runCreditMaintenance(now: Date = new Date()): Promise<{
+  staleRefunded: number; expiredLots: number; expiredCents: number;
+}> {
+  const staleRefunded = await sweepStaleReservations();
+  const expired = await expireCreditLots(now);
+  return { staleRefunded, expiredLots: expired.lots, expiredCents: expired.cents };
+}
+
 // ── History ──────────────────────────────────────────────────────────────
 
 export async function getUsageHistory(

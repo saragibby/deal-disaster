@@ -7,6 +7,7 @@ import { ANALYSIS_CREDITS_SCHEMA } from '../server/src/db/analysisCreditsSchema'
 import {
   commitAnalysis,
   createAnalysisMeteringHooks,
+  expireCreditLots,
   getCreditTransactions,
   getMeteringConfig,
   getUsageHistory,
@@ -15,6 +16,7 @@ import {
   nextLocalMidnight,
   refundAnalysis,
   reserveAnalysis,
+  runCreditMaintenance,
   sweepStaleReservations,
   type MeteringConfig,
 } from '../server/src/services/analysisMeteringService';
@@ -248,6 +250,48 @@ test('abandoned reservations are refunded by the sweeper', async () => {
   const { rows } = await pool.query('SELECT status, refund_reason FROM analysis_usage_events WHERE id = $1', [result.eventId]);
   expect(rows[0]).toEqual({ status: 'refunded', refund_reason: 'stale' });
   expect(await commitAnalysis(userId, result.eventId, { slug: 'late' })).toBe('missing');
+});
+
+test('expired credit is zeroed with an expiration ledger entry and re-running is a no-op', async () => {
+  const userId = await createUser();
+  const cfg = config({ freeDailyLimit: 0 });
+  const now = new Date();
+  await grantCredits(userId, { amountCents: 300, source: 'admin_grant', expiresAt: new Date(now.getTime() + 86400000), config: cfg });
+  await grantCredits(userId, { amountCents: 200, source: 'admin_grant', expiresAt: new Date(now.getTime() + 2 * 86400000), config: cfg });
+  expect(await reserve(userId, cfg)).toMatchObject({ allowed: true, chargeType: 'credit' });
+  expect(await lotBalances(userId)).toEqual([225, 200]);
+
+  const later = new Date(now.getTime() + 1.5 * 86400000);
+  const first = await expireCreditLots(later);
+  expect(first.lots).toBeGreaterThanOrEqual(1);
+  expect(first.cents).toBeGreaterThanOrEqual(225);
+  expect(await lotBalances(userId)).toEqual([0, 200]);
+  expect(await expireCreditLots(later)).toEqual({ lots: 0, cents: 0 });
+
+  const summary = await getUsageSummary(userId, { config: cfg, now: later });
+  expect(summary.credits.balanceCents).toBe(200);
+  const ledger = await getCreditTransactions(userId);
+  const expirations = ledger.items.filter(item => item.type === 'expiration');
+  expect(expirations).toHaveLength(1);
+  expect(expirations[0].amountCents).toBe(-225);
+  expect(ledger.items.reduce((sum, item) => sum + item.amountCents, 0)).toBe(200);
+});
+
+test('credit maintenance sweeps stale reservations before expiring credit', async () => {
+  const userId = await createUser();
+  const cfg = config({ freeDailyLimit: 0 });
+  await grantCredits(userId, { amountCents: 75, source: 'admin_grant', expiresAt: new Date(Date.now() + 60_000), config: cfg });
+  const result = await reserve(userId, cfg);
+  if (!result.allowed) throw new Error('Expected reservation');
+  await pool.query("UPDATE analysis_usage_events SET created_at = now() - interval '1 hour' WHERE id = $1", [result.eventId]);
+
+  const summary = await runCreditMaintenance(new Date(Date.now() + 120_000));
+  expect(summary.staleRefunded).toBeGreaterThanOrEqual(1);
+  expect(summary.expiredLots).toBeGreaterThanOrEqual(1);
+  expect(await lotBalances(userId)).toEqual([0]);
+  const ledger = await getCreditTransactions(userId);
+  expect(ledger.items.map(item => item.type).sort()).toEqual(['admin_grant', 'expiration', 'usage', 'usage_refund']);
+  expect(ledger.items.reduce((sum, item) => sum + item.amountCents, 0)).toBe(0);
 });
 
 test('runtime hooks return 402 with usage when blocked and are a no-op when metering is off', async () => {
