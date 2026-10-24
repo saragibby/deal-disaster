@@ -49,7 +49,7 @@ test('shows remaining usage and a limit dialog with ways to get unblocked', asyn
   await mockApi(page, usage(), () => { runs++; });
   await page.goto('/property-analyzer/');
 
-  await expect(page.getByTestId('usage-meter')).toContainText('Daily limit reached');
+  await expect(page.getByTestId('usage-meter')).toContainText('Free analyses used for today. Add credits or come back tomorrow.');
   await page.getByPlaceholder(/Enter an address/).fill('123 Main St, Austin, TX 78701');
   await page.locator('.analyzer__submit-btn').click();
 
@@ -74,7 +74,7 @@ test('tells users when the next analysis will use credit', async ({ page }) => {
   await mockApi(page, usage({ credits: { balanceCents: 450, runsAvailable: 6 }, nextRunChargeCents: 75 }), () => undefined);
   await page.goto('/property-analyzer/');
   const meter = page.getByTestId('usage-meter');
-  await expect(meter).toContainText('next analysis uses $0.75 of credit');
+  await expect(meter).toContainText('Free analyses used for today. Add credits or come back tomorrow.');
   await expect(meter).toContainText('$4.50 credit (≈6 analyses)');
   await expect(meter.getByRole('button', { name: 'Add credits' })).toBeVisible();
 });
@@ -96,4 +96,20 @@ test('re-analyzing a saved property past the limit opens the limit dialog', asyn
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText('already analyzed today can be re-analyzed again at no extra cost');
   expect(runs).toBe(1);
+});
+
+test('cancel sits on the usage meter row when analyzing another property', async ({ page }) => {
+  await mockApi(page, usage({ credits: { balanceCents: 150, runsAvailable: 2 }, nextRunChargeCents: 75 }), () => undefined);
+  await page.goto(`/property-analyzer/analysis/${mtrAnalysis().slug}`);
+  await page.getByRole('button', { name: 'Analyze another' }).click();
+  const meter = page.getByTestId('usage-meter');
+  await expect(meter.getByRole('button', { name: 'Add credits' })).toBeVisible();
+  await expect(meter.getByRole('button', { name: 'Cancel' })).toBeVisible();
+  const [add, cancel] = await Promise.all([
+    meter.getByRole('button', { name: 'Add credits' }).boundingBox(),
+    meter.getByRole('button', { name: 'Cancel' }).boundingBox(),
+  ]);
+  expect(Math.abs((add!.y + add!.height / 2) - (cancel!.y + cancel!.height / 2))).toBeLessThan(4);
+  await meter.getByRole('button', { name: 'Cancel' }).click();
+  await expect(meter).toHaveCount(0);
 });

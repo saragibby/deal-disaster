@@ -198,16 +198,20 @@ export default function PropertyAnalyzer() {
                   )}
                 </button>
               </div>
-              {showUsage && usage && <UsageMeter usage={usage} onBuyCredits={handleBuyCredits} />}
-              {result && !loading && (
-                <button
-                  type="button"
-                  className="analyzer__advanced-toggle"
-                  onClick={() => setInputExpanded(false)}
-                >
-                  Cancel
-                </button>
-              )}
+              {(() => {
+                const cancel = result && !loading ? (
+                  <button
+                    type="button"
+                    className="analyzer__advanced-toggle"
+                    onClick={() => setInputExpanded(false)}
+                  >
+                    Cancel
+                  </button>
+                ) : null;
+                return showUsage && usage
+                  ? <UsageMeter usage={usage} onBuyCredits={handleBuyCredits}>{cancel}</UsageMeter>
+                  : cancel;
+              })()}
             </div>
           )}
 

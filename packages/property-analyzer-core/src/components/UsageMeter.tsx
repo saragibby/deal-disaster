@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { AnalysisUsageSummary } from '@deal-platform/shared-types';
 import { Gauge } from 'lucide-react';
 
@@ -17,21 +18,18 @@ export function formatResetTime(resetsAt: string, timezone: string): string {
 interface UsageMeterProps {
   usage: AnalysisUsageSummary;
   onBuyCredits(): void;
+  /** Extra controls shown at the end of the meter row (e.g. Cancel). */
+  children?: ReactNode;
 }
 
-export default function UsageMeter({ usage, onBuyCredits }: UsageMeterProps) {
+export default function UsageMeter({ usage, onBuyCredits, children }: UsageMeterProps) {
   const { freeRemaining, freeLimit } = usage.today;
   const { balanceCents, runsAvailable } = usage.credits;
   const blocked = usage.nextRunChargeCents < 0;
 
-  let status: string;
-  if (freeRemaining > 0) {
-    status = `${freeRemaining} of ${freeLimit} free ${freeLimit === 1 ? 'analysis' : 'analyses'} left today`;
-  } else if (blocked) {
-    status = `Daily limit reached · resets at ${formatResetTime(usage.today.resetsAt, usage.timezone)}`;
-  } else {
-    status = `Free analyses used for today · next analysis uses ${formatCents(usage.nextRunChargeCents)} of credit`;
-  }
+  const status = freeRemaining > 0
+    ? `${freeRemaining} of ${freeLimit} free ${freeLimit === 1 ? 'analysis' : 'analyses'} left today`
+    : 'Free analyses used for today. Add credits or come back tomorrow.';
 
   return (
     <div className={`usage-meter${blocked ? ' usage-meter--blocked' : ''}`} data-testid="usage-meter">
@@ -43,8 +41,9 @@ export default function UsageMeter({ usage, onBuyCredits }: UsageMeterProps) {
         </span>
       )}
       <button type="button" className="usage-meter__buy" onClick={onBuyCredits}>
-        {balanceCents > 0 ? 'Add credits' : 'Buy credits'}
+        Add credits
       </button>
+      {children}
     </div>
   );
 }
