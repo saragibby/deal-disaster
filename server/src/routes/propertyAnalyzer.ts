@@ -4,7 +4,7 @@
  * Thin layer that orchestrates the general-purpose property services and
  * adds history persistence (CRUD on the property_analyses table).
  *
- * POST   /api/analyzer/run              – lookup + analyze + save
+ * POST   /api/analyzer/run              – lookup + analyze + save (metered when runtime.metering is set; 402 when out of free runs/credits)
  * GET    /api/analyzer/history           – list saved analyses
  * GET    /api/analyzer/history/:slug     – single saved analysis
  * GET    /api/analyzer/history/:slug/property-records – private owner and sale records
@@ -39,7 +39,7 @@ import type {
   AnalysisDatasetStatus, AnalysisParams, ComparableProperty, MarketStatistics, PropertyData, RentalEstimate,
 } from '@deal-platform/shared-types';
 import { DEFAULT_ANALYSIS_PARAMS } from '@deal-platform/shared-types';
-import type { AnalyzerBackendRuntime } from '../analyzer/backend.js';
+import type { AnalyzerBackendRuntime, AnalyzerMeteringTicket } from '../analyzer/backend.js';
 import { generatePropertySlug } from '../utils/slugify.js';
 import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
 import {
@@ -149,10 +149,16 @@ async function backfillComparables(
 // ── POST /run ────────────────────────────────────────────────────────────
 // Full pipeline: fetch property → estimate rent → compute analysis → persist
 router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
+  let meteringTicket: AnalyzerMeteringTicket | undefined;
   try {
     const { url, params: userParams } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'Please enter a property address or URL.' });
+    }
+    if (runtime.metering) {
+      const decision = await runtime.metering.reserve(req);
+      if (!decision.allowed) return res.status(decision.status).json(decision.body);
+      meteringTicket = decision.ticket;
     }
     const ownerContext = await buildOwnerContext(req);
 
@@ -315,6 +321,9 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       rentalComps: rentalEstimate.comps || [],
     });
 
+    const usage = await meteringTicket?.commit({ slug: saved.slug, address: property.address });
+    meteringTicket = undefined;
+
     res.json({
       slug: saved.slug,
       public_share_id: saved.public_share_id,
@@ -327,8 +336,10 @@ router.post('/run', requireAuth, async (req: AuthRequest, res: Response) => {
       analysis_results: results,
       rental_comps: rentalEstimate.comps || [],
       created_at: saved.created_at,
+      ...(usage ? { usage } : {}),
     });
   } catch (err: any) {
+    await meteringTicket?.refund('failed');
     console.error('[analyzer/run]', err.message);
     const status = err instanceof propertyDataService.PropertyDataProviderError ? 503 : 500;
     res.status(status).json({ error: err.message });

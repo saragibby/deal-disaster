@@ -10,6 +10,7 @@ import dailyChallengeRoutes from './routes/dailyChallenge.js';
 import chatRoutes from './routes/chat.js';
 import feedbackRoutes from './routes/feedback.js';
 import portalRoutes from './routes/portal.js';
+import billingRoutes from './routes/billing.js';
 import investorLabAuthRoutes, { authenticateInvestorLab } from './routes/investorLabAuth.js';
 import { createAnalyzerBackendRouter, createAssetDashboardAnalyzerBackendRouter } from './analyzer/backend.js';
 import { initializeScheduledTasks } from './scheduler.js';
@@ -85,6 +86,7 @@ app.use('/api/daily-challenge', dailyChallengeRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/billing', billingRoutes);
 app.use('/api', createAssetDashboardAnalyzerBackendRouter());
 app.use('/api/investor-lab/auth', investorLabAuthRoutes);
 app.use('/api/investor-lab', createAnalyzerBackendRouter({

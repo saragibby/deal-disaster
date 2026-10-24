@@ -1,9 +1,10 @@
 import { Router, type RequestHandler } from 'express';
-import type { OwnerContext } from '@deal-platform/shared-types';
+import type { AnalysisUsageSummary, OwnerContext } from '@deal-platform/shared-types';
 import type { AuthRequest } from '../middleware/auth.js';
 import { authenticateOptional, authenticateToken } from '../middleware/auth.js';
 import { buildAssetDashboardOwnerContext } from '../middleware/ownerContext.js';
 import { providerUsageMiddleware } from '../services/providerUsageService.js';
+import { createAnalysisMeteringHooks } from '../services/analysisMeteringService.js';
 
 type RouterModule = { default: Router };
 type RouterFactoryModule = { createPropertyAnalyzerRouter: (runtime: AnalyzerBackendRuntime) => Router };
@@ -22,9 +23,26 @@ export interface AnalyzerBackendConfig {
   tenantId: string;
 }
 
+export interface AnalyzerMeteringTicket {
+  /** Settle a successful run. Returns the caller's updated usage summary when available. */
+  commit(details: { slug?: string; address?: string }): Promise<AnalysisUsageSummary | undefined>;
+  /** Release the reserved free slot or credit after a failed run. */
+  refund(reason: string): Promise<void>;
+}
+
+export type AnalyzerMeteringDecision =
+  | { allowed: true; ticket: AnalyzerMeteringTicket }
+  | { allowed: false; status: number; body: unknown };
+
+/** Optional per-platform metering for new analyses. Platforms without it are unmetered. */
+export interface AnalyzerMeteringHooks {
+  reserve(req: AuthRequest): Promise<AnalyzerMeteringDecision>;
+}
+
 export interface AnalyzerBackendRuntime {
   auth: AnalyzerBackendAuth;
   config: AnalyzerBackendConfig;
+  metering?: AnalyzerMeteringHooks;
 }
 
 export type AnalyzerRouteLoader = (
@@ -37,6 +55,7 @@ export interface AnalyzerBackendOptions {
   auth?: Partial<AnalyzerBackendAuth>;
   config?: Partial<AnalyzerBackendConfig>;
   routes?: Partial<AnalyzerRouteLoaders>;
+  metering?: AnalyzerMeteringHooks;
 }
 
 function once<T>(loader: () => Promise<T>): () => Promise<T> {
@@ -59,6 +78,7 @@ function createRuntime(options: AnalyzerBackendOptions): AnalyzerBackendRuntime 
       tenantId: 'asset-dashboard',
       ...options.config,
     },
+    ...(options.metering ? { metering: options.metering } : {}),
   };
 }
 
@@ -121,5 +141,5 @@ export function createAnalyzerBackendRouter(options: AnalyzerBackendOptions = {}
 }
 
 export function createAssetDashboardAnalyzerBackendRouter(): Router {
-  return createAnalyzerBackendRouter();
+  return createAnalyzerBackendRouter({ metering: createAnalysisMeteringHooks('asset-dashboard') });
 }

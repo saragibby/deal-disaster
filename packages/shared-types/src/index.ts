@@ -1749,3 +1749,85 @@ export function formatIssueCatalogForPrompt(): string {
       `- ${i.type} [${i.category}, ${i.severity}] — cost $${i.costRange[0].toLocaleString()}–$${i.costRange[1].toLocaleString()}; found in: ${i.sourceDocument}`
   ).join('\n');
 }
+
+// ============================================
+// Analyzer Usage Limits & Credits
+// ============================================
+
+export type AnalysisMeteringMode = 'off' | 'shadow' | 'enforce';
+export type AnalysisChargeType = 'free' | 'credit' | 'exempt';
+
+/** Error code returned with HTTP 402 when a user has no free analyses or credits left. */
+export const ANALYSIS_LIMIT_REACHED = 'ANALYSIS_LIMIT_REACHED';
+
+export interface AnalysisUsageSummary {
+  mode: AnalysisMeteringMode;
+  timezone: string;
+  exempt: boolean;
+  pricePerRunCents: number;
+  today: {
+    date: string;
+    used: number;
+    freeLimit: number;
+    freeUsed: number;
+    freeRemaining: number;
+    paidRuns: number;
+    /** ISO timestamp of the next local midnight in `timezone`. */
+    resetsAt: string;
+  };
+  credits: {
+    balanceCents: number;
+    runsAvailable: number;
+    nextExpiration?: { cents: number; expiresAt: string };
+  };
+  /** 0 when the next run is free or exempt, the price when it uses credits, -1 when blocked. */
+  nextRunChargeCents: number;
+}
+
+export interface AnalysisLimitReachedResponse {
+  error: string;
+  code: typeof ANALYSIS_LIMIT_REACHED;
+  usage: AnalysisUsageSummary;
+}
+
+export interface AnalysisUsageDay {
+  date: string;
+  free: number;
+  paid: number;
+  exempt: number;
+  chargedCents: number;
+}
+
+export interface AnalysisUsageRecord {
+  id: string;
+  createdAt: string;
+  usageDate: string;
+  propertyAddress?: string;
+  propertySlug?: string;
+  chargeType: AnalysisChargeType;
+  amountCents: number;
+  status: 'committed' | 'refunded';
+  refundReason?: string;
+}
+
+export interface AnalysisUsageHistory {
+  days: AnalysisUsageDay[];
+  recent: AnalysisUsageRecord[];
+}
+
+export type CreditTransactionType =
+  | 'purchase' | 'admin_grant' | 'usage' | 'usage_refund' | 'expiration' | 'stripe_refund';
+
+export interface CreditTransaction {
+  id: string;
+  createdAt: string;
+  type: CreditTransactionType;
+  amountCents: number;
+  description?: string;
+  expiresAt?: string;
+}
+
+export interface CreditTransactionPage {
+  items: CreditTransaction[];
+  nextCursor?: string;
+}
