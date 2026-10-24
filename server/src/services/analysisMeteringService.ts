@@ -279,12 +279,16 @@ export async function getUsageSummary(userId: number, options: MeteringOptions =
 // ── Reserve / commit / refund ────────────────────────────────────────────
 
 export type ReserveResult =
-  | { allowed: true; eventId: string; chargeType: AnalysisChargeType; amountCents: number; wouldBlock: boolean }
+  | { allowed: true; repeat?: false; eventId: string; chargeType: AnalysisChargeType; amountCents: number; wouldBlock: boolean }
+  /** The property was already counted today, so this run is free and records no usage event. */
+  | { allowed: true; repeat: true }
   | { allowed: false; usage: AnalysisUsageSummary };
 
 export interface ReserveOptions extends MeteringOptions {
   tenantId: string;
   eventId?: string;
+  /** Saved analysis being re-run or refreshed. Free when it was already counted today. */
+  propertySlug?: string;
 }
 
 export async function reserveAnalysis(userId: number, options: ReserveOptions): Promise<ReserveResult> {
@@ -314,6 +318,17 @@ export async function reserveAnalysis(userId: number, options: ReserveOptions): 
     if (user.is_admin === true) {
       await insertEvent('exempt', 0);
       return { allowed: true, eventId, chargeType: 'exempt', amountCents: 0, wouldBlock: false } as const;
+    }
+
+    if (options.propertySlug) {
+      const counted = await client.query(
+        `SELECT 1 FROM analysis_usage_events
+          WHERE user_id = $1 AND usage_date = $2 AND property_slug = $3
+            AND status = 'committed' AND charge_type <> 'exempt'
+          LIMIT 1`,
+        [userId, usageDate, options.propertySlug],
+      );
+      if (counted.rows.length > 0) return { allowed: true, repeat: true } as const;
     }
 
     const free = await client.query<{ count: string }>(
@@ -646,7 +661,7 @@ function timezoneHeader(req: AuthRequest): string | undefined {
 
 export function createAnalysisMeteringHooks(tenantId: string): AnalyzerMeteringHooks {
   return {
-    async reserve(req) {
+    async reserve(req, reserveOptions = {}) {
       const config = getMeteringConfig();
       const userId = req.userId;
       if (config.mode === 'off' || userId == null) return { allowed: true, ticket: NOOP_TICKET };
@@ -656,6 +671,7 @@ export function createAnalysisMeteringHooks(tenantId: string): AnalyzerMeteringH
       try {
         reservation = await reserveAnalysis(userId, {
           tenantId, timezoneHint, config, eventId: getProviderUsageRequestId(),
+          ...(reserveOptions.propertySlug ? { propertySlug: reserveOptions.propertySlug } : {}),
         });
       } catch (error) {
         console.error('[metering] Reservation failed:', error instanceof Error ? error.message : 'unknown error');
@@ -674,6 +690,7 @@ export function createAnalysisMeteringHooks(tenantId: string): AnalyzerMeteringH
           body: { error: 'Daily analysis limit reached.', code: ANALYSIS_LIMIT_REACHED, usage: reservation.usage },
         };
       }
+      if (reservation.repeat) return { allowed: true, ticket: NOOP_TICKET };
       const { eventId } = reservation;
       if (reservation.wouldBlock) {
         console.info('[metering:would-block]', JSON.stringify({ eventId, freeDailyLimit: config.freeDailyLimit }));

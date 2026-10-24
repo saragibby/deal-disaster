@@ -34,9 +34,17 @@ export type AnalyzerMeteringDecision =
   | { allowed: true; ticket: AnalyzerMeteringTicket }
   | { allowed: false; status: number; body: unknown };
 
-/** Optional per-platform metering for new analyses. Platforms without it are unmetered. */
+export interface AnalyzerMeteringReserveOptions {
+  /** Saved analysis being re-run or refreshed; free when already counted today. */
+  propertySlug?: string;
+}
+
+/**
+ * Optional per-platform metering for provider-backed analyzer work (new runs,
+ * re-analysis and saved-analysis refreshes). Platforms without it are unmetered.
+ */
 export interface AnalyzerMeteringHooks {
-  reserve(req: AuthRequest): Promise<AnalyzerMeteringDecision>;
+  reserve(req: AuthRequest, options?: AnalyzerMeteringReserveOptions): Promise<AnalyzerMeteringDecision>;
 }
 
 export interface AnalyzerBackendRuntime {

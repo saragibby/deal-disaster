@@ -7,10 +7,14 @@
  * POST   /api/analyzer/run              – lookup + analyze + save (metered when runtime.metering is set; 402 when out of free runs/credits)
  * GET    /api/analyzer/history           – list saved analyses
  * GET    /api/analyzer/history/:slug     – single saved analysis
- * GET    /api/analyzer/history/:slug/property-records – private owner and sale records
- * POST   /api/analyzer/history/:slug/property-records/refresh – fetch and persist fresh records
+ * GET    /api/analyzer/history/:slug/property-records – private owner and sale records (metered on first fetch)
+ * POST   /api/analyzer/history/:slug/property-records/refresh – fetch and persist fresh records (metered)
  * DELETE /api/analyzer/history/:slug     – delete saved analysis
- * POST   /api/analyzer/re-analyze/:slug  – re-run with updated params
+ * POST   /api/analyzer/re-analyze/:slug  – re-run with updated params (metered)
+ * POST   /api/analyzer/history/:slug/refresh-missing – refetch missing datasets (metered)
+ *
+ * Metered saved-analysis actions are free when the same property was already
+ * counted today, so repeated tweaks to one property use a single allowance.
  * PATCH  /api/analyzer/history/:slug/share – toggle sharing on/off
  * GET    /api/analyzer/shared/:identifier – public read-only view (no auth required)
  */
@@ -75,6 +79,22 @@ export function createPropertyAnalyzerRouter(runtime: AnalyzerBackendRuntime = c
 const router = Router();
 const requireAuth = runtime.auth.requireAuth;
 const buildOwnerContext = runtime.auth.buildOwnerContext;
+
+/**
+ * Reserves usage for provider-backed work on a saved analysis. Returns `null`
+ * after sending the 402/503 response when the user is out of allowance.
+ */
+async function reserveSavedAnalysisUsage(
+  req: AuthRequest, res: Response, slug: string,
+): Promise<AnalyzerMeteringTicket | undefined | null> {
+  if (!runtime.metering) return undefined;
+  const decision = await runtime.metering.reserve(req, { propertySlug: slug });
+  if (!decision.allowed) {
+    res.status(decision.status).json(decision.body);
+    return null;
+  }
+  return decision.ticket;
+}
 
 // ── Helper: enrich similar properties with rent estimates ────────────────
 function enrichComparables(
@@ -387,6 +407,7 @@ router.get('/history/:slug', requireAuth, async (req: AuthRequest, res: Response
 
 async function propertyRecordsHandler(req: AuthRequest, res: Response, refresh: boolean) {
   res.setHeader('Cache-Control', 'private, no-store');
+  let meteringTicket: AnalyzerMeteringTicket | undefined;
   try {
     const ownerContext = await buildOwnerContext(req);
     const analysis = await getAnalysisForReanalysis(ownerContext, req.params.slug);
@@ -397,13 +418,21 @@ async function propertyRecordsHandler(req: AuthRequest, res: Response, refresh: 
       recordProviderCache('rentcast', 'property-records', 'saved-analysis', 'hit');
       return res.json(analysis.property_records);
     }
+    const ticket = await reserveSavedAnalysisUsage(req, res, req.params.slug);
+    if (ticket === null) return;
+    meteringTicket = ticket;
     const records = await rentCastService.getPropertyRecords(analysis.property_data, { refresh });
     const saved = await savePropertyRecords(ownerContext, req.params.slug, records);
     if (!saved) {
+      await meteringTicket?.refund('failed');
+      meteringTicket = undefined;
       return res.status(404).json({ error: 'Analysis not found.' });
     }
+    await meteringTicket?.commit({ slug: req.params.slug, address: analysis.property_data?.address });
+    meteringTicket = undefined;
     return res.json(saved);
   } catch (err: unknown) {
+    await meteringTicket?.refund('failed');
     console.error('[analyzer/property-records]', err instanceof Error ? err.message : 'Unknown error');
     const unavailable = err instanceof rentCastService.PropertyRecordsUnavailableError ||
       (err instanceof Error && err.name === 'TimeoutError');
@@ -505,6 +534,7 @@ router.post('/history/:slug/mtr-nearby', requireAuth, async (req: AuthRequest, r
 // Re-run analysis on a previously-saved property with new params.
 // Updates the existing entry in-place (same slug/URL).
 router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Response) => {
+  let meteringTicket: AnalyzerMeteringTicket | undefined;
   try {
     const ownerContext = await buildOwnerContext(req);
     const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
@@ -512,6 +542,10 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     if (row == null) {
       return res.status(404).json({ error: 'Original analysis not found.' });
     }
+
+    const ticket = await reserveSavedAnalysisUsage(req, res, req.params.slug);
+    if (ticket === null) return;
+    meteringTicket = ticket;
 
     const property = row.property_data;
 
@@ -662,8 +696,12 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
     });
 
     if (saved == null) {
+      await meteringTicket?.refund('failed');
+      meteringTicket = undefined;
       return res.status(404).json({ error: 'Original analysis not found.' });
     }
+    await meteringTicket?.commit({ slug: req.params.slug, address: property.address });
+    meteringTicket = undefined;
 
     res.json({
       slug: saved.slug,
@@ -680,6 +718,7 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
       created_at: saved.created_at,
     });
   } catch (err: any) {
+    await meteringTicket?.refund('failed');
     console.error('[analyzer/re-analyze]', err.message);
     res.status(500).json({ error: err.message });
   }
@@ -692,12 +731,16 @@ router.post('/re-analyze/:slug', requireAuth, async (req: AuthRequest, res: Resp
 // data is one shared area snapshot, so a miss refreshes housing and rental
 // together while keeping the saved dataset that was already present.
 router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthRequest, res: Response) => {
+  let meteringTicket: AnalyzerMeteringTicket | undefined;
   try {
     const ownerContext = await buildOwnerContext(req);
     const row = await getAnalysisForReanalysis(ownerContext, req.params.slug);
     if (row == null) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
+    const ticket = await reserveSavedAnalysisUsage(req, res, req.params.slug);
+    if (ticket === null) return;
+    meteringTicket = ticket;
 
     const expected = {
       propertyData: JSON.stringify(row.property_data),
@@ -730,14 +773,19 @@ router.post('/history/:slug/refresh-missing', requireAuth, async (req: AuthReque
     };
 
     if (!await updateAnalysisDatasets(ownerContext, req.params.slug, property, results, expected)) {
+      await meteringTicket?.refund('failed');
+      meteringTicket = undefined;
       return res.status(409).json({ error: 'Analysis changed during refresh. Reload it before trying again.' });
     }
+    await meteringTicket?.commit({ slug: req.params.slug, address: property.address });
+    meteringTicket = undefined;
     const analysis = await getAnalysisBySlug(ownerContext, req.params.slug);
     if (analysis == null) {
       return res.status(404).json({ error: 'Analysis not found.' });
     }
     res.json({ analysis });
   } catch (err: unknown) {
+    await meteringTicket?.refund('failed');
     console.error('[analyzer/refresh-missing]', err);
     res.status(500).json({ error: 'Unable to refresh missing data.' });
   }

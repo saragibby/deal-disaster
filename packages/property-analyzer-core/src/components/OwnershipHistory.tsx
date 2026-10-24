@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
-import type { PropertyRecords, PropertyData } from '@deal-platform/shared-types';
+import type { AnalysisUsageSummary, PropertyRecords, PropertyData } from '@deal-platform/shared-types';
+import { getAnalysisLimitUsage } from '@deal-platform/shared-types';
 import { usePropertyAnalyzerCore } from '../context.js';
 import RecordedSaleSummary from './RecordedSaleSummary';
 import PropertyHistoryTimeline from './PropertyHistoryTimeline';
 
-export default function OwnershipHistory({ slug, initialRecords, listingPrice, priceHistory }: {
+export default function OwnershipHistory({
+  slug, initialRecords, listingPrice, priceHistory, onUsageLimit, onUsageChange,
+}: {
   slug: string;
   initialRecords?: PropertyRecords | null;
   listingPrice: number;
   priceHistory?: PropertyData['priceHistory'];
+  onUsageLimit?: (usage: AnalysisUsageSummary) => void;
+  onUsageChange?: () => void;
 }) {
   const { adapters } = usePropertyAnalyzerCore();
   const [records, setRecords] = useState<PropertyRecords | null>(initialRecords ?? null);
@@ -23,8 +28,11 @@ export default function OwnershipHistory({ slug, initialRecords, listingPrice, p
       setRecords(await (refresh
         ? adapters.api.refreshPropertyRecords(slug)
         : adapters.api.getPropertyRecords(slug)));
+      onUsageChange?.();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unable to retrieve property records.');
+      const limitUsage = getAnalysisLimitUsage(err);
+      if (limitUsage && onUsageLimit) onUsageLimit(limitUsage);
+      else setError(err instanceof Error ? err.message : 'Unable to retrieve property records.');
     } finally {
       setLoading(false);
     }

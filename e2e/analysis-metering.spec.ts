@@ -21,6 +21,8 @@ import {
   type MeteringConfig,
 } from '../server/src/services/analysisMeteringService';
 import { createBillingRouter } from '../server/src/routes/billing';
+import { saveAnalysis } from '../server/src/services/analyzerPersistenceService';
+import { mtrAnalysis } from './fixtures/mtr-analysis';
 import { createPropertyAnalyzerRouter } from '../server/src/routes/propertyAnalyzer';
 import { authenticateToken, type AuthRequest } from '../server/src/middleware/auth';
 
@@ -175,6 +177,31 @@ test('re-running the same property on the same local day is free', async () => {
     ['123 Main St', 'refunded', 'duplicate-property-today'],
     ['123 Main St', 'committed', null],
   ]);
+});
+
+test('re-running a saved property is free when it was already counted today', async () => {
+  const userId = await createUser({ timezone: 'UTC' });
+  const cfg = config({ freeDailyLimit: 1 });
+  const slug = '42-repeat-st-49503';
+
+  const blockedBefore = await reserveAnalysis(userId, { tenantId: TENANT, config: config({ freeDailyLimit: 0 }), propertySlug: slug });
+  expect(blockedBefore.allowed).toBe(false);
+
+  const first = await reserveAnalysis(userId, { tenantId: TENANT, config: cfg, propertySlug: slug });
+  if (!first.allowed || first.repeat) throw new Error('Expected a counted reservation');
+  expect(first.chargeType).toBe('free');
+  await commitAnalysis(userId, first.eventId, { slug, address: '42 Repeat St' });
+
+  // Out of free analyses and credit, but this property was already counted today.
+  expect(await reserveAnalysis(userId, { tenantId: TENANT, config: cfg, propertySlug: slug }))
+    .toEqual({ allowed: true, repeat: true });
+  expect((await reserveAnalysis(userId, { tenantId: TENANT, config: cfg, propertySlug: 'other-slug' })).allowed).toBe(false);
+  // A refunded event doesn't count.
+  await refundAnalysis(userId, first.eventId);
+  expect((await reserveAnalysis(userId, { tenantId: TENANT, config: config({ freeDailyLimit: 0 }), propertySlug: slug })).allowed).toBe(false);
+
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM analysis_usage_events WHERE user_id = $1', [userId]);
+  expect(rows[0].n).toBe(1);
 });
 
 test('admins are exempt and never blocked', async () => {
@@ -425,6 +452,95 @@ test('POST /analyzer/run blocks before provider calls and refunds credits when t
       'SELECT charge_type, status, refund_reason FROM analysis_usage_events WHERE user_id = $1', [userId],
     );
     expect(rows).toEqual([{ charge_type: 'credit', status: 'refunded', refund_reason: 'failed' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await new Promise(resolve => server.close(resolve));
+    process.env = original;
+  }
+});
+
+test('re-analyze and saved-analysis refreshes are metered, free when the property was counted today', async () => {
+  const userId = await createUser({ timezone: 'UTC' });
+  const original = { ...process.env };
+  const originalFetch = globalThis.fetch;
+  process.env.JWT_SECRET = 'metering-reanalyze-secret';
+  process.env.ANALYZER_METERING_MODE = 'enforce';
+  process.env.ANALYZER_FREE_DAILY_LIMIT = '0';
+  const owner = {
+    actorUserId: String(userId), ownerUserId: String(userId), tenantId: TENANT, platform: 'asset-dashboard',
+    roles: ['user'], permissions: ['analysis:read', 'analysis:write'],
+  };
+  const fixture = mtrAnalysis();
+  const saveFixture = (slug: string) => saveAnalysis(owner, {
+    slug, zillowUrl: fixture.zillow_url, zpid: '', sourceUrl: fixture.zillow_url, sourceType: 'address',
+    propertyData: fixture.property_data, analysisParams: fixture.analysis_params,
+    analysisResults: { ...fixture.analysis_results, datasetStatus: { comparables: 'unavailable' } }, rentalComps: [],
+  });
+  const slug = `reanalyze-${randomUUID().slice(0, 8)}`;
+  await saveFixture(slug);
+
+  const app = express();
+  app.use(express.json());
+  app.use('/analyzer', createPropertyAnalyzerRouter({
+    auth: { requireAuth: authenticateToken, optionalAuth: authenticateToken, buildOwnerContext: async () => owner },
+    config: { platform: 'asset-dashboard', tenantId: TENANT },
+    metering: createAnalysisMeteringHooks(TENANT),
+  }));
+  const server: Server = await new Promise(resolve => {
+    const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+  });
+  const address = server.address();
+  const root = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/analyzer`;
+  const headers = { Authorization: `Bearer ${jwt.sign({ userId }, 'metering-reanalyze-secret')}`, 'Content-Type': 'application/json' };
+  let providerCalls = 0;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    if (String(input).startsWith(root)) return originalFetch(input, init);
+    providerCalls++;
+    return new Response('provider unavailable', { status: 500 });
+  }) as typeof fetch;
+  const post = (path: string) => fetch(`${root}${path}`, { method: 'POST', headers, body: '{}' });
+  const events = async () => (await pool.query<{ property_slug: string; charge_type: string; status: string }>(
+    'SELECT property_slug, charge_type, status FROM analysis_usage_events WHERE user_id = $1 ORDER BY created_at', [userId],
+  )).rows;
+  try {
+    for (const path of [`/re-analyze/${slug}`, `/history/${slug}/refresh-missing`, `/history/${slug}/property-records/refresh`, `/history/${slug}/property-records`]) {
+      const blocked = await post(path);
+      if (path.endsWith('/property-records')) {
+        expect((await fetch(`${root}${path}`, { headers })).status).toBe(402);
+      } else {
+        expect(blocked.status).toBe(402);
+        expect(await blocked.json()).toMatchObject({ code: 'ANALYSIS_LIMIT_REACHED' });
+      }
+    }
+    expect(providerCalls).toBe(0);
+    expect((await post('/re-analyze/does-not-exist')).status).toBe(404);
+    expect(await events()).toEqual([]);
+
+    await grantCredits(userId, { amountCents: 75, source: 'admin_grant' });
+    const charged = await post(`/re-analyze/${slug}`);
+    if (charged.status === 200) {
+      expect(await lotBalances(userId)).toEqual([0]);
+      expect(await events()).toEqual([{ property_slug: slug, charge_type: 'credit', status: 'committed' }]);
+    } else {
+      expect(await lotBalances(userId)).toEqual([75]);
+      expect(await events()).toEqual([{ property_slug: null, charge_type: 'credit', status: 'refunded' }]);
+      const first = await reserveAnalysis(userId, { tenantId: TENANT, config: config({ freeDailyLimit: 0 }) });
+      if (!first.allowed || first.repeat) throw new Error('Expected reservation');
+      await commitAnalysis(userId, first.eventId, { slug });
+      expect(await lotBalances(userId)).toEqual([0]);
+    }
+
+    // Already counted today: further re-runs and refreshes of this property are free, even with no credit left.
+    const before = await events();
+    for (const path of [`/re-analyze/${slug}`, `/history/${slug}/refresh-missing`, `/history/${slug}/property-records/refresh`]) {
+      expect((await post(path)).status).not.toBe(402);
+    }
+    expect(await events()).toEqual(before);
+    expect(await lotBalances(userId)).toEqual([0]);
+
+    const otherSlug = `reanalyze-${randomUUID().slice(0, 8)}`;
+    await saveFixture(otherSlug);
+    expect((await post(`/re-analyze/${otherSlug}`)).status).toBe(402);
   } finally {
     globalThis.fetch = originalFetch;
     await new Promise(resolve => server.close(resolve));

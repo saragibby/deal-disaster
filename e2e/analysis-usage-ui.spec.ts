@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { AnalysisUsageSummary } from '@deal-platform/shared-types';
+import { mtrAnalysis } from './fixtures/mtr-analysis';
 
 const user = { id: 7, name: 'Fixture User', email: 'fixture@example.test' };
 
@@ -27,7 +28,10 @@ async function mockApi(page: Page, summary: AnalysisUsageSummary, onRun: () => v
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/billing/summary') return route.fulfill({ json: summary });
-    if (url.pathname === '/api/analyzer/run') {
+    if (url.pathname.includes('/api/analyzer/history/') && route.request().method() === 'GET') {
+      return route.fulfill({ json: { analysis: mtrAnalysis() } });
+    }
+    if (url.pathname === '/api/analyzer/run' || url.pathname.startsWith('/api/analyzer/re-analyze/')) {
       onRun();
       return route.fulfill({
         status: 402,
@@ -80,4 +84,16 @@ test('hides the usage meter for exempt accounts', async ({ page }) => {
   await page.goto('/property-analyzer/');
   await expect(page.getByPlaceholder(/Enter an address/)).toBeVisible();
   await expect(page.getByTestId('usage-meter')).toHaveCount(0);
+});
+
+test('re-analyzing a saved property past the limit opens the limit dialog', async ({ page }) => {
+  let runs = 0;
+  page.on('dialog', dialog => { throw new Error(`Unexpected browser dialog: ${dialog.message()}`); });
+  await mockApi(page, usage(), () => { runs++; });
+  await page.goto(`/property-analyzer/analysis/${mtrAnalysis().slug}`);
+  await page.getByRole('button', { name: 'Re-analyze' }).click();
+  const dialog = page.getByRole('dialog', { name: 'You\'ve reached today\'s analysis limit' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('already analyzed today can be re-analyzed again at no extra cost');
+  expect(runs).toBe(1);
 });

@@ -52,7 +52,7 @@ export default function UsageLimitDialog({ usage, onBuyCredits, onViewHistory, o
             <CreditCard size={20} />
             <div>
               <strong>Buy credits</strong>
-              <span>Each analysis beyond your free daily limit uses {price} of credit. Credits carry over until they&apos;re used up.</span>
+              <span>Each analysis or re-analysis beyond your free daily limit uses {price} of credit. Credits carry over until they&apos;re used up.</span>
             </div>
           </li>
           <li>
@@ -66,7 +66,7 @@ export default function UsageLimitDialog({ usage, onBuyCredits, onViewHistory, o
             <History size={20} />
             <div>
               <strong>Revisit saved analyses</strong>
-              <span>Viewing, adjusting and re-analyzing properties you&apos;ve already analyzed is always free.</span>
+              <span>Viewing saved analyses and adjusting their assumptions is always free. Properties you&apos;ve already analyzed today can be re-analyzed again at no extra cost.</span>
             </div>
           </li>
         </ul>

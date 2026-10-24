@@ -279,8 +279,9 @@ export default function Billing() {
           <h2 className="section-title"><CreditCard size={20} /> Buy credits</h2>
           <p className="billing-section__intro">
             You get {summary ? plural(summary.today.freeLimit, 'free analysis', 'free analyses') : 'free analyses'} every day.
-            After that, each new analysis uses {money(packages.pricePerRunCents)} of credit. Viewing, adjusting and
-            re-analyzing saved properties is always free.
+            After that, each new analysis or re-analysis uses {money(packages.pricePerRunCents)} of credit. Viewing
+            saved analyses and adjusting their assumptions is always free, and a property you&apos;ve already analyzed
+            today can be re-analyzed again at no extra cost.
           </p>
           {!packages.purchasesEnabled && (
             <div className="billing-banner billing-banner--info">Credit purchases aren&apos;t available yet. Please check back soon.</div>

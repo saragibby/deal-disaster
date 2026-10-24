@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import type { PropertyAnalysis, AnalysisParams, AnalysisScenario } from '@deal-platform/shared-types';
-import { computeStrategyComparison, computeDealVerdict } from '@deal-platform/shared-types';
+import type { PropertyAnalysis, AnalysisParams, AnalysisScenario, AnalysisUsageSummary } from '@deal-platform/shared-types';
+import { computeStrategyComparison, computeDealVerdict, getAnalysisLimitUsage } from '@deal-platform/shared-types';
 import {
   Home, Building2, Sparkles, Calendar,
   BedDouble, Bath, Ruler, PiggyBank, RotateCcw,
@@ -41,6 +41,10 @@ interface Props {
   readOnly?: boolean;
   onUpdate?: (updated: PropertyAnalysis) => void;
   onAnalyzeAnother?: () => void;
+  /** Called when a metered action is blocked by the daily limit (HTTP 402). */
+  onUsageLimit?: (usage: AnalysisUsageSummary) => void;
+  /** Called after a metered action succeeds so usage can be refreshed. */
+  onUsageChange?: () => void;
 }
 
 function fmt(n: number): string {
@@ -56,7 +60,9 @@ function pct(n: number): string {
   return n.toFixed(2) + '%';
 }
 
-export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUpdate, onAnalyzeAnother }: Props) {
+export default function AnalysisResults({
+  analysis, skipEntrance, readOnly, onUpdate, onAnalyzeAnother, onUsageLimit, onUsageChange,
+}: Props) {
   const { adapters, features } = usePropertyAnalyzerCore();
   const { api, shareUrls } = adapters;
   const property = analysis.property_data;
@@ -213,12 +219,15 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       if (params.costSegPct === originalParams.costSegPct) delete payload.costSegPct;
       const updated = await api.reAnalyze(analysis.slug, payload);
       onUpdate(updated);
+      onUsageChange?.();
     } catch (err: any) {
-      alert(err?.message || 'Re-analyze failed. Please try again.');
+      const limitUsage = getAnalysisLimitUsage(err);
+      if (limitUsage && onUsageLimit) onUsageLimit(limitUsage);
+      else alert(err?.message || 'Re-analyze failed. Please try again.');
     } finally {
       setReanalyzing(false);
     }
-  }, [analysis.slug, api, onUpdate, params, originalParams]);
+  }, [analysis.slug, api, onUpdate, onUsageChange, onUsageLimit, params, originalParams]);
 
   // Refetch only datasets a provider failed to return (no financial rerun).
   const datasetStatus = results.datasetStatus;
@@ -231,12 +240,15 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
     setRefreshDataError(null);
     try {
       onUpdate(await api.refreshMissingData(analysis.slug));
+      onUsageChange?.();
     } catch (err: any) {
-      setRefreshDataError(err?.message || 'Refreshing missing data failed. Please try again later.');
+      const limitUsage = getAnalysisLimitUsage(err);
+      if (limitUsage && onUsageLimit) onUsageLimit(limitUsage);
+      else setRefreshDataError(err?.message || 'Refreshing missing data failed. Please try again later.');
     } finally {
       setRefreshingData(false);
     }
-  }, [analysis.slug, api, onUpdate]);
+  }, [analysis.slug, api, onUpdate, onUsageChange, onUsageLimit]);
   const refreshProps = canRefreshData
     ? { onRefresh: handleRefreshMissingData, refreshing: refreshingData, error: refreshDataError }
     : {};
@@ -1433,7 +1445,8 @@ export default function AnalysisResults({ analysis, skipEntrance, readOnly, onUp
       {!readOnly && analysis.slug && (
         <OwnershipHistory key={`records:${analysis.slug}`} slug={analysis.slug}
           initialRecords={analysis.property_records} listingPrice={property.price}
-          priceHistory={property.priceHistory} />
+          priceHistory={property.priceHistory}
+          onUsageLimit={onUsageLimit} onUsageChange={onUsageChange} />
       )}
 
       {/* Bottom grid — Foreclosures + Loan Calculator side by side */}

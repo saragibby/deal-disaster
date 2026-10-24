@@ -140,6 +140,11 @@ export default function PropertyAnalyzer() {
     usageAdapter?.openBilling();
   }, [usageAdapter]);
 
+  const handleUsageLimit = useCallback((limitUsage: AnalysisUsageSummary) => {
+    setUsage(limitUsage);
+    setLimitDialogUsage(limitUsage);
+  }, []);
+
   const showUsage = Boolean(usageAdapter && usage && usage.mode === 'enforce' && !usage.exempt);
 
   const handleResultUpdate = useCallback((updated: PropertyAnalysis) => {
@@ -223,6 +228,8 @@ export default function PropertyAnalyzer() {
               skipEntrance={wasLoading}
               onUpdate={handleResultUpdate}
               onAnalyzeAnother={() => { setInputExpanded(true); setUrl(''); }}
+              onUsageLimit={handleUsageLimit}
+              onUsageChange={refreshUsage}
             />
           )}
         </>
